@@ -3,13 +3,17 @@ import { useEffect, useState } from "react";
 import { Bar, BarChart, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import Layout, { Card, ErrorBox, Hero, NoDataGuide, Stat } from "@/components/Layout";
 import { fmtPeriod } from "@/components/RegionCard";
-import { api, type Overview } from "@/lib/api";
+import { api, type Overview, type VisitConditions } from "@/lib/api";
 import { dist, num, SEQ, shortSido } from "@/lib/format";
 
 export default function OverviewPage() {
   const [d, setD] = useState<Overview | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  useEffect(() => { api<Overview>("/overview").then(setD).catch((e) => setErr(e.message)); }, []);
+  const [visit, setVisit] = useState<VisitConditions | null>(null);
+  useEffect(() => {
+    api<Overview>("/overview").then(setD).catch((e) => setErr(e.message));
+    api<VisitConditions>("/visit/conditions").then(setVisit).catch(() => null);   // 예보를 안 받았으면 배너 없음
+  }, []);
   const noData = !!err && /CALC_RUN_NOT_FOUND|완료된 계산/.test(err);
 
   return (
@@ -22,6 +26,7 @@ export default function OverviewPage() {
 
       <div className="mx-auto max-w-page space-y-5 px-4 pb-20">
         {err && (noData ? <NoDataGuide /> : <ErrorBox error={err} />)}
+        {visit && <VisitBanner v={visit} />}
         {d && (
           <>
             <div className="rise grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -124,5 +129,21 @@ function TopList({ title, items, unit, metric, digits = 0 }: {
         ))}
       </ol>
     </Card>
+  );
+}
+
+function VisitBanner({ v }: { v: VisitConditions }) {
+  const day = v.meta.dates.find((x) => x.date === v.meta.date)?.label || v.meta.date;
+  const bad = v.summary.byLevel["나쁨"] || 0, warn = v.summary.byLevel["주의"] || 0;
+  return (
+    <Link href="/today" className="card rise flex flex-wrap items-center gap-x-4 gap-y-1 p-4 text-ink no-underline hover:bg-white/90">
+      <span className="text-[13px] font-semibold text-ink-2">{day}의 방문 여건</span>
+      <span className="text-[15px]">
+        {bad || warn ? <>나쁨 <b className="text-[#d70015]">{num(bad)}곳</b> · 주의 <b>{num(warn)}곳</b>
+          {v.summary.atRiskAged > 0 && <> · 우체국에서 먼 65세 이상 <b>{num(v.summary.atRiskAged)}명</b></>}</>
+          : "전국 시군구 모두 좋음"}
+      </span>
+      <span className="link ml-auto text-[14px]">자세히 ›</span>
+    </Link>
   );
 }

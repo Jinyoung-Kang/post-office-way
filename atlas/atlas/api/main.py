@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 
 from atlas.api import errors
-from atlas.api.routers import admin, areas, banks, dq, facilities, health, meta, metrics, overview, plan, whatif
+from atlas.api.routers import admin, areas, banks, dq, facilities, health, meta, metrics, overview, plan, visit, whatif
 from atlas.core.db import get_engine
 from atlas.core.logging import setup_logging
 from atlas.core.migrate import migrate
@@ -50,5 +50,5 @@ async def trace(request: Request, call_next):
     return response
 
 
-for r in (health, meta, overview, facilities, banks, areas, metrics, whatif, plan, dq, admin):
+for r in (health, meta, overview, facilities, banks, areas, metrics, whatif, plan, visit, dq, admin):
     app.include_router(r.router, prefix="/api/v1")

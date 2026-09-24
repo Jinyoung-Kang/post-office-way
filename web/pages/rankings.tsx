@@ -29,8 +29,10 @@ export default function Rankings() {
   useEffect(() => {
     if (level === 3 && !sido) return;
     setErr(null);
+    let alive = true;   // 조건을 빠르게 바꿀 때 이전 응답이 덮어쓰지 않게
     api<Resp>(`/areas${qs({ level, metric, parent: level === 3 ? sido : undefined, sort, size: 20 })}`)
-      .then(setData).catch((e) => { setData(null); setErr(e.message); });
+      .then((r) => { if (alive) setData(r); }).catch((e) => { if (alive) { setData(null); setErr(e.message); } });
+    return () => { alive = false; };
   }, [metric, level, sido, sort]);
 
   const unit = data?.metric.unit || "";

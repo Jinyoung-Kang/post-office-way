@@ -65,3 +65,11 @@ export function shortSido(name: string | null | undefined): string {
   if (!name) return "";
   return SIDO_SHORT[name] ?? name.replace(/(특별시|광역시|특별자치시|통합특별시)$/, "");
 }
+
+// ⑥ 방문 여건 — 상태 색(좋음·주의·나쁨)은 이 판정에만 씀. 색만으로 구분하지 않도록 항상 글자 라벨과 함께 표시
+export const VISIT_FILL: Record<number, string> = { 0: "#b9e2c4", 1: "#ffcf7a", 2: "#f07a80" };
+export const VISIT_BADGE: Record<number, string> = { 0: "badge-good", 1: "badge-warn", 2: "badge-error" };
+export const VISIT_LABEL: Record<number, string> = { 0: "좋음", 1: "주의", 2: "나쁨" };
+export const REASON_LABEL: Record<string, string> = {
+  RAIN: "비", SNOW: "눈", HEAT: "더위", COLD: "추위", WIND: "바람", PM10: "미세먼지", PM25: "초미세먼지",
+};

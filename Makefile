@@ -12,8 +12,9 @@
 #   make road      ② 카카오모빌리티 도로 거리 (MAX=8000 호출 예산, 다시 실행하면 이어서)
 #   make geocheck  ③ 카카오 주소 검색으로 시설 좌표 검증 (DQ)
 #   make extras    oa → banks → road → geocheck → calc
+#   make weather   ⑥ 방문 여건 — 기상청 단기예보·에어코리아 예보 (약 2분, 하루 1~3회. DATA_GO_KR_KEY 없으면 건너뜀)
 #   make calc      지표 계산 (calc_run)
-#   make all-data  discover(필요 시) → collect → sgis → kosis → extras(oa·banks·road·geocheck) → calc
+#   make all-data  discover(필요 시) → collect → sgis → kosis → extras(oa·banks·road·geocheck) → calc → weather
 #   make test      단위·계약·SQL 테스트 (PostGIS 테스트 DB 사용)
 #   make status    수집·계산 현황   make logs / make psql / make down
 #   make prune     오래된 원문·스냅샷·계산 결과 정리 (KEEP=3 수집 run, KEEP_CALC=5 계산 run)
@@ -24,7 +25,7 @@ COMPOSE := docker compose
 RUN := $(COMPOSE) --profile batch run --rm collector
 
 .DEFAULT_GOAL := help
-.PHONY: help env up down restart logs ps build smoke discover collect sgis sgis-pop sgis-bnd kosis oa banks road geocheck extras calc all-data prune \
+.PHONY: help env up down restart logs ps build smoke discover collect sgis sgis-pop sgis-bnd kosis oa banks road geocheck extras weather calc all-data prune \
         status test test-unit psql web-dev api-dev reset
 
 help:
@@ -93,6 +94,9 @@ road: env
 geocheck: env
 	$(RUN) collect geocheck $(if $(MAX),--max-calls $(MAX),)
 
+weather: env
+	$(RUN) collect weather
+
 extras: env
 	$(MAKE) oa
 	$(MAKE) banks
@@ -109,6 +113,7 @@ all-data: env
 	$(MAKE) sgis
 	$(MAKE) kosis
 	$(MAKE) extras
+	$(MAKE) weather
 
 status:
 	@$(RUN) status

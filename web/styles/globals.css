@@ -46,8 +46,8 @@ a { color: var(--link); }
 .gnav a.item.on { opacity: 1; font-weight: 600; }
 
 /* 히어로 */
-.hero-title { font-size: clamp(34px, 5vw, 56px); line-height: 1.07; font-weight: 700; letter-spacing: -0.028em; }
-.hero-sub { font-size: clamp(17px, 2vw, 21px); line-height: 1.38; color: var(--text-2); font-weight: 500; letter-spacing: -0.01em; }
+.hero-title { font-size: clamp(34px, 5vw, 56px); line-height: 1.07; font-weight: 700; letter-spacing: -0.028em; word-break: keep-all; }
+.hero-sub { font-size: clamp(17px, 2vw, 21px); line-height: 1.38; color: var(--text-2); font-weight: 500; letter-spacing: -0.01em; word-break: keep-all; }
 .eyebrow { font-size: 14px; font-weight: 600; color: var(--warn); letter-spacing: 0; }
 .section-title { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.14; }
 

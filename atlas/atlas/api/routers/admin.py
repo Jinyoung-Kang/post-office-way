@@ -18,7 +18,8 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 log = logging.getLogger(__name__)
 
 KINDS = {"post": "POST_AREA", "sgis-pop": "SGIS_POP", "sgis-bnd": "SGIS_BND", "kosis": "KOSIS_POP",
-         "oa": "SGIS_OA", "geocheck": "KAKAO_GEO", "banks": "KAKAO_BANK", "road": "KAKAO_ROAD"}
+         "oa": "SGIS_OA", "geocheck": "KAKAO_GEO", "banks": "KAKAO_BANK", "road": "KAKAO_ROAD",
+         "kma": "KMA_FCST", "air": "AIR_FCST"}
 
 
 def _auth(token: str | None) -> None:
@@ -69,6 +70,13 @@ def trigger_collect(kind: str, scope: str | None = None, x_admin_token: str | No
 
         _bg(f"collect-{kind}", {"oa": collect_oa, "geocheck": run_geocheck, "banks": collect_banks,
                                 "road": collect_road}[kind])
+    elif kind in ("kma", "air"):
+        if not get_settings().data_go_kr_key:
+            raise ApiError(400, "KEY_MISSING", ".env 에 DATA_GO_KR_KEY 가 없습니다.")
+        from atlas.collector.weather.air import collect_air
+        from atlas.collector.weather.kma import collect_kma
+
+        _bg(f"collect-{kind}", collect_kma if kind == "kma" else collect_air)
     elif kind == "sgis-pop":
         from atlas.collector.sgis.pipeline import collect_population
 

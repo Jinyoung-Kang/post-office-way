@@ -8,6 +8,7 @@ import { dt, short } from "@/lib/format";
 const NAV = [
   { href: "/overview", label: "한눈에" },
   { href: "/", label: "지도" },
+  { href: "/today", label: "방문 여건" },
   { href: "/rankings", label: "지역 순위" },
   { href: "/whatif", label: "What-if" },
   { href: "/plan", label: "배치 제안" },
@@ -69,7 +70,7 @@ export default function Layout({ children, full, title }: { children: ReactNode;
           <div className="mx-auto max-w-page space-y-2 px-4 py-6 text-[12px] leading-relaxed text-ink-2">
             <p>이 서비스의 지표는 분석용으로 정의한 값이며 공식 통계가 아닙니다. 거리는 직선거리(EPSG:5179)입니다.</p>
             <p>데이터 기준 — {basisText(calc)}</p>
-            <p className="text-ink-3">출처: 우정사업본부 「우체국 찾기」 · 통계청 SGIS(총조사 주요지표·행정구역·집계구 경계) · KOSIS 주민등록인구(행정안전부) · 카카오(지도·로컬·모빌리티)</p>
+            <p className="text-ink-3">출처: 우정사업본부 「우체국 찾기」 · 통계청 SGIS(총조사 주요지표·행정구역·집계구 경계) · KOSIS 주민등록인구(행정안전부) · 카카오(지도·로컬·모빌리티) · 기상청 단기예보 · 한국환경공단 에어코리아</p>
           </div>
         </footer>
       )}

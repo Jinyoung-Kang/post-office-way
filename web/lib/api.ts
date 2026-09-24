@@ -111,3 +111,20 @@ export function qs(p: Record<string, string | number | boolean | null | undefine
   const out = s.toString();
   return out ? `?${out}` : "";
 }
+
+// ⑥ 방문 여건 (기상청 단기예보 · 에어코리아 예보, 규칙 VISIT-1)
+export type VisitReason = { code: string; level: number; text: string };
+export type VisitItem = {
+  admCd: string; admNm: string; parentNm: string | null; airRegion: string | null;
+  level: 0 | 1 | 2 | null; label: string; reasons: VisitReason[];
+  hours: number; tmpMin: number | null; tmpMax: number | null; popMax: number | null; pcpMm: number; snoCm: number;
+  wsdMax: number | null; pm10: string | null; pm25: string | null;
+  agedFarPpltn: number | null; farPpltn: number | null; nearestFinM: number | null; atRiskAged: number | null;
+};
+export type VisitConditions = {
+  meta: { date: string; dates: { date: string; label: string }[]; window: string; weatherBaseAt: string | null;
+    airAnnouncedAt: string | null; ruleVersion: string; calcRunId: string | null; note: string };
+  items: VisitItem[];
+  summary: { areas: number; byLevel: Record<string, number>; byReason: Record<string, number>; atRiskAged: number; atRiskAreas: number };
+};
+export type VisitOutlook = { admCd: string; admNm: string; ruleVersion: string; days: (VisitItem & { date: string; dayLabel: string })[] };

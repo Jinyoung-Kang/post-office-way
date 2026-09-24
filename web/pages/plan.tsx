@@ -1,7 +1,7 @@
 import dynamic from "next/dynamic";
 import type AtlasMapType from "@/components/AtlasMap";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Layout, { Card, Empty, ErrorBox, Hero, Segmented, Stat } from "@/components/Layout";
 import type { Marker } from "@/components/AtlasMap";
 import { api, qs, type AreaFC, type AreaProps, type PlanClose, type PlanOpen, type Region } from "@/lib/api";
@@ -32,17 +32,26 @@ export default function PlanPage() {
     }).catch(() => null);
   }, []);
   const scope = sgg || sido;
+  const latest = useRef({ scope, mode });
+  latest.current = { scope, mode };
 
   // 범위의 읍면동 지도 (현재 최근접 거리) — 결과 위치를 보는 바탕
+  // 시도·시군구를 빠르게 바꾸면 느린 이전 응답이 나중에 도착할 수 있어, 현재 범위의 응답만 반영
   useEffect(() => {
     if (!scope) return;
-    api<AreaFC>(`/areas/geojson${qs({ level: 3, metric: "NEAREST_FIN_DIST_M", parent: scope })}`).then(setFc).catch(() => setFc(null));
+    let alive = true;
+    api<AreaFC>(`/areas/geojson${qs({ level: 3, metric: "NEAREST_FIN_DIST_M", parent: scope })}`)
+      .then((r) => { if (alive) setFc(r); }).catch(() => { if (alive) setFc(null); });
+    return () => { alive = false; };
   }, [scope]);
 
   async function run() {
     setBusy(true); setErr(null); setRes(null);
+    const req = { scope, mode };
     try {
-      setRes(await api<PlanClose | PlanOpen>(`/plan/${mode}`, { method: "POST", body: JSON.stringify({ scope, k, weight }) }));
+      const r = await api<PlanClose | PlanOpen>(`/plan/${mode}`, { method: "POST", body: JSON.stringify({ scope, k, weight }) });
+      // 계산 중에 범위·모드를 바꿨다면 이 결과는 버림
+      setRes((cur) => (latest.current.scope === req.scope && latest.current.mode === req.mode ? r : cur));
     } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
   }
 
@@ -119,7 +128,7 @@ export default function PlanPage() {
           )}
           <div className="card overflow-hidden">
             <AtlasMap<AreaProps> className="h-[460px]" features={fc?.features || []} styleOf={styleOf} tooltipOf={tooltipOf}
-              markers={markers} geomKey={scope} />
+              markers={markers} geomKey={String(fc?.meta.parent ?? scope)} />
           </div>
           {!res && <Empty>조건을 고르고 ‘제안 받기’를 누르세요. 지도는 지금의 최근접 금융 우체국 거리입니다(진할수록 멂).</Empty>}
           {res?.mode === "close" && (

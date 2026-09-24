@@ -1,0 +1,52 @@
+{
+ "response": {
+  "body": {
+   "totalCount": 4,
+   "items": [
+    {
+     "informCode": "PM10",
+     "informData": "2026-09-24",
+     "dataTime": "2026-09-24 05시 발표",
+     "informGrade": "서울 : 좋음,제주 : 좋음,전남 : 좋음,전북 : 좋음,광주 : 좋음,경남 : 좋음,경북 : 좋음,울산 : 좋음,대구 : 좋음,부산 : 좋음,충남 : 좋음,충북 : 좋음,세종 : 좋음,대전 : 좋음,영동 : 좋음,영서 : 좋음,경기남부 : 좋음,경기북부 : 좋음,인천 : 좋음",
+     "informOverall": "○ [미세먼지] 전 권역이 '좋음'∼'보통'으로 예상됩니다.",
+     "informCause": "",
+     "actionKnack": null,
+     "imageUrl1": "https://www.airkorea.or.kr/file/proxyImage?fileName=x.gif"
+    },
+    {
+     "informCode": "PM10",
+     "informData": "2026-09-24",
+     "dataTime": "2026-09-24 11시 발표",
+     "informGrade": "서울 : 보통,제주 : 좋음,전남 : 좋음,전북 : 좋음,광주 : 좋음,경남 : 보통,경북 : 보통,울산 : 좋음,대구 : 보통,부산 : 좋음,충남 : 보통,충북 : 보통,세종 : 보통,대전 : 보통,영동 : 좋음,영서 : 보통,경기남부 : 보통,경기북부 : 보통,인천 : 보통",
+     "informOverall": "○ [미세먼지] 전 권역이 '좋음'∼'보통'으로 예상됩니다.",
+     "informCause": "",
+     "actionKnack": null
+    },
+    {
+     "informCode": "PM10",
+     "informData": "2026-09-25",
+     "dataTime": "2026-09-24 11시 발표",
+     "informGrade": "서울 : 나쁨,제주 : 좋음,전남 : 보통,전북 : 보통,광주 : 보통,경남 : 보통,경북 : 나쁨,울산 : 보통,대구 : 보통,부산 : 보통,충남 : 나쁨,충북 : 매우나쁨,세종 : 나쁨,대전 : 나쁨,영동 : 보통,영서 : 나쁨,경기남부 : 나쁨,경기북부 : 나쁨,인천 : 나쁨",
+     "informOverall": "○ [미세먼지] 중서부 '나쁨'",
+     "informCause": "",
+     "actionKnack": null
+    },
+    {
+     "informCode": "PM10",
+     "informData": "2026-09-26",
+     "dataTime": "2026-09-24 11시 발표",
+     "informGrade": "",
+     "informOverall": "",
+     "informCause": "",
+     "actionKnack": null
+    }
+   ],
+   "pageNo": 1,
+   "numOfRows": 100
+  },
+  "header": {
+   "resultMsg": "NORMAL_CODE",
+   "resultCode": "00"
+  }
+ }
+}

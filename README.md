@@ -6,6 +6,26 @@
 
 > ⚠ 이 서비스의 지표는 이 프로젝트가 정의한 **분석용 지표이며 공식 통계가 아닙니다.** 거리는 직선거리입니다.
 
+![한눈에 — 전국 요약](docs/images/overview.png)
+
+<table>
+<tr>
+<td width="50%"><img src="docs/images/map.jpg" alt="지도 — 시군구별 65세 이상 2km 밖 인구와 지역 카드"><br><sub><b>지도</b> · 시군구 단계구분도 + 지역 카드 (의성군, 65세 이상 2km 밖 인구)</sub></td>
+<td width="50%"><img src="docs/images/map-emd.jpg" alt="지도 — 읍면동과 우체국 시설 레이어"><br><sub><b>지도</b> · 읍면동 확대 + 우체국 시설 레이어</sub></td>
+</tr>
+<tr>
+<td><img src="docs/images/whatif.jpg" alt="What-if — 의성우체국 폐국 가정"><br><sub><b>What-if</b> · 의성우체국이 닫힌다면 — 영향 인구·지역·늘어나는 거리</sub></td>
+<td><img src="docs/images/plan.jpg" alt="배치 제안 — 의성군 폐국 영향 최소 순서"><br><sub><b>배치 제안</b> · 의성군에서 닫을 때 영향이 가장 작은 순서</sub></td>
+</tr>
+<tr>
+<td><img src="docs/images/rankings.png" alt="지역 순위"><br><sub><b>지역 순위</b> · 지표별 전국 시군구 상·하위 20곳</sub></td>
+<td><img src="docs/images/quality.png" alt="데이터 품질"><br><sub><b>데이터 품질</b> · 수집·계산 실행별 품질 검사와 이슈</sub></td>
+</tr>
+</table>
+
+<sub>화면은 로컬 실데이터로 찍었습니다(2026-09-24). 다시 찍으려면 서비스를 띄운 상태에서
+`pip install playwright && python scripts/capture_screens.py` (설치된 Google Chrome 사용).</sub>
+
 ---
 
 ## 1. 처음 실행하기 (맥, Docker Desktop 필요)
@@ -28,6 +48,11 @@ open http://localhost:3100/overview
 | `NEXT_PUBLIC_KAKAO_JS_KEY` | Kakao Developers JavaScript 키 (플랫폼 도메인 `http://localhost:3100`, 카카오맵 사용 ON) | 필수 | 지도 |
 | `KOSIS_API_KEY` | KOSIS 공유서비스 사용자 인증키 | 선택 | 65세 이상 인구·고령인구 지표·What-if 영향 고령인구 |
 | `KAKAO_REST_API_KEY` | Kakao REST 키 (같은 앱) | 선택 | 도로 거리(모빌리티)·은행 지점·주소 좌표 검증(로컬) |
+| `DATA_GO_KR_KEY` | 공공데이터포털 **일반 인증키(Decoding)** — 「기상청_단기예보 조회서비스」·「한국환경공단_에어코리아_대기오염정보」 활용신청 | 선택 | ⑥ 방문 여건 (날씨·미세먼지) |
+
+> `POST_SERVICE_KEY`(우체국)는 우정사업본부가 따로 발급한 키라 기상청·에어코리아에는 쓸 수 없습니다. 공공데이터포털
+> 마이페이지의 일반 인증키를 `DATA_GO_KR_KEY` 에 넣으세요. 활용신청 승인 후 키가 반영되기까지 최대 1시간 걸릴 수 있습니다
+> (`make smoke` ⑤ 에서 `SERVICE_KEY_IS_NOT_REGISTERED_ERROR` 가 나오면 잠시 뒤 다시 확인).
 
 ---
 
@@ -37,6 +62,7 @@ open http://localhost:3100/overview
 |---|---|---|
 | **한눈에** | `/overview` | 전국 요약. 금융 가능 우체국 수, 인구 가중 평균 거리, 2km 밖 인구·고령인구, 거리대별 인구 분포, 취약 시군구 Top 5. 목록을 누르면 지도로 이동 |
 | **지도** | `/` | 왼쪽 패널에서 **지표**(집계구 거리·도로 거리·은행 거리·금융 공백 포함)를 고르고 **시군구 · 전국 / 읍면동**을 바꿉니다. 지역에 마우스를 올리면 값·순위, 누르면 오른쪽에 **지역 카드**(최근접 우체국 3곳, 모든 지표와 전국 순위, SGIS 인구, KOSIS 주민등록인구, 지역 안 시설). 카드에는 최근접 우체국의 **도로 거리·차량 시간**, **가까운 은행·금고 지점**도 나옵니다. 카드의 **읍면동으로 보기**로 내려갑니다. **은행·금고 지점 보기**로 보라색 지점 레이어를 켭니다. **우체국 시설 보기**를 켜고(도 단위 이하로 확대) 점을 누르면 **시설 카드** → **이 우체국이 문을 닫는다면** 으로 What-if 에 바로 추가 |
+| **방문 여건** | `/today` | ⑥ **오늘·내일·모레** 창구 운영 시간(09~18시)의 날씨·미세먼지로 시군구마다 **좋음·주의·나쁨**을 판정해 지도에 칠하고, **우체국에서 2km 넘게 사는 65세 이상**이 많은 순으로 "먼저 살펴볼 지역"을 보여 줍니다(찾아가는 우체국·전화 안내 우선순위). 지도의 지역 카드와 한눈에 화면에도 같은 판정이 나옵니다 |
 | **지역 순위** | `/rankings` | 지표·단위·정렬(큰 값/작은 값 20)을 고르면 막대 차트와 표. 막대나 행을 누르면 지도에서 그 지역으로 확대 |
 | **What-if** | `/whatif` | 우체국을 이름·주소로 검색해 최대 5곳 추가 → **계산하기**. 영향 지역(주황, 증가량이 클수록 진함)·영향 인구·**영향 65세 이상**·평균/최대 거리 변화, **새로 2km 밖이 되는 인구(집계구)**, **2km 안 금융 창구가 모두 사라지는 인구**, 영향 지역별 은행 지점 거리. 결과 주소(`?scenario=…`)는 공유·재조회 가능 |
 | **배치 제안** | `/plan` | 범위(시도·시군구)·개수(1~7)·기준(65세 이상/전체 인구)을 고르고 **폐국 영향 최소**(닫아도 영향이 가장 작은 조합 + 지켜야 할 우체국) 또는 **신설 효과 최대**(새로 열면 효과가 가장 큰 읍면동)를 받습니다. 결과 우체국은 What-if 로 바로 이어서 확인 |
@@ -60,14 +86,15 @@ API 문서: http://localhost:8100/docs (FastAPI 자동 생성)
 | `make road` | ② 카카오모빌리티 도로 거리 — `MAX=8000` 호출 예산, 다시 실행하면 이어서 + 실패·우회 경로 보정 | 25분 |
 | `make geocheck` | ③ 카카오 주소 검색으로 시설 좌표 검증 (1km 넘게 다르면 품질 경고) | 8분 |
 | `make extras` | oa → banks → road → geocheck → calc | — |
+| `make weather` | ⑥ 기상청 단기예보(시군구 격자 약 240곳) + 에어코리아 미세먼지 예보 → 방문 여건. 계산(`make calc`) 없이 바로 반영 | 약 2분 |
 | `make discover` | 우편 지역코드 seed 재생성 (명세서 코드표가 없을 때) | 4.5분 |
 | `make status` | 키 설정 여부, 최근 수집·계산 현황, 적재 건수 | — |
-| `make test` | 단위·계약·SQL(PostGIS)·What-if 동등성·API·고도화 기능 테스트 (98개) | 4초 |
+| `make test` | 단위·계약·SQL(PostGIS)·What-if 동등성·API·고도화 기능 테스트 (125개) | 4초 |
 | `make prune` | 오래된 원문(raw)·스냅샷(stg)·INFO 이슈는 종류별 최근 `KEEP=3` 개 수집만, 계산 결과(지표·집계구 최근접·지난 What-if)는 최근 `KEEP_CALC=5` 개 계산만 남김 (수집 1회 약 10MB, 계산 1회 약 25MB) | — |
 | `make logs` / `make psql` / `make down` | 로그 / DB 접속 / 정지 | — |
 
-권장 주기: 시설은 하루 1회(`make collect && make calc`), SGIS·KOSIS 는 통계 연도가 바뀔 때(적재 후 반드시 `make calc`), 주 1회 `make prune`.
-관리 API 로도 실행할 수 있습니다: `POST /api/v1/admin/collect/{post|sgis-pop|sgis-bnd|kosis}`, `POST /api/v1/admin/calc`
+권장 주기: 방문 여건은 하루 1~3회(`make weather` — 예보 발표 05·11·17시 이후 권장), 시설은 하루 1회(`make collect && make calc`), SGIS·KOSIS 는 통계 연도가 바뀔 때(적재 후 반드시 `make calc`), 주 1회 `make prune`.
+관리 API 로도 실행할 수 있습니다: `POST /api/v1/admin/collect/{post|sgis-pop|sgis-bnd|kosis|oa|banks|road|geocheck|kma|air}`, `POST /api/v1/admin/calc`
 (헤더 `X-Admin-Token: $ADMIN_TOKEN`).
 
 ---
@@ -90,6 +117,18 @@ API 문서: http://localhost:8100/docs (FastAPI 자동 생성)
 
 **R-FIN-01 금융 가능 판정**: post_div ∈ {0,1} · 금융시간이 HH:MM~HH:MM · `00:00~00:00` 아님 · 우편집중국 아님.
 
+**VISIT-1 방문 여건 판정** (시군구 대표점의 기상청 5km 격자 · 09~18시 시간 예보 + 에어코리아 권역 예보, 가장 나쁜 항목 기준):
+
+| 항목 | 주의 | 나쁨 |
+|---|---|---|
+| 비 | 운영 시간에 비 | 합계 30mm 이상 또는 시간당 10mm 이상 |
+| 눈 | 눈·진눈깨비 | 신적설 합 1cm 이상 |
+| 더위 · 추위 | 최고 31℃ 이상 · 최저 -5℃ 이하 | 33℃ 이상 · -10℃ 이하 |
+| 바람 | 풍속 9m/s 이상 | 14m/s 이상 |
+| 미세먼지 · 초미세먼지 | 예보 '나쁨' | '매우나쁨' |
+
+영향 인구 = 여건이 주의 이상인 시군구의 `AGED65_FAR_PPLTN` 합. 판정은 조회 때 계산하므로 규칙을 바꿔도 다시 수집할 필요가 없습니다.
+
 ---
 
 ## 5. 아키텍처
@@ -101,12 +140,12 @@ api  (FastAPI · SQLAlchemy 2 · psycopg 3)  :8100  ── redis :6389 (GeoJSON�
   │  공간 연산은 SQL(PostGIS)로 위임
 db   (PostgreSQL 16 + PostGIS 3.6)  :5442   raw / stg / mart / ops 스키마
   ▲
-collector (배치, 같은 atlas 패키지) — make collect / sgis / kosis / calc
+collector (배치, 같은 atlas 패키지) — make collect / sgis / kosis / calc / weather
 ```
 
 - 모든 포트는 `127.0.0.1` 에만 바인딩. 기존 매크로 대시보드(3000/8080/8000/5432/6379)와 동시에 실행 가능.
 - 원본 응답은 `raw.api_response` 에 키(`serviceKey`·`consumer_secret`·`accessToken`·`apiKey`)를 `***` 로 바꿔 저장.
-- 지표 SQL 은 `atlas/atlas/sql/calc/*.sql`, 설계 결정은 [`docs/adr/`](docs/adr/) (ADR-001~010).
+- 지표 SQL 은 `atlas/atlas/sql/calc/*.sql`, 설계 결정은 [`docs/adr/`](docs/adr/) (ADR-001~011).
 
 ### What-if 부분 재계산 (ADR-005)
 `mart.area_nearest` 에 지역별 최근접 상위 3개를 저장해 두고, 제외한 시설이 1순위인 지역만 2·3순위로 대체합니다
@@ -161,6 +200,7 @@ collector (배치, 같은 atlas 패키지) — make collect / sgis / kosis / cal
 - 집계구 경계(2025 기준)와 인구(2024)의 코드가 달라 약 2,400곳은 인구가 없어 제외됩니다(품질 화면 OA_UNMATCHED).
 - 도로 거리는 자동차 경로이며, 일부 지역은 강·산으로 직선의 10배 넘는 우회가 나옵니다(실제일 수도, 출발점 문제일 수도).
 - 은행 지점은 지역마다 '가까운 지점 3곳'을 모은 합집합이라 최근접 판정에는 정확하지만 전국 지점 전수는 아닙니다.
+- 방문 여건은 시군구 대표점이 있는 5km 격자 하나의 예보로 시군구 전체를 판정하고(산간·해안 차이 미반영), 미세먼지는 19개 권역 예보입니다. 기상특보가 아닌 분석용 참고 정보입니다.
 - 배치 제안은 탐욕법 근사(직선거리)이며 비용·수요·도로를 고려하지 않은 검토용입니다.
 - 우편 지역코드표 원본(명세서 .docx)이 없어 `make discover` 로 탐색했습니다. 표가 있으면 `seed/area_codes.csv` 를 교체하세요.
 
@@ -182,3 +222,4 @@ CI(GitHub Actions)는 PR 마다 Python 테스트(PostGIS 서비스 컨테이너)
 - SGIS 개발지원센터 — 집계구 경계(statsarea) · 집계구 인구
 - 카카오 로컬(주소 검색·장소 범주 검색) · 카카오모빌리티(자동차 길찾기)
 - Kakao 지도 Web API
+- 기상청 「단기예보 조회서비스」(VilageFcstInfoService_2.0) · 한국환경공단 에어코리아 「대기오염정보」(대기질 예보통보) — 공공데이터포털

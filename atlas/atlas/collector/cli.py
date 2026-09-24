@@ -10,6 +10,7 @@
   atlas collect road [--max-calls N]     ② 카카오모빌리티 도로 거리 (캐시·예산 안에서 이어서)
   atlas collect geocheck [--max-calls N] ③ 카카오 주소 검색으로 시설 좌표 검증
   atlas collect banks                    ④ 카카오 로컬 은행·금고 지점
+  atlas collect weather|kma|air          ⑥ 방문 여건 — 기상청 단기예보·에어코리아 미세먼지 예보 (하루 1~3회)
   atlas calc [--levels 2,3]
   atlas status                           최근 수집·계산 현황
   atlas prune [--keep 3]                 오래된 원문(raw)·스냅샷(stg) 정리 — 종류별 최근 N개 run 만 남김
@@ -74,6 +75,14 @@ def cmd_collect(a: argparse.Namespace) -> int:
             from atlas.collector.kakao.banks import collect_banks
 
             ids = [collect_banks()]
+    elif a.what in ("weather", "kma", "air"):
+        if not get_settings().data_go_kr_key:
+            print("DATA_GO_KR_KEY 가 없어 건너뜁니다 (.env 에 공공데이터포털 일반 인증키를 넣으면 방문 여건이 켜집니다).")
+            return 0
+        from atlas.collector.weather.air import collect_air
+        from atlas.collector.weather.kma import collect_kma
+
+        ids = ([collect_kma()] if a.what != "air" else []) + ([collect_air()] if a.what != "kma" else [])
     elif a.what == "kosis":
         from atlas.collector.kosis.pipeline import collect_kosis
 
@@ -96,7 +105,9 @@ def cmd_collect(a: argparse.Namespace) -> int:
     ok = all(r["status"] in ("DONE", "PARTIAL") for r in rows)
     if any((r["stats"] or {}).get("remaining") for r in rows):
         print("\n→ 아직 남은 대상이 있습니다. 같은 명령을 다시 실행하면 이어서 채웁니다(쿼터·예산 보호).")
-    if ok and a.what not in ("post", "geocheck"):
+    if ok and a.what in ("weather", "kma", "air"):
+        print("\n→ 화면 「방문 여건」에 바로 반영됩니다(다시 계산할 필요 없음).")
+    elif ok and a.what not in ("post", "geocheck"):
         # 인구·경계·주민등록 값은 calc 때 지표로 굳어지므로, 새로 적재했으면 다시 계산해야 화면에 반영됨
         print("\n→ 지표에 반영하려면 `make calc` 를 실행하세요.")
     return 0 if ok else 1
@@ -129,7 +140,8 @@ def cmd_status(_: argparse.Namespace) -> int:
             (SELECT count(*) FROM mart.area_resident_pop) AS kosis_rows""")).mappings().one()
     s = get_settings()
     _print({"keys": {"POST_SERVICE_KEY": bool(s.post_service_key), "SGIS_CONSUMER_KEY": bool(s.sgis_consumer_key),
-                     "SGIS_CONSUMER_SECRET": bool(s.sgis_consumer_secret), "KOSIS_API_KEY": bool(s.kosis_api_key)},
+                     "SGIS_CONSUMER_SECRET": bool(s.sgis_consumer_secret), "KOSIS_API_KEY": bool(s.kosis_api_key),
+                     "KAKAO_REST_API_KEY": bool(s.kakao_rest_api_key), "DATA_GO_KR_KEY": bool(s.data_go_kr_key)},
             "collect": [dict(r) for r in runs], "latestCalc": dict(calc) if calc else None, "counts": dict(counts)})
     return 0
 
@@ -185,7 +197,8 @@ def build_parser() -> argparse.ArgumentParser:
     d.add_argument("--extra", default="", help="범위 밖 추가 코드(쉼표)")
     d.set_defaults(fn=cmd_discover)
     c = sub.add_parser("collect")
-    c.add_argument("what", choices=["post", "sgis", "sgis-pop", "sgis-bnd", "kosis", "oa", "road", "geocheck", "banks"])
+    c.add_argument("what", choices=["post", "sgis", "sgis-pop", "sgis-bnd", "kosis", "oa", "road", "geocheck", "banks",
+                                   "weather", "kma", "air"])
     c.add_argument("--refresh", action="store_true", help="집계구 경계를 전부 다시 받기 (oa)")
     c.add_argument("--max-calls", type=int, help="호출 예산 (road·geocheck)")
     c.add_argument("--scope", help="지역코드 목록 (post)")

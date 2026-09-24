@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { api, qs, type AreaDetail, type Facility } from "@/lib/api";
+import { api, qs, type AreaDetail, type Facility, type VisitOutlook } from "@/lib/api";
 import { dist, dt, num, short, withUnit } from "@/lib/format";
 import { ErrorBox } from "@/components/Layout";
+import VisitBadge from "@/components/VisitBadge";
 
 // 지역 카드 — 모든 숫자에 calc_run·수집 시점 표시 (FR-502, NFR-07)
 export default function RegionCard({ admCd, calcRunId, highlight, onDrill, onClose }: {
@@ -13,7 +14,10 @@ export default function RegionCard({ admCd, calcRunId, highlight, onDrill, onClo
 
   useEffect(() => {
     setD(null); setErr(null);
-    api<AreaDetail>(`/areas/${admCd}${qs({ calcRunId })}`).then(setD).catch((e) => setErr(e.message));
+    let alive = true;   // 지역을 연달아 누르면 마지막 지역의 응답만 표시
+    api<AreaDetail>(`/areas/${admCd}${qs({ calcRunId })}`)
+      .then((r) => { if (alive) setD(r); }).catch((e) => { if (alive) setErr(e.message); });
+    return () => { alive = false; };
   }, [admCd, calcRunId]);
 
   if (err) return <ErrorBox error={err} />;
@@ -38,6 +42,8 @@ export default function RegionCard({ admCd, calcRunId, highlight, onDrill, onClo
         </div>
       )}
       {onDrill && <button className="btn-ghost" onClick={() => onDrill(d.admCd)}>읍면동으로 보기</button>}
+
+      <VisitRows admCd={d.admCd} />
 
       <Group label="최근접 금융 가능 우체국 ⚠ 직선거리">
         {d.nearest.length ? d.nearest.map((n) => (
@@ -110,7 +116,12 @@ export default function RegionCard({ admCd, calcRunId, highlight, onDrill, onClo
 export function FacilityCard({ f: base, onClose }: { f: Facility; onClose?: () => void }) {
   // 지도 레이어 항목에는 좌표 검증 결과가 없어 상세를 한 번 더 조회
   const [detail, setDetail] = useState<Facility | null>(null);
-  useEffect(() => { setDetail(null); api<Facility>(`/facilities/${base.histId}`).then(setDetail).catch(() => null); }, [base.histId]);
+  useEffect(() => {
+    setDetail(null);
+    let alive = true;
+    api<Facility>(`/facilities/${base.histId}`).then((r) => { if (alive) setDetail(r); }).catch(() => null);
+    return () => { alive = false; };
+  }, [base.histId]);
   const f = detail || base;
   return (
     <div className="space-y-5 text-[14px]">
@@ -171,4 +182,30 @@ export function CloseButton({ onClick }: { onClick: () => void }) {
 
 export function fmtPeriod(p?: string | null) {
   return p && p.length === 6 ? `${p.slice(0, 4)}.${p.slice(4)}` : p || "—";
+}
+
+// ⑥ 방문 여건 — 시군구(읍면동이면 상위 시군구)의 오늘~모레. 예보를 아직 안 받았으면 표시하지 않음
+function VisitRows({ admCd }: { admCd: string }) {
+  const [o, setO] = useState<VisitOutlook | null>(null);
+  useEffect(() => {
+    setO(null);
+    let alive = true;
+    api<VisitOutlook>(`/visit/conditions/${admCd}`).then((r) => { if (alive) setO(r); }).catch(() => null);
+    return () => { alive = false; };
+  }, [admCd]);
+  if (!o || !o.days.length) return null;
+  return (
+    <Group label={`방문 여건 · ${o.admNm} 09~18시 예보`}>
+      {o.days.map((x) => (
+        <div key={x.date} className="row">
+          <span className="min-w-0">
+            <span className="block font-medium">{x.dayLabel} <span className="text-[12px] font-normal text-ink-3">{num(x.tmpMin, 0)}~{num(x.tmpMax, 0)}℃</span></span>
+            <span className="block truncate text-[12px] text-ink-3">{x.reasons.map((r) => r.text).join(" · ") || "특이 사항 없음"}</span>
+          </span>
+          <VisitBadge level={x.level} />
+        </div>
+      ))}
+      <Link href="/today" className="row link text-[13px]">전국 방문 여건 보기 ›</Link>
+    </Group>
+  );
 }

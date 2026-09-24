@@ -1,0 +1,151 @@
+import dynamic from "next/dynamic";
+import Link from "next/link";
+import { useRouter } from "next/router";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type AtlasMapType from "@/components/AtlasMap";
+import Layout, { Card, ErrorBox, Hero, Segmented, Stat } from "@/components/Layout";
+import VisitBadge from "@/components/VisitBadge";
+import { api, qs, type AreaFC, type AreaProps, type VisitConditions, type VisitItem } from "@/lib/api";
+import { dist, dt, num, NO_DATA, REASON_LABEL, shortSido, VISIT_FILL, VISIT_LABEL } from "@/lib/format";
+
+const AtlasMap = dynamic(() => import("@/components/AtlasMap"), { ssr: false }) as typeof AtlasMapType;
+type P = AreaProps & { visit?: VisitItem };
+
+export default function TodayPage() {
+  const router = useRouter();
+  const [date, setDate] = useState<string | undefined>(undefined);
+  const [d, setD] = useState<VisitConditions | null>(null);
+  const [fc, setFc] = useState<AreaFC | null>(null);
+  const [err, setErr] = useState<{ code?: string; message: string } | null>(null);
+  const [all, setAll] = useState(false);
+
+  useEffect(() => {
+    api<AreaFC>(`/areas/geojson${qs({ level: 2, metric: "AGED65_FAR_PPLTN" })}`).then(setFc).catch(() => setFc(null));
+  }, []);
+  useEffect(() => {
+    let alive = true;
+    setErr(null);
+    api<VisitConditions>(`/visit/conditions${qs({ date })}`)
+      .then((r) => { if (alive) { setD(r); setDate((cur) => cur ?? r.meta.date); } })
+      .catch((e) => { if (alive) { setD(null); setErr({ code: e.code, message: e.message }); } });
+    return () => { alive = false; };
+  }, [date]);
+
+  const byCd = useMemo(() => new Map((d?.items || []).map((x) => [x.admCd, x])), [d]);
+  const features = useMemo(() => (fc?.features || []).map((f) => ({ ...f, properties: { ...f.properties, visit: byCd.get(f.properties.admCd) } as P })), [fc, byCd]);
+  const styleOf = useCallback((p: P) => {
+    const lv = p.visit?.level;
+    return { fill: lv === null || lv === undefined ? NO_DATA : VISIT_FILL[lv], opacity: 0.85, stroke: "#ffffff" };
+  }, []);
+  const tooltipOf = useCallback((p: P) => {
+    const v = p.visit;
+    if (!v || v.level === null) return `<b>${p.admNm}</b><br/>예보 없음`;
+    const why = v.reasons.length ? v.reasons.map((r) => r.text).join(" · ") : "특이 사항 없음";
+    return `<b>${p.admNm}</b> · ${v.label}<br/>${why}<br/>2km 밖 65세 이상 ${num(v.agedFarPpltn)}명`;
+  }, []);
+
+  const risky = (d?.items || []).filter((x) => (x.level ?? 0) >= 1);
+  const shown = all ? risky : risky.slice(0, 20);
+  const topReason = Object.entries(d?.summary.byReason || {}).sort((a, b) => b[1] - a[1])[0];
+  const noData = err?.code === "VISIT_NO_DATA";
+
+  return (
+    <Layout title="방문 여건">
+      <Hero eyebrow="오늘의 방문 여건" title={<>오늘, 우체국 가는 길은<br className="hidden sm:block" /> 괜찮을까요.</>}
+        sub="기상청 단기예보와 에어코리아 미세먼지 예보로 시군구마다 창구 운영 시간(09~18시)의 방문 부담을 판정하고, 우체국에서 멀리 사는 고령인구와 함께 보여 줍니다." />
+
+      <div className="mx-auto max-w-page space-y-5 px-4 pb-20">
+        {noData && <SetupGuide />}
+        {err && !noData && <ErrorBox error={err.message} />}
+        {d && (
+          <>
+            <div className="card flex flex-wrap items-center gap-3 p-4">
+              <Segmented ariaLabel="날짜" value={d.meta.date} onChange={(v) => setDate(v)}
+                options={d.meta.dates.map((x) => ({ value: x.date, label: `${x.label} ${x.date.slice(5).replace("-", ".")}` }))} />
+              <span className="flex-1" />
+              <span className="text-[12px] text-ink-3">운영 시간 {d.meta.window} 예보 기준</span>
+            </div>
+
+            <div className="rise grid grid-cols-2 gap-3 md:grid-cols-4">
+              <Stat label="나쁨" value={`${num(d.summary.byLevel["나쁨"])}곳`} tone={d.summary.byLevel["나쁨"] ? "bad" : undefined}
+                note={`시군구 ${num(d.summary.areas)}곳 중`} />
+              <Stat label="주의" value={`${num(d.summary.byLevel["주의"])}곳`} note={`좋음 ${num(d.summary.byLevel["좋음"])}곳`} />
+              <Stat label="먼 곳 고령인구 · 여건 주의 이상" value={`${num(d.summary.atRiskAged)}명`} tone={d.summary.atRiskAged ? "bad" : undefined}
+                note="우체국까지 2km 넘는 65세 이상 (KOSIS)" />
+              <Stat label="가장 많은 원인" value={topReason ? REASON_LABEL[topReason[0]] || topReason[0] : "없음"}
+                note={topReason ? `${num(topReason[1])}개 시군구` : "모든 시군구 여건 좋음"} />
+            </div>
+
+            <Card title="시군구별 방문 여건" pad={false}
+              right={<span className="flex items-center gap-3 text-[12px] text-ink-2">
+                {[0, 1, 2].map((lv) => (
+                  <span key={lv} className="flex items-center gap-1.5">
+                    <span className="inline-block h-3 w-3 rounded-[4px]" style={{ background: VISIT_FILL[lv] }} />{VISIT_LABEL[lv]}
+                  </span>
+                ))}
+                <span className="flex items-center gap-1.5"><span className="inline-block h-3 w-3 rounded-[4px]" style={{ background: NO_DATA }} />예보 없음</span>
+              </span>}>
+              <div className="px-3 pb-3">
+                <AtlasMap<P> className="h-[560px] overflow-hidden rounded-[14px]" features={features} styleOf={styleOf}
+                  tooltipOf={tooltipOf} geomKey="sgg" onSelect={(cd) => router.push(`/?adm=${cd}&metric=AGED65_FAR_PPLTN`)} />
+              </div>
+            </Card>
+
+            <Card title="먼저 살펴볼 지역" pad={false}
+              right={<span className="text-[12px] text-ink-3">여건 주의 이상 {num(risky.length)}곳 · 나쁨 먼저, 먼 곳 고령인구 많은 순</span>}>
+              {risky.length ? (
+                <div className="overflow-x-auto px-3 pb-3">
+                  <table className="tbl">
+                    <thead className="whitespace-nowrap"><tr><th>지역</th><th>여건</th><th>원인</th><th className="num">기온</th><th className="num">강수</th>
+                      <th className="num">2km 밖 65세+</th><th className="num">최근접 우체국</th></tr></thead>
+                    <tbody>{shown.map((x) => (
+                      <tr key={x.admCd} className="clickable" onClick={() => router.push(`/?adm=${x.admCd}&metric=AGED65_FAR_PPLTN`)}>
+                        <td className="whitespace-nowrap"><span className="text-ink-3">{shortSido(x.parentNm)} </span><span className="font-medium">{x.admNm}</span></td>
+                        <td className="whitespace-nowrap"><VisitBadge level={x.level} /></td>
+                        <td className="min-w-[180px] text-[13px]">{x.reasons.map((r) => r.text).join(" · ")}</td>
+                        <td className="num whitespace-nowrap">{num(x.tmpMin, 0)}~{num(x.tmpMax, 0)}℃</td>
+                        <td className="num whitespace-nowrap">{x.pcpMm ? `${num(x.pcpMm, 1)}mm` : x.snoCm ? `${num(x.snoCm, 1)}cm` : "—"}</td>
+                        <td className="num font-medium">{num(x.agedFarPpltn)}</td>
+                        <td className="num whitespace-nowrap">{dist(x.nearestFinM)}</td>
+                      </tr>
+                    ))}</tbody>
+                  </table>
+                  {risky.length > shown.length && <button className="link mt-3 px-3" onClick={() => setAll(true)}>{num(risky.length - shown.length)}곳 더 보기 ›</button>}
+                </div>
+              ) : <p className="px-6 pb-6 text-[15px] text-ink-2">이날은 모든 시군구의 방문 여건이 좋습니다.</p>}
+            </Card>
+
+            <Card title="이렇게 판정합니다">
+              <div className="grid gap-x-8 gap-y-2 text-[14px] text-ink-2 md:grid-cols-2">
+                <p><b className="text-ink">비</b> — 운영 시간에 비가 오면 주의, 합계 30mm 이상이거나 한 시간에 10mm 이상이면 나쁨</p>
+                <p><b className="text-ink">눈</b> — 눈·진눈깨비가 오면 주의, 쌓이는 눈이 1cm 이상이면 나쁨(빙판·낙상)</p>
+                <p><b className="text-ink">더위</b> — 최고 31℃ 이상 주의, 33℃ 이상 나쁨 (폭염특보 기준 참고)</p>
+                <p><b className="text-ink">추위</b> — 최저 -5℃ 이하 주의, -10℃ 이하 나쁨</p>
+                <p><b className="text-ink">바람</b> — 풍속 9m/s 이상 주의, 14m/s 이상 나쁨 (강풍주의보 기준 참고)</p>
+                <p><b className="text-ink">미세먼지</b> — PM10·PM2.5 예보 ‘나쁨’ 주의, ‘매우나쁨’ 나쁨 (권역 예보)</p>
+              </div>
+              <p className="mt-4 text-[12px] leading-relaxed text-ink-3">
+                ⚠ {d.meta.note} 날씨는 시군구 대표점이 있는 5km 격자 한 곳의 예보입니다. 규칙 {d.meta.ruleVersion} ·
+                기상청 발표 {dt(d.meta.weatherBaseAt)} · 에어코리아 발표 {dt(d.meta.airAnnouncedAt)} · 먼 곳 고령인구는 calcRun 기준
+                {" "}<Link href="/about/metrics" className="link text-[12px]">지표 정의 ›</Link>
+              </p>
+            </Card>
+          </>
+        )}
+      </div>
+    </Layout>
+  );
+}
+
+function SetupGuide() {
+  return (
+    <div className="card mx-auto max-w-lg p-6 text-center">
+      <p className="text-[17px] font-semibold">아직 받은 예보가 없습니다</p>
+      <p className="mt-2 text-[14px] leading-relaxed text-ink-2">
+        공공데이터포털에서 「기상청_단기예보 조회서비스」와 「한국환경공단_에어코리아_대기오염정보」를 활용신청한 뒤,
+        일반 인증키(Decoding)를 <code>.env</code> 의 <code>DATA_GO_KR_KEY</code> 에 넣고 실행하세요.
+      </p>
+      <pre className="mt-3 rounded-[10px] bg-surface p-3 text-[13px]">make weather</pre>
+    </div>
+  );
+}

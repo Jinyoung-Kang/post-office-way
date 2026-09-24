@@ -16,9 +16,9 @@ type CalcRun = { calcRunId: string; statYear: number; status: string; createdAt:
 const KIND_LABEL: Record<string, string> = {
   POST_AREA: "우체국 시설", POST_DISCOVER: "지역코드 탐색", SGIS_POP: "SGIS 인구", SGIS_BND: "SGIS 경계",
   KOSIS_POP: "KOSIS 주민등록인구", CALC: "지표 계산", SGIS_OA: "SGIS 집계구", KAKAO_GEO: "주소 좌표 검증",
-  KAKAO_BANK: "은행·금고 지점", KAKAO_ROAD: "도로 거리",
+  KAKAO_BANK: "은행·금고 지점", KAKAO_ROAD: "도로 거리", KMA_FCST: "기상청 단기예보", AIR_FCST: "에어코리아 예보",
 };
-const KIND_ORDER = ["POST_AREA", "SGIS_POP", "SGIS_BND", "SGIS_OA", "KOSIS_POP", "KAKAO_GEO", "KAKAO_BANK", "KAKAO_ROAD", "CALC"];
+const KIND_ORDER = ["POST_AREA", "SGIS_POP", "SGIS_BND", "SGIS_OA", "KOSIS_POP", "KAKAO_GEO", "KAKAO_BANK", "KAKAO_ROAD", "KMA_FCST", "AIR_FCST", "CALC"];
 const SEV: Record<string, string> = { ERROR: "badge-error", WARN: "badge-warn", INFO: "badge-info" };
 const STATUS: Record<string, string> = { DONE: "badge-good", PARTIAL: "badge-warn", FAILED: "badge-error", RUNNING: "badge-info" };
 const DETAIL_LABEL: Record<string, string> = {
@@ -44,9 +44,12 @@ export default function Quality() {
 
   useEffect(() => {
     const r = filter.run;
+    let alive = true;
     api<Page<Issue>>(`/dq/issues${qs({ collectRunId: r?.scope === "collect" ? r.runId : undefined,
       calcRunId: r?.scope === "calc" ? r.runId : undefined, checkCode: filter.code, severity: filter.severity,
-      scope: filter.scope, page: filter.page, size: 30 })}`).then(setIssues).catch((e) => setErr(e.message));
+      scope: filter.scope, page: filter.page, size: 30 })}`)
+      .then((x) => { if (alive) setIssues(x); }).catch((e) => { if (alive) setErr(e.message); });
+    return () => { alive = false; };
   }, [filter]);
 
   return (

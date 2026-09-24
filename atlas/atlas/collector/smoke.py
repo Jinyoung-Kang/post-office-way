@@ -93,5 +93,29 @@ def smoke() -> bool:
             name = body[0].get("TBL_NM") if isinstance(body, list) and body else None
             print(f"   HTTP {r.status_code} · 통계표={name or body}")
             ok &= bool(name)
+        print("⑤ (선택) 공공데이터포털 — 기상청 단기예보·에어코리아 미세먼지 예보")
+        if not s.data_go_kr_key:
+            print("   – DATA_GO_KR_KEY 없음 (선택 기능, 건너뜀)")
+        else:
+            from datetime import timedelta
+
+            from atlas.collector.weather.client import _error_of, now_kst
+            from atlas.collector.weather.kma import latest_base
+
+            secrets.append(s.data_go_kr_key)
+            base, now = latest_base(now_kst()), now_kst()
+            for label, url, params, fname in (
+                ("기상청 단기예보(서울 60,127)", f"{s.kma_base_url}/getVilageFcst",
+                 {"pageNo": 1, "numOfRows": 20, "dataType": "JSON", "base_date": f"{base:%Y%m%d}",
+                  "base_time": f"{base:%H%M}", "nx": 60, "ny": 127}, "kma_vilage_60_127.json"),
+                ("에어코리아 미세먼지 예보", f"{s.airkorea_base_url}/getMinuDustFrcstDspth",
+                 {"returnType": "json", "numOfRows": 10, "pageNo": 1, "InformCode": "PM10",
+                  "searchDate": f"{(now - timedelta(hours=6)).date()}"}, "air_frcst_pm10.json")):
+                r = h.get(url, params={**params, "serviceKey": s.data_go_kr_key})
+                code, msg = _error_of(r.status_code, r.text)
+                print(f"   {label}: HTTP {r.status_code} · resultCode={code} {msg} → {_save(fname, r.text, secrets)}")
+                if code in ("30", "20") or "SERVICE_KEY" in (msg or ""):
+                    print("     ↳ 키가 이 API 에 아직 등록되지 않았습니다. 공공데이터포털에서 활용신청(승인 후 반영까지 최대 1시간)을 확인하세요.")
+                ok &= code in ("00", "03")
     print("\n결과:", "모두 정상 ✓" if ok else "실패 항목이 있습니다 ✗")
     return ok

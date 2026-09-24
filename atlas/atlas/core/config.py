@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     sgis_consumer_secret: str = ""
     kakao_rest_api_key: str = ""
     kosis_api_key: str = ""
+    data_go_kr_key: str = ""                  # 공공데이터포털 일반 인증키 — 기상청 단기예보·에어코리아 (방문 여건)
     admin_token: str = ""
 
     stat_year: int = 2024
@@ -39,6 +40,9 @@ class Settings(BaseSettings):
     kakao_navi_base: str = "https://apis-navi.kakaomobility.com"
     kakao_call_delay_ms: int = 60             # 카카오 호출 간 지연
     road_max_calls: int = 8000                # 도로 거리 수집 1회 호출 예산 (쿼터 보호, 다음 실행에 이어서)
+    kma_base_url: str = "https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0"
+    airkorea_base_url: str = "https://apis.data.go.kr/B552584/ArpltnInforInqireSvc"
+    datago_call_delay_ms: int = 100           # 공공데이터포털(기상청·에어코리아) 호출 간 지연
     post_call_delay_ms: int = 300
     http_timeout_s: float = 10.0
     http_retries: int = 3
@@ -47,7 +51,7 @@ class Settings(BaseSettings):
     seed_dir: str = str(_REPO_ROOT / "seed")
 
     @field_validator("post_service_key", "sgis_consumer_key", "sgis_consumer_secret",
-                     "kakao_rest_api_key", "kosis_api_key", "admin_token", mode="before")
+                     "kakao_rest_api_key", "kosis_api_key", "data_go_kr_key", "admin_token", mode="before")
     @classmethod
     def _strip(cls, v: object) -> object:
         if isinstance(v, str):

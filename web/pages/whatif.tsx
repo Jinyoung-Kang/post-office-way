@@ -27,10 +27,12 @@ export default function WhatIfPage() {
 
   useEffect(() => {
     if (q.trim().length < 2) { setHits([]); return; }
+    let alive = true;   // 타이핑 중 늦게 온 이전 검색 결과는 버림
     const t = setTimeout(() => {
-      api<Page<Facility>>(`/facilities${qs({ q: q.trim(), finOnly: true, size: 20 })}`).then((r) => setHits(r.items)).catch(() => setHits([]));
+      api<Page<Facility>>(`/facilities${qs({ q: q.trim(), finOnly: true, size: 20 })}`)
+        .then((r) => { if (alive) setHits(r.items); }).catch(() => { if (alive) setHits([]); });
     }, 250);
-    return () => clearTimeout(t);
+    return () => { alive = false; clearTimeout(t); };
   }, [q]);
 
   const load = useCallback(async (id: string) => {
