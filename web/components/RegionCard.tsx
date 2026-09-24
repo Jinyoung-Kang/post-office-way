@@ -61,7 +61,7 @@ export default function RegionCard({ admCd, calcRunId, highlight, onDrill, onClo
               <span className="block truncate text-[12px] text-ink-3">{b.addr || "—"}</span></span>
             <span className="tnum shrink-0 font-medium">{dist(b.distM)}</span>
           </div>
-        )) : <div className="row text-ink-3">자료 없음 (make banks 로 적재)</div>}
+        )) : <div className="row text-ink-3">20km 안에서 찾은 지점 없음 (은행 자료를 아직 안 받았다면 make banks)</div>}
       </Group>
 
       <Group label="접근성 지표 (전국 순위)">

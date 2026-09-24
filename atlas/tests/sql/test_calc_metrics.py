@@ -132,3 +132,17 @@ def test_kosis_aged_metrics(terrain, engine):
     assert m[("99040010", "AGED65_FAR_PPLTN")] == 500 and m[("99040020", "AGED65_FAR_PPLTN")] == 400
     assert m[("99040", "AGED65_FAR_PPLTN")] == 900              # 시군구 = 하위 합
     assert ("99010", "AGED65_FAR_PPLTN") not in m               # 읍면동이 없는 시군구는 합할 대상 없음
+
+
+def test_prune_keeps_recent_calc_runs(terrain, engine):
+    """make prune — 오래된 계산(지표·최근접)은 지우고 최근 N개 + 가장 최근 DONE 은 남김."""
+    import argparse
+
+    from atlas.collector.cli import cmd_prune
+
+    ids = [run_calc(stat_year=2024, levels=[2]) for _ in range(3)]
+    cmd_prune(argparse.Namespace(keep=3, keep_calc=1))
+    with engine.connect() as c:
+        left = [r[0] for r in c.execute(text("SELECT calc_run_id FROM mart.calc_run"))]
+        metrics = c.execute(text("SELECT count(DISTINCT calc_run_id) FROM mart.access_metric")).scalar_one()
+    assert left == [ids[-1]] and metrics == 1

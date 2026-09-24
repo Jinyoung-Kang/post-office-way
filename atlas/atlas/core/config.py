@@ -39,7 +39,6 @@ class Settings(BaseSettings):
     kakao_navi_base: str = "https://apis-navi.kakaomobility.com"
     kakao_call_delay_ms: int = 60             # 카카오 호출 간 지연
     road_max_calls: int = 8000                # 도로 거리 수집 1회 호출 예산 (쿼터 보호, 다음 실행에 이어서)
-    far_km: float = 2.0                       # '먼 거리' 기준 (집계구·금융 공백 지표)
     post_call_delay_ms: int = 300
     http_timeout_s: float = 10.0
     http_retries: int = 3

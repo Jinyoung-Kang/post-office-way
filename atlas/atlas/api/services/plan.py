@@ -75,6 +75,24 @@ def greedy_close(areas: list[Area], candidates: list[int], k: int, far_m: float)
     return steps
 
 
+def single_impacts(areas: list[Area], far_m: float) -> dict[int, dict[str, float]]:
+    """각 시설을 '혼자' 닫을 때의 영향 — 그 시설이 1순위인 수요 지점만 2순위로 바뀜. O(지점 수)."""
+    out: dict[int, dict[str, float]] = {}
+    for a in areas:
+        for h, _ in a.cands:
+            out.setdefault(h, {"addedCost": 0.0, "newlyFar": 0.0, "areasAffected": 0})
+        if len(a.cands) < 2:
+            continue
+        (h1, d1), (_, d2) = a.cands[0], a.cands[1]
+        if d2 > d1:
+            o = out[h1]
+            o["addedCost"] += a.w * (d2 - d1)
+            o["areasAffected"] += 1
+            if d1 <= far_m < d2:
+                o["newlyFar"] += a.w
+    return out
+
+
 def greedy_open(cur: dict[str, float], w: dict[str, float], near: dict[str, list[tuple[str, float]]],
                 k: int, far_m: float) -> list[dict[str, Any]]:
     """새로 열면 효과가 가장 큰 후보지부터 k개. near[s] = [(지역, 후보지까지 거리)]."""
@@ -139,7 +157,7 @@ def _oa_weights(c: Connection, y: int, oas: list[str], weight: str) -> tuple[dic
     return {cd: float(p or 0) for cd, p, _ in rows}, "pop"
 
 
-ALGO_VERSION = "2"   # 알고리즘·응답 형식이 바뀌면 올려서 이전 캐시를 무효화
+ALGO_VERSION = "3"   # 알고리즘·응답 형식이 바뀌면 올려서 이전 캐시를 무효화
 
 
 def _key(kind: str, run_id: Any, **kw: Any) -> str:
@@ -166,8 +184,10 @@ def plan_close(c: Connection, scope: str, k: int, weight: str, level: int | None
     facs = {r["hist_id"]: dict(r) for r in c.execute(text(f"""
         SELECT h.hist_id, h.name, h.addr, ST_Y(h.geom) AS lat, ST_X(h.geom) AS lon
           FROM mart.post_facility_hist h
-          JOIN mart.facility_area_map m ON m.hist_id = h.hist_id AND m.stat_year = :y AND m.level = 2
-         WHERE {snap} AND m.adm_cd LIKE :scope || '%'"""), {"asof": run["facility_as_of"], "y": y, "scope": scope}).mappings()}
+          JOIN mart.facility_area_map m ON m.hist_id = h.hist_id AND m.stat_year = :y AND m.level = :mlvl
+         WHERE {snap} AND m.adm_cd LIKE :scope || '%'"""),
+        {"asof": run["facility_as_of"], "y": y, "scope": scope,
+         "mlvl": min(int(x) for x in run["params"].get("levels", [2]))}).mappings()}
     if not facs:
         raise not_found("NO_CANDIDATE", f"범위 {scope} 안에 금융 가능 우체국이 없습니다.")
     use_oa = c.execute(text("""SELECT 1 FROM mart.oa_area WHERE stat_year = :y AND emd_cd LIKE :scope || '%'
@@ -208,8 +228,10 @@ def plan_close(c: Connection, scope: str, k: int, weight: str, level: int | None
         w, used = _weights(c, y, list(cands), weight)
     areas = [Area(cd, w.get(cd, 0.0), lst) for cd, lst in cands.items()]
     steps = greedy_close(areas, sorted(facs), k, far_m)
-    # 모든 후보의 '단독 폐국' 영향 (표용)
-    singles = sorted(({**facs[h], "histId": h, **greedy_close(areas, [h], 1, far_m)[0]} for h in facs),
+    # 모든 후보의 '단독 폐국' 영향 (표용) — 한 번 훑어서 계산
+    si = single_impacts(areas, far_m)
+    zero = {"addedCost": 0.0, "newlyFar": 0.0, "areasAffected": 0}
+    singles = sorted(({**facs[h], "histId": h, **si.get(h, zero)} for h in facs),
                      key=lambda r: (r["addedCost"], r["histId"]))
     removed: set[int] = set()
     out_steps = []

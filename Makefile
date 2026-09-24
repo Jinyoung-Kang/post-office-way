@@ -16,7 +16,7 @@
 #   make all-data  discover(필요 시) → collect → sgis → kosis → extras(oa·banks·road·geocheck) → calc
 #   make test      단위·계약·SQL 테스트 (PostGIS 테스트 DB 사용)
 #   make status    수집·계산 현황   make logs / make psql / make down
-#   make prune     오래된 원문·스냅샷 정리 (KEEP=3 — 종류별 최근 run 수)
+#   make prune     오래된 원문·스냅샷·계산 결과 정리 (KEEP=3 수집 run, KEEP_CALC=5 계산 run)
 # =============================================================================
 
 SHELL := /bin/bash
@@ -114,7 +114,7 @@ status:
 	@$(RUN) status
 
 prune: env
-	$(RUN) prune --keep $(or $(KEEP),3)
+	$(RUN) prune --keep $(or $(KEEP),3) --keep-calc $(or $(KEEP_CALC),5)
 
 # 테스트 DB(atlas_test)는 운영 DB 와 분리 — 테스트가 스키마를 지우고 다시 만듭니다.
 test: env

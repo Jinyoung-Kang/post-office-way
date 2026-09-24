@@ -136,9 +136,19 @@ def cmd_status(_: argparse.Namespace) -> int:
 
 def cmd_prune(a: argparse.Namespace) -> int:
     """raw 원문은 재처리용, stg 는 병합용 스냅샷 — 수집마다 약 10MB 씩 늘어 종류별 최근 N개 run 만 남깁니다.
+    계산 결과도 계산마다 약 25MB(집계구 최근접 10만 행 등)라 최근 N개 계산만 남깁니다.
     품질 이슈는 이력으로 남기되 INFO(수천 건 반복)만 함께 정리합니다."""
-    keep = max(1, a.keep)
+    keep, keep_calc = max(1, a.keep), max(1, a.keep_calc)
     with get_engine().begin() as c:
+        # 계산 결과(지표·최근접·집계구 최근접·What-if)는 계산마다 약 25MB — 최근 N개 계산만 남김(가장 최근 DONE 은 항상 보존)
+        old_calc = f"""SELECT calc_run_id FROM (
+                          SELECT calc_run_id, row_number() OVER (ORDER BY created_at DESC) AS rn FROM mart.calc_run
+                           WHERE status <> 'RUNNING') x WHERE rn > {keep_calc}
+                        AND calc_run_id <> (SELECT calc_run_id FROM mart.calc_run WHERE status = 'DONE'
+                                             ORDER BY finished_at DESC NULLS LAST LIMIT 1)"""
+        c.execute(text(f"DELETE FROM ops.dq_issue WHERE calc_run_id IN ({old_calc})"))
+        c.execute(text(f"DELETE FROM ops.dq_check WHERE calc_run_id IN ({old_calc})"))
+        calc = c.execute(text(f"DELETE FROM mart.calc_run WHERE calc_run_id IN ({old_calc})")).rowcount
         old = f"""SELECT collect_run_id FROM (
                      SELECT collect_run_id, row_number() OVER (PARTITION BY kind ORDER BY started_at DESC) AS rn
                        FROM ops.collect_run WHERE status <> 'RUNNING') x WHERE rn > {keep}"""
@@ -146,7 +156,8 @@ def cmd_prune(a: argparse.Namespace) -> int:
         stg = c.execute(text(f"DELETE FROM stg.post_facility WHERE collect_run_id IN ({old})")).rowcount
         info = c.execute(text(f"DELETE FROM ops.dq_issue WHERE severity = 'INFO' AND collect_run_id IN ({old})")).rowcount
         size = c.execute(text("SELECT pg_size_pretty(pg_total_relation_size('raw.api_response'))")).scalar()
-    _print({"keepPerKind": keep, "deleted": {"raw": raw, "stg": stg, "dqInfo": info}, "rawTableSize": size,
+    _print({"keepPerKind": keep, "keepCalc": keep_calc,
+            "deleted": {"raw": raw, "stg": stg, "dqInfo": info, "calcRuns": calc}, "rawTableSize": size,
             "note": "디스크 공간은 PostgreSQL autovacuum 이 재사용합니다."})
     return 0
 
@@ -165,7 +176,8 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("smoke").set_defaults(fn=cmd_smoke)
     sub.add_parser("status").set_defaults(fn=cmd_status)
     pr = sub.add_parser("prune")
-    pr.add_argument("--keep", type=int, default=3, help="종류별로 남길 최근 run 수")
+    pr.add_argument("--keep", type=int, default=3, help="종류별로 남길 최근 수집 run 수")
+    pr.add_argument("--keep-calc", type=int, default=5, help="남길 최근 계산 run 수 (지난 What-if 결과도 함께 삭제)")
     pr.set_defaults(fn=cmd_prune)
     d = sub.add_parser("discover")
     d.add_argument("what", choices=["post"])

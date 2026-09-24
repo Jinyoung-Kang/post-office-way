@@ -61,3 +61,16 @@ def test_clean_addr_and_haversine():
     assert clean_addr("경기 구리시 산마루로 6, 101~102호 (갈매중심타워)") == "경기 구리시 산마루로 6"
     assert haversine_m(37.0, 127.0, 37.0, 127.0) == 0
     assert haversine_m(37.0, 127.0, 37.009, 127.0) == pytest.approx(1000.8, abs=2)   # 위도 0.009° ≈ 1km
+
+
+def test_single_impacts_matches_greedy_one_step():
+    """단독 영향(한 번에 계산)이 탐욕법 1단계를 시설마다 따로 돌린 결과와 같아야 함."""
+    from atlas.api.services.plan import single_impacts
+
+    areas = [Area("X", 10, [(1, 100), (2, 300), (3, 900)]), Area("Y", 1, [(2, 100), (1, 2500)]),
+             Area("Z", 5, [(3, 1800), (1, 2600)])]
+    si = single_impacts(areas, far_m=2000)
+    for h in (1, 2, 3):
+        g = greedy_close(areas, [h], 1, far_m=2000)[0]
+        assert si[h]["addedCost"] == pytest.approx(g["addedCost"]) and si[h]["newlyFar"] == g["newlyFar"], h
+        assert si[h]["areasAffected"] == g["areasAffected"], h
