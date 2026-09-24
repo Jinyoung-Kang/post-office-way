@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 명세서(D1) 응답 구조를 따라 만든 계약 테스트용 표본. 값은 형식 설명용 가상 값.
+     실제 응답은 `make smoke` 가 fixtures/post_area_100_p1.xml 로 저장하며, 있으면 함께 검증합니다. -->
+<postListResponse>
+  <postMsgHeader>
+    <totalCount>3</totalCount>
+    <pageCount>50</pageCount>
+    <totalPage>1</totalPage>
+    <nowPage>1</nowPage>
+  </postMsgHeader>
+  <postItem>
+    <postId>110001</postId>
+    <postDiv>0</postDiv>
+    <postNm>가상중앙우체국</postNm>
+    <postAddr>서울특별시 중구 가상로 70</postAddr>
+    <postTel>02-000-0000</postTel>
+    <postLat>37.5636</postLat>
+    <postLon>126.9815</postLon>
+    <postTime>09:00~18:00</postTime>
+    <postFinanceTime>09:00~16:30</postFinanceTime>
+    <lunchTimeYn>N</lunchTimeYn>
+    <lunchTime></lunchTime>
+    <post365Yn>Y</post365Yn>
+    <modDt>2024-03-02</modDt>
+  </postItem>
+  <postItem>
+    <postId>110002</postId>
+    <postDiv>1</postDiv>
+    <postNm>가상우편취급국</postNm>
+    <postAddr>서울특별시 중구 예시길 1</postAddr>
+    <postTel>null</postTel>
+    <postLat>37.5601</postLat>
+    <postLon>126.9790</postLon>
+    <postTime>09:00~18:00</postTime>
+    <postFinanceTime>00:00~00:00</postFinanceTime>
+    <lunchTimeYn>Y</lunchTimeYn>
+    <lunchtime>12:00~13:00</lunchtime>
+    <post365Yn>N</post365Yn>
+    <modDt>2018-05-30</modDt>
+  </postItem>
+  <postItem>
+    <postId>110003</postId>
+    <postDiv>2</postDiv>
+    <postNm>가상 우체통</postNm>
+    <postAddr>서울특별시 중구 예시길 2</postAddr>
+    <postLat></postLat>
+    <postLon>126.9800</postLon>
+    <postTime>null</postTime>
+    <postFinanceTime/>
+  </postItem>
+</postListResponse>

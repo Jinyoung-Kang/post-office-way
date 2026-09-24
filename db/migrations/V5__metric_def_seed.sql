@@ -1,0 +1,23 @@
+-- V5 — 지표 정의 seed (5장 지표 정의서). 공식 통계가 아닌 분석용 지표입니다.
+INSERT INTO mart.metric_def (metric_code, name_ko, unit, formula, limitation, higher_is_worse, sort_order) VALUES
+('NEAREST_FIN_DIST_M', '최근접 금융 가능 우체국 거리', 'm',
+ '지역 대표점(ST_PointOnSurface) → 금융 가능 시설(R-FIN-01) 중 최근접(KNN) 직선거리. EPSG:5179 변환 후 ST_Distance.',
+ '직선거리(도로 거리 아님). 대표점 1개로 지역 전체를 대표.', true, 10),
+('FAC_CNT_R1KM', '반경 1km 안 금융 가능 우체국 수', '개',
+ 'ST_DWithin(대표점, 금융 가능 시설, 1000m) 개수 (EPSG:5179).',
+ '행정구역 경계 밖 시설도 포함. 대표점 기준.', false, 20),
+('FAC_CNT_R2KM', '반경 2km 안 금융 가능 우체국 수', '개',
+ 'ST_DWithin(대표점, 금융 가능 시설, 2000m) 개수 (EPSG:5179).',
+ '행정구역 경계 밖 시설도 포함. 대표점 기준.', false, 21),
+('FAC_CNT_R5KM', '반경 5km 안 금융 가능 우체국 수', '개',
+ 'ST_DWithin(대표점, 금융 가능 시설, 5000m) 개수 (EPSG:5179).',
+ '행정구역 경계 밖 시설도 포함. 대표점 기준.', false, 22),
+('HAS_365', '365코너 존재 여부', '0/1',
+ '지역 안(공간 조인) post365_yn=''Y'' 또는 post_div=3 시설이 1개 이상이면 1.',
+ '시군구 레벨에서 주로 의미. 읍면동은 0이 많음.', false, 30),
+('LUNCH_CLOSED_RATIO', '점심 휴무 우체국 비율', '%',
+ '지역 안 우체국(post_div 0·1, 우편집중국 제외) 중 lunch_yn=''Y'' 비율 × 100.',
+ '우체국 5개 미만 지역은 값 없음(—).', true, 40),
+('ACCESS_GAP_SCORE', '접근성 취약 점수', '점',
+ '100 × (0.6 × minmax(NEAREST_FIN_DIST_M) + 0.4 × minmax(노령화지수)). 같은 level·calc_run 안에서 0~100.',
+ '가중치는 임의 설정값(calc_run.params 로 조정). 순위 비교용이며 절대 수준을 뜻하지 않음.', true, 50);

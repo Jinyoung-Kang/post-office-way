@@ -1,0 +1,129 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ---------------------------------------------------------------------------
+   디자인 토큰 — apple.com 톤: 밝은 회색 바탕(#f5f5f7), 흰 카드, #1d1d1f 본문, #0071e3 강조
+   --------------------------------------------------------------------------- */
+:root {
+  --bg: #f5f5f7;
+  --surface: #ffffff;
+  --text: #1d1d1f;
+  --text-2: #6e6e73;
+  --text-3: #86868b;
+  --line: rgba(0, 0, 0, 0.08);
+  --fill: rgba(118, 118, 128, 0.12);
+  --accent: #0071e3;
+  --accent-hover: #0077ed;
+  --link: #0066cc;
+  --good: #1d8a3a;
+  --warn: #b25000;
+  --bad: #d70015;
+  --glass: rgba(255, 255, 255, 0.72);
+}
+
+html, body { background: var(--bg); color: var(--text); }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Apple SD Gothic Neo",
+    "Pretendard", "Noto Sans KR", "Helvetica Neue", sans-serif;
+  -webkit-font-smoothing: antialiased; font-size: 15px; letter-spacing: -0.01em; line-height: 1.47;
+}
+::selection { background: rgba(0, 113, 227, 0.2); }
+a { color: var(--link); }
+
+/* 컴포넌트 클래스는 components 레이어에 둬서 w-auto 같은 유틸리티가 덮어쓸 수 있게 (밖에 두면 .field 의 width:100% 가 이김) */
+@layer components {
+/* 글로벌 내비게이션 — 반투명 + 블러 */
+.gnav {
+  position: sticky; top: 0; z-index: 50; height: 48px;
+  background: rgba(251, 251, 253, 0.8); backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px); border-bottom: 1px solid var(--line);
+}
+.gnav nav { scrollbar-width: none; }
+.gnav nav::-webkit-scrollbar { display: none; }
+.gnav a.item { font-size: 12.5px; color: var(--text); opacity: 0.8; padding: 6px 10px; border-radius: 8px; white-space: nowrap; text-decoration: none; }
+.gnav a.item:hover { opacity: 1; }
+.gnav a.item.on { opacity: 1; font-weight: 600; }
+
+/* 히어로 */
+.hero-title { font-size: clamp(34px, 5vw, 56px); line-height: 1.07; font-weight: 700; letter-spacing: -0.028em; }
+.hero-sub { font-size: clamp(17px, 2vw, 21px); line-height: 1.38; color: var(--text-2); font-weight: 500; letter-spacing: -0.01em; }
+.eyebrow { font-size: 14px; font-weight: 600; color: var(--warn); letter-spacing: 0; }
+.section-title { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.14; }
+
+/* 카드·그룹 목록(iOS 설정 앱 형태) */
+.card { background: var(--surface); border-radius: 18px; }
+.group { background: var(--surface); border-radius: 12px; overflow: hidden; }
+.group > .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; font-size: 14px; }
+.group > .row + .row { border-top: 1px solid var(--line); }
+.group-label { font-size: 12px; font-weight: 600; color: var(--text-3); text-transform: none; margin: 0 4px 6px; }
+
+/* 유리 패널 (지도 위에 떠 있는 패널) */
+.glass {
+  background: var(--glass); backdrop-filter: saturate(180%) blur(28px); -webkit-backdrop-filter: saturate(180%) blur(28px);
+  border-radius: 18px; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.12), 0 0 0 0.5px rgba(0, 0, 0, 0.08);
+}
+
+/* 버튼 */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border-radius: 980px;
+  padding: 8px 18px; font-size: 14px; font-weight: 500; background: var(--accent); color: #fff; transition: background .15s; }
+.btn:hover { background: var(--accent-hover); }
+.btn:disabled { opacity: 0.35; cursor: default; }
+.btn-lg { padding: 12px 24px; font-size: 17px; }
+.btn-ghost { display: inline-flex; align-items: center; gap: 4px; border-radius: 980px; padding: 7px 14px; font-size: 13px;
+  font-weight: 500; background: var(--fill); color: var(--text); }
+.btn-ghost:hover { background: rgba(118, 118, 128, 0.2); }
+.btn-ghost:disabled { opacity: 0.4; }
+.link { color: var(--link); font-size: 14px; }
+.link:hover { text-decoration: underline; }
+
+/* 세그먼트 컨트롤 */
+.seg { display: inline-flex; background: var(--fill); border-radius: 9px; padding: 2px; gap: 2px; }
+.seg button { border-radius: 7px; padding: 5px 12px; font-size: 13px; font-weight: 500; color: var(--text); white-space: nowrap; }
+.seg button.on { background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 0 0 0.5px rgba(0, 0, 0, 0.04); }
+
+/* 입력 */
+.field { width: 100%; border: 1px solid #d2d2d7; border-radius: 12px; padding: 9px 12px; font-size: 14px; background: #fff; color: var(--text); }
+.field:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 4px rgba(0, 113, 227, 0.15); }
+select.field { appearance: none; padding-right: 32px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%236e6e73' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 12px center; }
+
+/* 표 */
+.tbl { width: 100%; font-size: 14px; border-collapse: collapse; }
+.tbl th { text-align: left; font-weight: 500; color: var(--text-3); font-size: 12px; padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.tbl td { padding: 11px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.tbl tr:last-child td { border-bottom: 0; }
+.tbl td.num, .tbl th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.tbl tr.clickable:hover td { background: rgba(0, 0, 0, 0.025); cursor: pointer; }
+
+/* 배지 */
+.badge { display: inline-flex; align-items: center; border-radius: 6px; padding: 1px 7px; font-size: 11px; font-weight: 600; }
+.badge-error { background: rgba(215, 0, 21, 0.1); color: var(--bad); }
+.badge-warn { background: rgba(255, 149, 0, 0.14); color: var(--warn); }
+.badge-info { background: var(--fill); color: var(--text-2); }
+.badge-good { background: rgba(52, 199, 89, 0.14); color: var(--good); }
+
+.tnum { font-variant-numeric: tabular-nums; }
+
+/* 지도 위 요소 */
+.map-tip {
+  background: rgba(255, 255, 255, 0.92); backdrop-filter: blur(12px); border-radius: 10px; padding: 7px 10px;
+  font-size: 12px; line-height: 1.5; color: var(--text); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.14);
+  white-space: nowrap; pointer-events: none;
+}
+.map-tip b { font-weight: 600; }
+.fac-dot { width: 10px; height: 10px; border-radius: 50%; border: 2px solid #fff; cursor: pointer;
+  box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.2); transform: translate(-50%, -50%); }
+.fac-dot:hover { transform: translate(-50%, -50%) scale(1.5); }
+.pin { position: relative; transform: translateY(-6px); }
+.pin span { display: inline-block; background: var(--pin); color: #fff; font-size: 12px; font-weight: 600; padding: 3px 9px;
+  border-radius: 980px; white-space: nowrap; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25); }
+.pin::after { content: ""; position: absolute; left: 50%; bottom: -5px; margin-left: -5px; border: 5px solid transparent;
+  border-top-color: var(--pin); border-bottom: 0; }
+}
+
+/* 등장 애니메이션 */
+@keyframes rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+.rise { animation: rise .5s cubic-bezier(.2, .8, .2, 1) both; }
+@media (prefers-reduced-motion: reduce) { .rise { animation: none; } }

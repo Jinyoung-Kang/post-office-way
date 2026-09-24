@@ -1,0 +1,118 @@
+# =============================================================================
+# docker-compose.yml — 우체국 접근성 아틀라스 로컬 스택
+#
+#   db        PostgreSQL 16 + PostGIS 3.6 (arm64 네이티브 이미지, ADR-007)
+#   redis     GeoJSON·What-if 캐시 (영속화 끔)
+#   api       FastAPI :8100 — 조회·What-if·관리 트리거. 기동 시 마이그레이션 적용
+#   collector 배치 전용 (profile: batch) — make collect / make sgis / make calc
+#   web       Next.js 15 :3100 — 지도·순위·What-if·품질·지표 정의
+#
+# 모든 포트는 127.0.0.1 에만 바인딩합니다(NFR-06). 기존 매크로 대시보드
+# (3000/8080/8000/5432/6379)와 동시에 띄울 수 있도록 번호를 옮겼습니다.
+# =============================================================================
+
+x-atlas-env: &atlas-env
+  DATABASE_URL: postgresql+psycopg://atlas:atlas@db:5432/atlas
+  REDIS_URL: redis://redis:6379/0
+  POST_SERVICE_KEY: ${POST_SERVICE_KEY:-}
+  SGIS_CONSUMER_KEY: ${SGIS_CONSUMER_KEY:-}
+  SGIS_CONSUMER_SECRET: ${SGIS_CONSUMER_SECRET:-}
+  KAKAO_REST_API_KEY: ${KAKAO_REST_API_KEY:-}
+  KOSIS_API_KEY: ${KOSIS_API_KEY:-}
+  KOSIS_PERIOD: ${KOSIS_PERIOD:-}
+  ADMIN_TOKEN: ${ADMIN_TOKEN:-}
+  STAT_YEAR: ${STAT_YEAR:-2024}
+  SGIS_SIDO: ${SGIS_SIDO:-all}
+  SGIS_LEVELS: ${SGIS_LEVELS:-2,3}
+  POST_CALL_DELAY_MS: ${POST_CALL_DELAY_MS:-300}
+  ROAD_MAX_CALLS: ${ROAD_MAX_CALLS:-8000}
+  KAKAO_CALL_DELAY_MS: ${KAKAO_CALL_DELAY_MS:-60}
+  TZ: Asia/Seoul
+
+services:
+  db:
+    restart: unless-stopped
+    # arm64 네이티브(테스트용 표기). 공식 이미지로 바꾸려면 아래 두 줄로 교체:
+    #   image: postgis/postgis:16-3.5
+    #   platform: linux/amd64
+    image: imresamu/postgis:16-3.6-bookworm
+    environment:
+      POSTGRES_USER: atlas
+      POSTGRES_PASSWORD: atlas
+      POSTGRES_DB: atlas
+      LANG: C.UTF-8
+      TZ: Asia/Seoul
+    command: ["postgres", "-c", "shared_buffers=512MB", "-c", "work_mem=64MB", "-c", "maintenance_work_mem=256MB"]
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5442:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U atlas -d atlas"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    restart: unless-stopped
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    ports:
+      - "127.0.0.1:6389:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: atlas/Dockerfile.api
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    environment:
+      <<: *atlas-env
+    volumes:
+      - ./seed:/app/seed
+    ports:
+      - "127.0.0.1:8100:8100"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8100/api/v1/health').status==200 else 1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  collector:
+    profiles: ["batch"]
+    build:
+      context: .
+      dockerfile: atlas/Dockerfile.collector
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    environment:
+      <<: *atlas-env
+    volumes:
+      # discover 결과(seed/area_codes.csv)와 스모크 응답을 호스트에 남깁니다.
+      - ./seed:/app/seed
+      - ./fixtures:/app/fixtures
+
+  web:
+    restart: unless-stopped
+    build:
+      context: ./web
+      args:
+        API_INTERNAL_BASE: http://api:8100
+    depends_on:
+      api: { condition: service_healthy }
+    environment:
+      # 브라우저에 가도 되는 유일한 키. 런타임에 /api/config 로 전달(재빌드 불필요)
+      KAKAO_JS_KEY: ${NEXT_PUBLIC_KAKAO_JS_KEY:-}
+    ports:
+      - "127.0.0.1:3100:3100"
+
+volumes:
+  db-data:
