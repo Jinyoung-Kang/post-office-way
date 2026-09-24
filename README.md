@@ -62,8 +62,8 @@ API 문서: http://localhost:8100/docs (FastAPI 자동 생성)
 | `make extras` | oa → banks → road → geocheck → calc | — |
 | `make discover` | 우편 지역코드 seed 재생성 (명세서 코드표가 없을 때) | 4.5분 |
 | `make status` | 키 설정 여부, 최근 수집·계산 현황, 적재 건수 | — |
-| `make test` | 단위·계약·SQL(PostGIS)·What-if 동등성·API·고도화 기능 테스트 (96개) | 4초 |
-| `make prune` | 오래된 원문(raw)·스냅샷(stg)·INFO 이슈 정리 — 종류별 최근 `KEEP=3` 개 run 만 남김 (수집 1회당 약 10MB) | — |
+| `make test` | 단위·계약·SQL(PostGIS)·What-if 동등성·API·고도화 기능 테스트 (98개) | 4초 |
+| `make prune` | 오래된 원문(raw)·스냅샷(stg)·INFO 이슈는 종류별 최근 `KEEP=3` 개 수집만, 계산 결과(지표·집계구 최근접·지난 What-if)는 최근 `KEEP_CALC=5` 개 계산만 남김 (수집 1회 약 10MB, 계산 1회 약 25MB) | — |
 | `make logs` / `make psql` / `make down` | 로그 / DB 접속 / 정지 | — |
 
 권장 주기: 시설은 하루 1회(`make collect && make calc`), SGIS·KOSIS 는 통계 연도가 바뀔 때(적재 후 반드시 `make calc`), 주 1회 `make prune`.
