@@ -65,7 +65,7 @@ async def main() -> None:
         await page.wait_for_timeout(3500)
         await shot("map-emd", jpeg=True)
 
-        # What-if — 의성우체국 폐국 가정
+        # What-if — 의성우체국이 문을 닫는다면
         await page.goto(f"{BASE}/whatif", wait_until="networkidle")
         await page.get_by_label("우체국 검색").fill("의성우체국")
         await page.wait_for_timeout(1200)
@@ -76,7 +76,7 @@ async def main() -> None:
         await page.wait_for_timeout(1500)
         await shot("whatif", jpeg=True)
 
-        # 배치 제안 — 경상북도 의성군 폐국 영향 최소
+        # 배치 제안 — 경상북도 의성군 닫을 곳 찾기
         await page.goto(f"{BASE}/plan", wait_until="networkidle")
         await page.get_by_label("시도").select_option(label="경상북도")
         await page.get_by_label("시군구").select_option(label="의성군")
@@ -94,7 +94,7 @@ async def main() -> None:
         await shot("rankings")
         await page.goto(f"{BASE}/quality", wait_until="networkidle")
         await page.wait_for_timeout(1500)
-        await page.evaluate("window.scrollTo(0, 300)")
+        await page.evaluate("window.scrollTo(0, 230)")
         await page.wait_for_timeout(800)
         await shot("quality")
         await browser.close()

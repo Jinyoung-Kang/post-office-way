@@ -46,5 +46,24 @@ def install(app: FastAPI) -> None:
 
     @app.exception_handler(Exception)
     async def _any(request: Request, exc: Exception):
-        log.exception("unhandled", extra={"traceId": getattr(request.state, "trace_id", None)})
+        tid = getattr(request.state, "trace_id", None)
+        log.exception("unhandled", extra={"traceId": tid})
+        record(tid, request.method, request.url.path, exc)
         return JSONResponse(_body(request, "INTERNAL", "서버 내부 오류"), status_code=500)
+
+
+def record(trace_id: str | None, method: str, path: str, exc: BaseException) -> None:
+    """처리하지 못한 예외를 ops.app_error 에 남김 — 실패해도(DB 장애 등) 응답에는 영향 없음. 키는 마스킹."""
+    try:
+        from sqlalchemy import text
+
+        from atlas.core.db import get_engine
+        from atlas.core.masking import mask_text
+
+        with get_engine().begin() as c:
+            c.execute(text("""INSERT INTO ops.app_error (source, trace_id, method, path, error_type, message)
+                              VALUES ('api', :t, :m, :p, :e, :msg)"""),
+                      {"t": trace_id, "m": method, "p": path[:500], "e": type(exc).__name__,
+                       "msg": mask_text(str(exc))[:2000]})
+    except Exception:  # noqa: BLE001 — 오류 기록 실패가 또 오류를 만들지 않게
+        log.warning("app_error record failed")

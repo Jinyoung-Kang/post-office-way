@@ -52,13 +52,13 @@ export default function Layout({ children, full, title }: { children: ReactNode;
 
   return (
     <div className={`flex flex-col ${full ? "h-[100dvh]" : "min-h-screen"}`}>
-      <Head><title>{title ? `${title} — 우체국 접근성 아틀라스` : "우체국 접근성 아틀라스"}</title></Head>
+      <Head><title>{title ? `${title} — 우체국 가는 길` : "우체국 가는 길"}</title></Head>
       <a href="#main" className="skip-link">본문으로 건너뛰기</a>
       <header className="gnav">
         <div className="mx-auto flex h-full max-w-wide items-center gap-2 px-4">
-          <Link href="/overview" className="mr-2 flex shrink-0 items-center gap-2 text-ink no-underline" aria-label="우체국 접근성 아틀라스 홈">
+          <Link href="/overview" className="mr-2 flex shrink-0 items-center gap-2 text-ink no-underline" aria-label="우체국 가는 길 홈">
             <Logo />
-            <span className="hidden text-[14px] font-semibold tracking-tight sm:inline">접근성 아틀라스</span>
+            <span className="hidden text-[14px] font-semibold tracking-tight sm:inline">우체국 가는 길</span>
           </Link>
           <nav className="-mx-1 flex flex-1 items-center justify-start gap-0.5 overflow-x-auto md:justify-center">
             {NAV.map((n) => {

@@ -1,6 +1,6 @@
 # 문서 안내
 
-우체국 접근성 아틀라스의 설계·API·데이터 구조 문서입니다. 설치·사용법은 저장소 [README](../README.md),
+우체국 가는 길(Postal Access Atlas)의 설계·API·데이터 구조 문서입니다. 설치·사용법은 저장소 [README](../README.md),
 시스템 구성은 [아키텍처](architecture.md), 성능 측정은 [벤치마크](benchmarks.md), 바뀐 내용은 [CHANGELOG](CHANGELOG.md) 를 보세요.
 
 ## 설계 결정 (ADR)
@@ -22,6 +22,7 @@
 | [ADR-013](adr/ADR-013-api-security.md) | API·웹 보안 강화 (속도 제한·CSP·컨테이너·공급망) |
 | [ADR-014](adr/ADR-014-performance.md) | 측정 기반 성능 개선 |
 | [ADR-015](adr/ADR-015-life-hub-calendar.md) | 생활 거점(약국·병의원)과 영업일 달력(특일 정보) — API 선정·제외 이유 |
+| [ADR-016](adr/ADR-016-map-display.md) | 지도 표시 방식 — 첫 그리기 보장, 늘 보이는 라벨, 누르면 고정 |
 
 ## API (`http://localhost:8100/api/v1`, 자동 문서 `/docs`)
 
@@ -33,14 +34,15 @@
 | `GET /facilities` · `/facilities/{histId}` | 시설 목록(bbox·유형·검색) / 시설 상세 |
 | `GET /banks` | 은행·금고 지점 레이어 (bbox 필수) |
 | `GET /metrics` | 지표 정의 |
-| `POST /whatif` · `GET /whatif/{id}` · `GET /whatif/{id}/geojson` | 폐국 가정 시뮬레이션 · 재조회 · 영향 지역 폴리곤 |
-| `POST /plan/close` · `POST /plan/open` | 배치 제안 — 폐국 영향 최소 조합 / 신설 효과 최대 후보지 |
+| `POST /whatif` · `GET /whatif/{id}` · `GET /whatif/{id}/geojson` | 문 닫음 가정 시뮬레이션 · 재조회 · 영향 지역 폴리곤 |
+| `POST /plan/close` · `POST /plan/open` | 배치 제안 — 닫을 곳 찾기(영향 최소 조합) / 열 곳 찾기(효과 최대 후보지) |
 | `GET /visit/conditions` · `GET /visit/conditions/{admCd}` | 방문 여건 — 시군구 전체(`date`, `sido`) / 한 지역 오늘~모레 (창구 휴무 표시) |
 | `GET /hubs/summary` · `GET /hubs/facilities` | 생활 거점 — 전국 합계 / 우체국별 대체 불가능성 순위(`sido`, `sort`) |
 | `GET /care` | 약국·의원 지도 레이어 (bbox 필수, `kind`, `holidayOnly`) |
 | `GET /calendar` | 영업일 달력 — 주말·공휴일 창구 휴무, 3일 이상 연휴 (`start`, `days`) |
 | `GET /dq/summary` · `GET /dq/issues` | 데이터 품질 요약 · 이슈 목록 |
 | `GET /meta/collect-runs` · `/meta/calc-runs` · `/meta/regions` | 수집·계산 실행 기록 · 시도/시군구 목록 |
+| `GET /meta/errors` | 오류 로그 — API 예외·작업·수집·계산 실패·품질 ERROR 를 시간순, 복사용 한 줄(`line`) 포함, 키 마스킹 |
 | `GET /meta/jobs` · `GET /meta/schedule` | 작업 큐 최근 기록(요청 IP 제외) · 워커 스케줄과 다음 실행 시각 |
 | `POST /admin/jobs` · `GET /admin/jobs` · `POST /admin/jobs/{id}/cancel` | 작업 요청(202, 워커가 실행) · 관리자용 목록 · 대기 작업 취소 (`X-Admin-Token`) |
 | `POST /admin/collect/{kind}` · `POST /admin/calc` | 이전 경로 호환 — 작업 큐로 넣음 |
@@ -63,6 +65,7 @@
 | V12 | 최소 권한 역할 `atlas_api` — 권한·기본 권한·역할 단위 타임아웃 |
 | V13 | `pg_stat_statements` (성능 분석) |
 | V14 | 순위·백분위 사전 계산(`access_metric.rnk·pct·n`) + 기존 계산 채움 |
+| V15 | 오류 로그(`ops.app_error`) — API 가 처리하지 못한 예외, 30일 보관(make prune) |
 
 - 지표 계산 SQL: `atlas/atlas/sql/calc/00_snapshot.sql` ~ `10_ranks.sql` (계산 실행 `calc_run` 단위로 결과 보존)
 - 판정 규칙: 금융 가능 `R-FIN-01` (`domain/rules.py`), 방문 여건 `VISIT-1` (`domain/visit.py`), 영업일 (`domain/calendar.py`),

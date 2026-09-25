@@ -142,3 +142,14 @@ select.field { appearance: none; padding-right: 32px;
   box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.3); }
 .skip-link { position: absolute; left: -9999px; top: 8px; z-index: 100; background: #fff; padding: 8px 12px; border-radius: 8px; }
 .skip-link:focus { left: 8px; }
+
+/* 지도 위 늘 보이는 라벨 — 마우스 없이도 핵심 지역·값이 보이게 */
+.map-label { transform: translate(-50%, -50%); display: inline-flex; align-items: center; gap: 5px; white-space: nowrap;
+  pointer-events: none; font-size: 11px; line-height: 1; padding: 4px 8px; border-radius: 980px; color: #fff;
+  background: rgba(29, 29, 31, 0.86); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25); }
+.map-label b { font-weight: 600; }
+.map-label span { opacity: 0.85; font-variant-numeric: tabular-nums; }
+.map-label-bad { background: rgba(215, 0, 21, 0.9); }
+.map-label-warn { background: rgba(178, 80, 0, 0.92); }
+.map-label-good { background: rgba(29, 138, 58, 0.9); }
+.map-tip-x { float: right; margin-left: 8px; color: var(--text-3); font-size: 11px; }

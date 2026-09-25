@@ -4,7 +4,7 @@ import { useRouter } from "next/router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Layout, { basisText, ErrorBox, NoDataGuide, Segmented, useDataBasis } from "@/components/Layout";
 import RegionCard, { FacilityCard } from "@/components/RegionCard";
-import { BANK_LEGEND, CARE_LEGEND, FACILITY_LEGEND, type CareLayer, type FacilityLayer } from "@/components/AtlasMap";
+import { BANK_LEGEND, CARE_LEGEND, FACILITY_LEGEND, type CareLayer, type FacilityLayer, type MapLabel } from "@/components/AtlasMap";
 import { api, qs, type AreaFC, type AreaProps, type Facility, type MetricDef, type Region } from "@/lib/api";
 import { classOf, groupMetrics, NO_DATA, num, quantileBreaks, SEQ, withUnit } from "@/lib/format";
 
@@ -27,6 +27,7 @@ export default function MapPage() {
   const [fac, setFac] = useState<FacilityLayer>(null);
   const [banks, setBanks] = useState(false);
   const [care, setCare] = useState<CareLayer>(null);
+  const [showTop, setShowTop] = useState(true);
   const written = useRef<{ adm?: string; metric?: string; in?: string }>({});
   // 주소 → 상태를 한 번 반영한 다음 렌더부터 상태 → 주소를 씀 (같은 커밋에서 쓰면 옛 상태로 주소를 지움)
   const [hydrated, setHydrated] = useState(false);
@@ -120,6 +121,17 @@ export default function MapPage() {
   const minV = vals.length ? Math.min(...vals) : null;
   // 첫 단계가 최솟값 하나뿐이면(예: 0명) '0명' 으로 표시
   const minOnly = minV !== null && breaks.length > 0 && vals.every((v) => v >= breaks[0] || v === minV);
+  // 마우스를 올리지 않아도 보이게 — 취약한 쪽 상위 8곳을 순위·값과 함께 지도에 표시
+  const topLabels: MapLabel[] = useMemo(() => {
+    if (!showTop || !fc || fc.meta.unit === "0/1") return [];
+    const worse = fc.meta.higherIsWorse;
+    return fc.features.map((f) => f.properties)
+      .filter((p) => p.value !== null && p.lat != null && p.lon != null)
+      .sort((a, b) => (worse ? (b.value as number) - (a.value as number) : (a.value as number) - (b.value as number)))
+      .slice(0, 8)
+      .map((p, i) => ({ key: p.admCd, lat: p.lat as number, lon: p.lon as number, title: `${i + 1} ${p.admNm}`,
+        value: withUnit(p.value, p.unit), tone: "dark" as const }));
+  }, [fc, showTop]);
   const legend = legendRows(breaks, fc?.meta.unit || "", isBinary, minOnly ? minV : null);
   const detailOpen = !!(selected || facility);
   const mdef = metrics.find((m) => m.code === metric);
@@ -134,7 +146,7 @@ export default function MapPage() {
       <AtlasMap<AreaProps> className="absolute inset-0" features={fc?.features || []} styleOf={styleOf}
         tooltipOf={tooltipOf} selected={selected} geomKey={`${level}:${parent}`} focusCd={focusCd}
         onSelect={(cd) => { setSelected(cd); setFacility(null); }}
-        facilities={fac} onFacility={(f) => { setFacility(f); setSelected(null); }} banks={banks} care={care}
+        facilities={fac} onFacility={(f) => { setFacility(f); setSelected(null); }} banks={banks} care={care} labels={topLabels}
         padding={narrow ? [90, 16, 16, 16] : [24, detailOpen ? 400 : 24, 24, panelOpen ? 340 : 24]} />
 
       {/* 왼쪽 떠 있는 패널 — 지표·단위·범례·시설 */}
@@ -194,6 +206,10 @@ export default function MapPage() {
               </ul>
             </div>
 
+            <div className="space-y-1">
+              <Toggle label={fc?.meta.higherIsWorse === false ? "값이 작은 8곳 표시" : "취약한 8곳 표시"} on={showTop} onChange={setShowTop} />
+              <p className="pl-1 text-[12px] text-ink-3">지역을 누르면 오른쪽에 자세한 카드가 열립니다</p>
+            </div>
             <div className="space-y-2">
               <Toggle label="우체국 시설 보기" on={!!fac} onChange={(v) => setFac(v ? { finOnly: false, types: [0, 1, 3] } : null)} />
               {fac && (

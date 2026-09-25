@@ -179,3 +179,17 @@ def test_api_role_least_privilege(engine):
     with engine.connect() as c:
         cfg = c.execute(text("SELECT rolconfig FROM pg_roles WHERE rolname = 'atlas_api'")).scalar()
     assert any(x.startswith("statement_timeout=") for x in cfg)
+
+
+def test_error_log_collects_all_sources(client, fake_jobs):
+    from atlas.api import errors as api_errors
+
+    queue.enqueue("boom")
+    worker.execute(queue.claim("w1"))                                              # 작업 실패
+    api_errors.record("trace123", "GET", "/api/v1/x", RuntimeError("boom serviceKey=SECRET123"))   # API 예외
+    r = client.get("/api/v1/meta/errors").json()
+    by = {i["source"]: i for i in r["items"]}
+    assert set(by) >= {"API", "작업"}
+    assert "serviceKey=***" in by["API"]["message"] and "SECRET123" not in by["API"]["line"]      # 키 마스킹
+    assert by["작업"]["line"].split(" [작업] ")[1].startswith("#") and "수집 실패" in by["작업"]["line"]
+    assert r["items"][0]["at"] >= r["items"][-1]["at"]                                           # 최신순

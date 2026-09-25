@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type AtlasMapType from "@/components/AtlasMap";
+import type { MapLabel } from "@/components/AtlasMap";
 import Layout, { Card, ErrorBox, Hero, Segmented, Stat } from "@/components/Layout";
 import VisitBadge from "@/components/VisitBadge";
 import { api, qs, type AreaFC, type AreaProps, type VisitConditions, type VisitItem } from "@/lib/api";
@@ -41,12 +42,22 @@ export default function TodayPage() {
   }, []);
   const tooltipOf = useCallback((p: P) => {
     const v = p.visit;
-    if (!v || v.level === null) return `<b>${p.admNm}</b><br/>예보 없음`;
+    if (!v || v.level === null) return "예보 없음";
     const why = v.reasons.length ? v.reasons.map((r) => r.text).join(" · ") : "특이 사항 없음";
-    return `<b>${p.admNm}</b> · ${v.label}<br/>${why}<br/>2km 밖 65세 이상 ${num(v.agedFarPpltn)}명`;
+    return `방문 여건 <b>${v.label}</b> · ${why}<br/>2km 밖 65세 이상 ${num(v.agedFarPpltn)}명`;
   }, []);
 
   const risky = (d?.items || []).filter((x) => (x.level ?? 0) >= 1);
+  // 먼저 살펴볼 상위 10곳을 지도에 늘 표시 (겹치는 라벨은 지도가 숨김) (마우스를 올리지 않아도 보이게)
+  const labels: MapLabel[] = useMemo(() => {
+    const pos = new Map((fc?.features || []).map((f) => [f.properties.admCd, f.properties]));
+    return risky.slice(0, 10).flatMap((x) => {
+      const p = pos.get(x.admCd);
+      if (p?.lat == null || p?.lon == null) return [];
+      return [{ key: x.admCd, lat: p.lat, lon: p.lon, title: x.admNm, value: x.reasons[0]?.text,
+        tone: x.level === 2 ? "bad" as const : "warn" as const }];
+    });
+  }, [risky, fc]);
   const shown = all ? risky : risky.slice(0, 20);
   const topReason = Object.entries(d?.summary.byReason || {}).sort((a, b) => b[1] - a[1])[0];
   const noData = err?.code === "VISIT_NO_DATA";
@@ -73,15 +84,15 @@ export default function TodayPage() {
             </div>
 
             {closed && (
-              <div className="card rise flex flex-wrap items-start gap-4 border border-[#ff9500]/30 p-5" role="status">
-                <span className="badge badge-warn shrink-0">창구 휴무</span>
+              <div className="card rise flex flex-col gap-4 border border-[#ff9500]/30 p-5 sm:flex-row sm:items-center" role="status">
+                <span className="badge badge-warn shrink-0 self-start sm:self-center">창구 휴무</span>
                 <div className="min-w-0 flex-1 text-[14px]">
                   <p className="text-[17px] font-semibold">{d.meta.closedReason} — 우체국 금융 창구가 쉽니다</p>
                   <p className="mt-1 text-ink-2">이날은 365코너(ATM)와 공휴일에 여는 약국·의원이 생활 거점입니다.
-                    365코너가 없는 읍면동 <b className="text-ink">{num(d.summary.emdWithout365)}곳</b>
-                    {d.summary.holidayCareGapPpltn !== null && <>, 2km 안에 공휴일 진료처가 없는 인구 <b className="text-ink">{num(d.summary.holidayCareGapPpltn)}명</b></>}.
-                    {" "}<Link href="/hubs" className="link">생활 거점 보기 ›</Link></p>
+                    365코너가 없는 읍면동 <b className="whitespace-nowrap text-ink">{num(d.summary.emdWithout365)}곳</b>
+                    {d.summary.holidayCareGapPpltn !== null && <>, 2km 안에 공휴일 진료처가 없는 인구 <b className="whitespace-nowrap text-ink">{num(d.summary.holidayCareGapPpltn)}명</b></>}.</p>
                 </div>
+                <Link href="/hubs" className="btn-ghost shrink-0 self-start whitespace-nowrap no-underline sm:self-center">생활 거점 보기 ›</Link>
               </div>
             )}
 
@@ -105,8 +116,9 @@ export default function TodayPage() {
                 <span className="flex items-center gap-1.5"><span className="inline-block h-3 w-3 rounded-[4px]" style={{ background: NO_DATA }} />예보 없음</span>
               </span>}>
               <div className="px-3 pb-3">
-                <AtlasMap<P> className="h-[560px] overflow-hidden rounded-[14px]" features={features} styleOf={styleOf}
-                  tooltipOf={tooltipOf} geomKey="sgg" onSelect={(cd) => router.push(`/?adm=${cd}&metric=AGED65_FAR_PPLTN`)} />
+                <AtlasMap<P> className="h-[480px] overflow-hidden rounded-[14px] md:h-[700px]" features={features} styleOf={styleOf}
+                  tooltipOf={tooltipOf} geomKey="sgg" labels={labels} />
+                <p className="px-2 pt-2 text-[12px] text-ink-3">지역을 누르면 정보가 고정됩니다 · 라벨은 먼저 살펴볼 지역(겹치면 확대 시 표시) · 표의 행을 누르면 지도 화면으로</p>
               </div>
             </Card>
 

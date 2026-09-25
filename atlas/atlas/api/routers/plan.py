@@ -17,13 +17,13 @@ class PlanRequest(BaseModel):
     calcRunId: str | None = None
 
 
-@router.post("/close", summary="⑤ 폐국 영향이 가장 작은 조합 (탐욕법)")
+@router.post("/close", summary="⑤ 닫아도 영향이 가장 작은 조합 (탐욕법)")
 def close(req: PlanRequest):
     with get_engine().connect() as c:
         return svc.plan_close(c, req.scope, req.k, req.weight, req.level, req.calcRunId)
 
 
-@router.post("/open", summary="⑤ 신설 효과가 가장 큰 후보지 (탐욕 p-median 근사)")
+@router.post("/open", summary="⑤ 새로 열면 효과가 가장 큰 후보지 (탐욕 p-median 근사)")
 def open_(req: PlanRequest):
     with get_engine().connect() as c:
         return svc.plan_open(c, req.scope, req.k, req.weight, req.level, req.calcRunId)

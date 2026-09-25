@@ -19,7 +19,7 @@ export default function OverviewPage() {
 
   return (
     <Layout title="한눈에">
-      <Hero eyebrow="우체국 접근성 아틀라스" title={<>가장 가까운 우체국까지,<br className="hidden sm:block" /> 얼마나 먼가요.</>}
+      <Hero eyebrow="우체국 가는 길" title={<>가장 가까운 우체국까지,<br className="hidden sm:block" /> 얼마나 먼가요.</>}
         sub="전국 우체국 시설과 인구·경계 통계를 공간 결합해, 금융 창구가 있는 우체국까지의 거리를 지역마다 계산했습니다.">
         <Link href="/" className="btn btn-lg no-underline">지도에서 보기</Link>
         <Link href="/whatif" className="link text-[17px]">문을 닫는다면? ›</Link>

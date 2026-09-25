@@ -41,7 +41,7 @@ def geojson_payload(c: Connection, level: int, metric: str, parent: str | None, 
     _check_level(level, parent, run)
     if simplify is not None and not 0 <= simplify <= 5000:
         raise bad_request("simplify 는 0~5000(m) 입니다.")
-    key = f"geo:gz:{run['calc_run_id']}:{level}:{parent or '-'}:{metric}:{simplify if simplify is not None else 'd'}"
+    key = f"geo:gz2:{run['calc_run_id']}:{level}:{parent or '-'}:{metric}:{simplify if simplify is not None else 'd'}"
     if (tag := cache.get(key + ":etag")) and (etag_only or (body := cache.get(key))):
         return (None if etag_only else body), tag.decode()
     raw = geojson(c, level, metric, parent, calc_run_id, simplify).encode()
@@ -72,7 +72,8 @@ def geojson(c: Connection, level: int, metric: str, parent: str | None, calc_run
                  'type', 'Feature', 'id', a.adm_cd,
                  'properties', json_build_object('admCd', a.adm_cd, 'admNm', a.adm_nm, 'level', a.level,
                      'parentCd', a.parent_cd, 'value', m.value, 'unit', CAST(:unit AS text), 'rank', m.rnk, 'rankOf', m.n,
-                     'percentile', m.pct, 'totPpltn', p.tot_ppltn, 'agedChildIdx', p.aged_child_idx),
+                     'percentile', m.pct, 'totPpltn', p.tot_ppltn, 'agedChildIdx', p.aged_child_idx,
+                     'lat', round(CAST(ST_Y(a.rep_point) AS numeric), 5), 'lon', round(CAST(ST_X(a.rep_point) AS numeric), 5)),
                  'geometry', CAST(ST_AsGeoJSON({geom}, 5) AS json)) ORDER BY a.adm_cd), CAST('[]' AS json))) AS text)
           FROM mart.admin_area a
           LEFT JOIN m ON m.adm_cd = a.adm_cd

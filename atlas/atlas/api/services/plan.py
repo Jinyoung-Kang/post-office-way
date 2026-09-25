@@ -228,7 +228,7 @@ def plan_close(c: Connection, scope: str, k: int, weight: str, level: int | None
         w, used = _weights(c, y, list(cands), weight)
     areas = [Area(cd, w.get(cd, 0.0), lst) for cd, lst in cands.items()]
     steps = greedy_close(areas, sorted(facs), k, far_m)
-    # 모든 후보의 '단독 폐국' 영향 (표용) — 한 번 훑어서 계산
+    # 모든 후보의 '혼자 닫을 때' 영향 (표용) — 한 번 훑어서 계산
     si = single_impacts(areas, far_m)
     zero = {"addedCost": 0.0, "newlyFar": 0.0, "areasAffected": 0}
     singles = sorted(({**facs[h], "histId": h, **si.get(h, zero)} for h in facs),

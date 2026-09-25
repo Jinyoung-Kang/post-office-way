@@ -1,4 +1,4 @@
-"""What-if — 선택한 시설 1~5곳을 제외(폐국 가정)했을 때의 최근접 거리 변화 (FR-401~402, ADR-005).
+"""What-if — 선택한 시설 1~5곳을 제외(문 닫음 가정)했을 때의 최근접 거리 변화 (FR-401~402, ADR-005).
 
 영향 지역 = area_nearest 에서 rank 1 시설이 제외 목록에 있는 지역뿐입니다.
 그 지역만 rank 2·3 중 제외되지 않은 시설로 바꾸고, 셋 다 제외되면 KNN 으로 다시 찾습니다.
@@ -162,7 +162,7 @@ def _summary(results: list[dict[str, Any]], pops: dict[str, Any], aged: dict[str
 
 def _fin_access_loss(results: list[dict[str, Any]], pops: dict[str, Any], bank: dict[str, float],
                      far_m: float) -> dict[str, Any]:
-    """④ 폐국으로 '금융 창구가 2km 안에 하나도 없게 되는' 인구 — 은행 지점 자료가 있을 때만."""
+    """④ 문을 닫아 '금융 창구가 2km 안에 하나도 없게 되는' 인구 — 은행 지점 자료가 있을 때만."""
     if not bank:
         return {"lostFinAccessPpltn": None}
     lost = 0
@@ -198,7 +198,7 @@ def _oa_impact(c: Connection, run: dict[str, Any], ids: list[int], far_m: float)
     def none_near(*ds) -> bool:
         return all(d is not None and float(d) > far_m for d in ds)
 
-    # ⑦ 새로 2km 밖이 되면서 은행 지점·약국·의원도 2km 안에 없는 인구 — 폐국으로 생활 거점을 모두 잃음
+    # ⑦ 새로 2km 밖이 되면서 은행 지점·약국·의원도 2km 안에 없는 인구 — 문을 닫아 생활 거점을 모두 잃음
     has_life = any(r[4] is not None and r[5] is not None for r in rows)
     return {"oaAffectedPpltn": sum(int(r[0] or 0) for r in rows),
             "oaNewlyFarPpltn": sum(int(r[0] or 0) for r in rows if newly_far(r[1], r[2])),

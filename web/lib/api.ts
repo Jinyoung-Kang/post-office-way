@@ -4,6 +4,7 @@ export type Meta = { calcRunId: string; statYear: number; facilityAsOf: string; 
 
 export type AreaProps = {
   admCd: string; admNm: string; level: number; parentCd?: string; value: number | null; unit: string;
+  lat?: number; lon?: number;          // 대표점(라벨 위치)
   rank: number | null; rankOf: number | null; percentile: number | null; totPpltn: number | null;
   agedChildIdx: number | null;
 };

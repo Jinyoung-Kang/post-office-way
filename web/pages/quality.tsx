@@ -3,6 +3,7 @@ import Layout, { Card, Empty, ErrorBox, Hero, Segmented } from "@/components/Lay
 import { api, qs, type Page } from "@/lib/api";
 import { dt, num, short } from "@/lib/format";
 import JobsPanel from "@/components/JobsPanel";
+import ErrorLog from "@/components/ErrorLog";
 
 type Check = { code: string; severity: string; count: number; description: string };
 type Block = { scope: string; runId: string; kind: string; status: string; checkedAt: string; checks: Check[] };
@@ -58,6 +59,7 @@ export default function Quality() {
     <Layout title="데이터·운영">
       <Hero title="데이터·운영." sub="작업 큐가 무엇을 언제 실행했는지, 수집·계산마다 어떤 품질 규칙에 걸렸는지 봅니다. 0건인 규칙도 ‘실행했음’으로 기록됩니다." />
       <div className="mx-auto max-w-page space-y-5 px-4 pb-20">
+        <ErrorLog clientErrors={err ? [err] : []} />
         <JobsPanel />
         {sum && sum.errorCount > 0 && (
           <div className="card flex items-center gap-3 p-4 text-[14px]">
@@ -66,7 +68,6 @@ export default function Quality() {
             <button className="link ml-auto" onClick={() => setFilter({ scope: "latest", severity: "ERROR", page: 1 })}>보기 ›</button>
           </div>
         )}
-        {err && <ErrorBox error={err} />}
 
         <div className="grid items-start gap-5 md:grid-cols-2">
           {[...(sum?.runs || [])].sort((a, b) => KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind)).map((b) => (

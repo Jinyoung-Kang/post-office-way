@@ -74,9 +74,9 @@ class TraceMiddleware:
                                        "ip": ip_from_scope(scope)})
 
 
-app = FastAPI(title="Postal Access Atlas API", version="0.2.0", lifespan=lifespan,
+app = FastAPI(title="우체국 가는 길 API (Postal Access Atlas)", version="0.2.0", lifespan=lifespan,
               docs_url="/docs", openapi_url="/openapi.json",
-              description="우체국 접근성 아틀라스 — 분석용 지표이며 공식 통계가 아닙니다.")
+              description="우체국 가는 길 — 분석용 지표이며 공식 통계가 아닙니다.")
 # add_middleware 는 나중에 넣은 것이 바깥 — 안쪽부터 넣음
 app.add_middleware(ETagMiddleware)
 app.add_middleware(GZipMiddleware, minimum_size=2048, compresslevel=5)   # 기본 9 는 수백 KB JSON 에서 CPU 병목

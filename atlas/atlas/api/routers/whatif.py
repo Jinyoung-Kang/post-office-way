@@ -15,7 +15,7 @@ class WhatIfRequest(BaseModel):
     level: int | None = Field(None, description="분석 레벨 (생략 시 계산된 가장 세밀한 레벨)")
 
 
-@router.post("", summary="시설 제외(폐국 가정) 시뮬레이션 (FR-401)")
+@router.post("", summary="시설 제외(문 닫음 가정) 시뮬레이션 (FR-401)")
 def create(req: WhatIfRequest):
     with get_engine().begin() as c:
         return svc.run_whatif(c, req.calcRunId, req.removeHistIds, req.level)

@@ -1,5 +1,5 @@
 # =============================================================================
-# Makefile — 우체국 접근성 아틀라스 원커맨드 (FR-701)
+# Makefile — 우체국 가는 길 원커맨드 (FR-701)
 #
 #   make up        스택 기동 (db·redis·migrate·api·worker·web) → http://localhost:3100
 #   make migrate   스키마 마이그레이션 + API 최소 권한 역할 비밀번호 설정

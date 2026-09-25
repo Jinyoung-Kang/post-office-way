@@ -144,6 +144,7 @@ def cmd_prune(a: argparse.Namespace) -> int:
         raw = c.execute(text(f"DELETE FROM raw.api_response WHERE collect_run_id IN ({old})")).rowcount
         stg = c.execute(text(f"DELETE FROM stg.post_facility WHERE collect_run_id IN ({old})")).rowcount
         info = c.execute(text(f"DELETE FROM ops.dq_issue WHERE severity = 'INFO' AND collect_run_id IN ({old})")).rowcount
+        c.execute(text("DELETE FROM ops.app_error WHERE at < now() - interval '30 days'"))
         size = c.execute(text("SELECT pg_size_pretty(pg_total_relation_size('raw.api_response'))")).scalar()
     _print({"keepPerKind": keep, "keepCalc": keep_calc,
             "deleted": {"raw": raw, "stg": stg, "dqInfo": info, "calcRuns": calc}, "rawTableSize": size,
@@ -206,7 +207,7 @@ def cmd_smoke(_: argparse.Namespace) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="atlas", description="우체국 접근성 아틀라스 배치")
+    p = argparse.ArgumentParser(prog="atlas", description="우체국 가는 길 배치")
     sub = p.add_subparsers(dest="cmd", required=True)
     sub.add_parser("migrate").set_defaults(fn=cmd_migrate)
     sub.add_parser("smoke").set_defaults(fn=cmd_smoke)

@@ -93,3 +93,41 @@ def schedule():
         it["title"], it["missingKeys"] = spec.title, spec.missing()
     return {"groups": groups, "items": items, "titles": {k: j.title for k, j in registry.JOBS.items()}}
 
+
+@router.get("/errors", summary="오류 로그 — API 예외·작업·수집·계산 실패·품질 ERROR 를 시간순 한곳에 (복사용 한 줄 포함)")
+def errors(days: int = Query(14, ge=1, le=90), limit: int = Query(200, ge=1, le=1000)):
+    from atlas.core.masking import mask_secrets_in, mask_text
+
+    s = get_settings()
+    secrets = [s.post_service_key, s.sgis_consumer_key, s.sgis_consumer_secret, s.kakao_rest_api_key,
+               s.kosis_api_key, s.data_go_kr_key, s.admin_token, s.api_db_password]
+    with get_engine().connect() as c:
+        rows = c.execute(text("""
+            SELECT at, source, ref, title, message FROM (
+                SELECT at, 'API' AS source, coalesce(trace_id, CAST(error_id AS text)) AS ref,
+                       concat(method, ' ', path) AS title, concat(error_type, ': ', message) AS message
+                  FROM ops.app_error WHERE at > now() - make_interval(days => :d)
+                UNION ALL
+                SELECT coalesce(finished_at, created_at), '작업', concat('#', job_id), kind, error
+                  FROM ops.job WHERE status = 'FAILED' AND created_at > now() - make_interval(days => :d)
+                UNION ALL
+                SELECT coalesce(finished_at, started_at), '수집', left(CAST(collect_run_id AS text), 8),
+                       concat(kind, ' ', status), error
+                  FROM ops.collect_run WHERE status IN ('FAILED', 'PARTIAL') AND error IS NOT NULL
+                   AND started_at > now() - make_interval(days => :d)
+                UNION ALL
+                SELECT coalesce(finished_at, created_at), '계산', left(CAST(calc_run_id AS text), 8), 'calc FAILED', error
+                  FROM mart.calc_run WHERE status = 'FAILED' AND created_at > now() - make_interval(days => :d)
+                UNION ALL
+                SELECT checked_at, '품질', left(CAST(coalesce(collect_run_id, calc_run_id) AS text), 8), check_code,
+                       concat('심각도 ERROR 규칙에 걸린 행 ', issue_count, '건')
+                  FROM ops.dq_check WHERE severity = 'ERROR' AND issue_count > 0 AND checked_at > now() - make_interval(days => :d)
+            ) e ORDER BY at DESC LIMIT :n"""), {"d": days, "n": limit}).mappings().all()
+    items = []
+    for r in rows:
+        msg = mask_secrets_in(mask_text(r["message"] or ""), secrets)
+        at = r["at"].astimezone().strftime("%Y-%m-%d %H:%M:%S") if r["at"] else "-"
+        items.append({"at": jsonable(r["at"]), "source": r["source"], "ref": r["ref"], "title": r["title"],
+                      "message": msg, "line": f"{at} [{r['source']}] {r['ref']} {r['title']} — {msg}"})
+    return {"days": days, "items": items, "total": len(items)}
+

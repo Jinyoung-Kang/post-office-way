@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryState } from "@/lib/useQueryState";
 import Layout, { Card, Empty, ErrorBox, Hero, Segmented, Stat } from "@/components/Layout";
-import type { Marker } from "@/components/AtlasMap";
+import type { MapLabel, Marker } from "@/components/AtlasMap";
 import { api, qs, type AreaFC, type AreaProps, type PlanClose, type PlanOpen, type Region } from "@/lib/api";
 import { classOf, dist, NO_DATA, num, quantileBreaks, SEQ } from "@/lib/format";
 
@@ -59,6 +59,11 @@ export default function PlanPage() {
     } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
   }
 
+  // 결과 전: 범위 안에서 우체국이 가장 먼 5곳을 늘 표시
+  const farLabels: MapLabel[] = useMemo(() => (fc?.features || []).map((f) => f.properties)
+    .filter((p) => p.value !== null && p.lat != null && p.lon != null)
+    .sort((a, b) => (b.value as number) - (a.value as number)).slice(0, 5)
+    .map((p) => ({ key: p.admCd, lat: p.lat as number, lon: p.lon as number, title: p.admNm, value: dist(p.value), tone: "dark" as const })), [fc]);
   const breaks = useMemo(() => quantileBreaks((fc?.features || []).map((f) => f.properties.value).filter((v): v is number => v !== null)), [fc]);
   const touched = useMemo(() => new Set(res ? (res.mode === "close" ? res.affectedAreas : res.improvedAreas).map((a) => a.admCd) : []), [res]);
   const styleOf = useCallback((p: AreaProps) => {
@@ -81,7 +86,7 @@ export default function PlanPage() {
           <Card title="조건">
             <div className="space-y-4">
               <Segmented ariaLabel="모드" value={mode} onChange={(v) => { setMode(v); setRes(null); }}
-                options={[{ value: "close", label: "폐국 영향 최소" }, { value: "open", label: "신설 효과 최대" }]} />
+                options={[{ value: "close", label: "닫을 곳 찾기" }, { value: "open", label: "열 곳 찾기" }]} />
               <div className="grid grid-cols-2 gap-2">
                 <select className="field" value={sido} aria-label="시도" onChange={(e) => { setSido(e.target.value); setRes(null); }}>
                   {regions.filter((r) => r.emdCount > 0).map((r) => <option key={r.admCd} value={r.admCd}>{r.admNm}</option>)}
@@ -105,8 +110,8 @@ export default function PlanPage() {
           </Card>
           <Card title="이렇게 계산합니다">
             <ul className="space-y-2 text-[13px] leading-relaxed text-ink-2">
-              <li><b className="text-ink">폐국 영향 최소</b> — 범위 안 금융 우체국 중, 닫았을 때 ‘가중 인구 × 늘어나는 거리’가 가장 적게 늘어나는 곳을 하나씩 고릅니다(앞서 고른 곳이 닫힌 상태를 반영). 수요는 집계구(평균 약 500명) 단위로 셉니다.</li>
-              <li><b className="text-ink">신설 효과 최대</b> — 범위 안 읍면동 대표점을 후보지로, ‘가중 인구 × 줄어드는 거리’가 가장 큰 곳부터 고릅니다.</li>
+              <li><b className="text-ink">닫을 곳 찾기</b> — 범위 안 금융 우체국 중, 닫았을 때 ‘가중 인구 × 늘어나는 거리’가 가장 적게 늘어나는 곳을 하나씩 고릅니다(앞서 고른 곳이 닫힌 상태를 반영). 수요는 집계구(평균 약 500명) 단위로 셉니다.</li>
+              <li><b className="text-ink">열 곳 찾기</b> — 범위 안 읍면동 대표점을 후보지로, ‘가중 인구 × 줄어드는 거리’가 가장 큰 곳부터 고릅니다.</li>
               <li>단위 <b className="text-ink">명·km</b> = 사람 수 × 늘거나 준 거리. 직선거리·읍면동 대표점 기준.</li>
             </ul>
           </Card>
@@ -132,7 +137,7 @@ export default function PlanPage() {
           )}
           <div className="card overflow-hidden">
             <AtlasMap<AreaProps> className="h-[460px]" features={fc?.features || []} styleOf={styleOf} tooltipOf={tooltipOf}
-              markers={markers} geomKey={String(fc?.meta.parent ?? scope)} />
+              markers={markers} labels={res ? undefined : farLabels} geomKey={String(fc?.meta.parent ?? scope)} />
           </div>
           {!res && <Empty>조건을 고르고 ‘제안 받기’를 누르세요. 지도는 지금의 최근접 금융 우체국 거리입니다(진할수록 멂).</Empty>}
           {res?.mode === "close" && (

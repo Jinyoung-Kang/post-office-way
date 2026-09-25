@@ -3,7 +3,7 @@ import type AtlasMapType from "@/components/AtlasMap";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Layout, { Card, Empty, ErrorBox, Hero, Segmented, Stat } from "@/components/Layout";
-import type { Marker } from "@/components/AtlasMap";
+import type { MapLabel, Marker } from "@/components/AtlasMap";
 import { api, qs, type Facility, type Feature, type Page, type WhatIf } from "@/lib/api";
 import { dist, num } from "@/lib/format";
 
@@ -72,12 +72,18 @@ export default function WhatIfPage() {
     `${dist(p.distBeforeM)} → <b>${dist(p.distAfterM)}</b> (+${dist(p.increaseM)})<br/>인구 ${num(p.affectedPpltn)}명` +
     (p.affectedAged65 !== null && p.affectedAged65 !== undefined ? ` · 65세 이상 ${num(p.affectedAged65)}명` : ""), []);
   const markers: Marker[] = useMemo(() => (result?.removed || []).map((r) => ({ lat: r.lat, lon: r.lon, label: `✕ ${r.name}`, tone: "removed" as const })), [result]);
+  const incLabels: MapLabel[] = useMemo(() => (result?.areas || [])
+    .filter((a) => a.distBeforeM !== null && a.lat != null)
+    .map((a) => ({ a, inc: a.distAfterM === null ? Infinity : a.distAfterM - (a.distBeforeM as number) }))
+    .sort((x, y) => y.inc - x.inc).slice(0, 5)
+    .map(({ a, inc }) => ({ key: a.admCd, lat: a.lat, lon: a.lon, title: a.admNm,
+      value: inc === Infinity ? "대신할 곳 없음" : `+${dist(inc)}`, tone: "bad" as const })), [result]);
   const hasAged = result?.summary.affectedAged65 !== undefined && result?.summary.affectedAged65 !== null;
   const s = result?.summary;
 
   return (
     <Layout title="What-if">
-      <Hero title="문을 닫는다면." sub="우체국 1~5곳의 폐국을 가정하면, 그 우체국이 가장 가까웠던 지역의 거리가 얼마나 늘어나는지 계산합니다." />
+      <Hero title="문을 닫는다면." sub="우체국 1~5곳이 문을 닫는다고 하면, 그 우체국이 가장 가까웠던 지역의 거리가 얼마나 늘어나는지 계산합니다." />
       <div className="mx-auto grid max-w-wide gap-5 px-4 pb-20 lg:grid-cols-[360px_1fr]">
         <div className="space-y-5">
           <Card title="우체국 고르기">
@@ -140,7 +146,7 @@ export default function WhatIfPage() {
               )}
               <div className="card overflow-hidden">
                 <AtlasMap<ImpactProps> className="h-[440px]" features={geo?.features || []} styleOf={styleOf} tooltipOf={tooltipOf}
-                  markers={markers} geomKey={result.scenarioId} padding={[60, 40, 40, 40]} />
+                  markers={markers} labels={incLabels} geomKey={result.scenarioId} padding={[60, 40, 40, 40]} />
               </div>
               <Card title="영향 지역" right={<span className="text-[12px] text-ink-3">거리 증가 큰 순 · scenario {result.scenarioId.slice(0, 8)}</span>} pad={false}>
                 {result.areas.length ? (
