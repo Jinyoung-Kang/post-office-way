@@ -15,7 +15,7 @@ export default function RegionCard({ admCd, calcRunId, highlight, onDrill, onClo
   useEffect(() => {
     setD(null); setErr(null);
     let alive = true;   // 지역을 연달아 누르면 마지막 지역의 응답만 표시
-    api<AreaDetail>(`/areas/${admCd}${qs({ calcRunId })}`)
+    api<AreaDetail>(`/areas/${encodeURIComponent(admCd)}${qs({ calcRunId })}`)
       .then((r) => { if (alive) setD(r); }).catch((e) => { if (alive) setErr(e.message); });
     return () => { alive = false; };
   }, [admCd, calcRunId]);
@@ -119,7 +119,7 @@ export function FacilityCard({ f: base, onClose }: { f: Facility; onClose?: () =
   useEffect(() => {
     setDetail(null);
     let alive = true;
-    api<Facility>(`/facilities/${base.histId}`).then((r) => { if (alive) setDetail(r); }).catch(() => null);
+    api<Facility>(`/facilities/${encodeURIComponent(base.histId)}`).then((r) => { if (alive) setDetail(r); }).catch(() => null);
     return () => { alive = false; };
   }, [base.histId]);
   const f = detail || base;
@@ -218,7 +218,7 @@ function VisitRows({ admCd }: { admCd: string }) {
   useEffect(() => {
     setO(null);
     let alive = true;
-    api<VisitOutlook>(`/visit/conditions/${admCd}`).then((r) => { if (alive) setO(r); }).catch(() => null);
+    api<VisitOutlook>(`/visit/conditions/${encodeURIComponent(admCd)}`).then((r) => { if (alive) setO(r); }).catch(() => null);
     return () => { alive = false; };
   }, [admCd]);
   if (!o || !o.days.length) return null;

@@ -53,7 +53,7 @@ export default function PlanPage() {
     setBusy(true); setErr(null); setRes(null);
     const req = { scope, mode };
     try {
-      const r = await api<PlanClose | PlanOpen>(`/plan/${mode}`, { method: "POST", body: JSON.stringify({ scope, k, weight }) });
+      const r = await api<PlanClose | PlanOpen>(`/plan/${mode === "open" ? "open" : "close"}`, { method: "POST", body: JSON.stringify({ scope, k, weight }) });
       // 계산 중에 범위·모드를 바꿨다면 이 결과는 버림
       setRes((cur) => (latest.current.scope === req.scope && latest.current.mode === req.mode ? r : cur));
     } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }

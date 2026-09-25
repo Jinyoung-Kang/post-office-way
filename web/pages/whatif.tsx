@@ -36,7 +36,7 @@ export default function WhatIfPage() {
   }, [q]);
 
   const load = useCallback(async (id: string) => {
-    const [w, g] = await Promise.all([api<WhatIf>(`/whatif/${id}`), api<ImpactFC>(`/whatif/${id}/geojson`)]);
+    const [w, g] = await Promise.all([api<WhatIf>(`/whatif/${encodeURIComponent(id)}`), api<ImpactFC>(`/whatif/${encodeURIComponent(id)}/geojson`)]);
     setResult(w); setGeo(g);
   }, []);
 
@@ -46,7 +46,7 @@ export default function WhatIfPage() {
     if (id && id !== result?.scenarioId) load(id).catch((e) => setErr(e.message));
     const add = typeof router.query.add === "string" ? Number(router.query.add) : null;
     if (add && !picked.some((p) => p.histId === add)) {
-      api<Facility>(`/facilities/${add}`).then((f) => setPicked((prev) => prev.some((p) => p.histId === f.histId) ? prev : [...prev, f].slice(0, 5))).catch(() => null);
+      api<Facility>(`/facilities/${encodeURIComponent(add)}`).then((f) => setPicked((prev) => prev.some((p) => p.histId === f.histId) ? prev : [...prev, f].slice(0, 5))).catch(() => null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router.query.scenario, router.query.add]);
@@ -58,7 +58,7 @@ export default function WhatIfPage() {
       const w = await api<WhatIf>("/whatif", { method: "POST", body: JSON.stringify({ removeHistIds: picked.map((p) => p.histId), level }) });
       setMs(Math.round(performance.now() - t0));
       setResult(w);
-      setGeo(await api<ImpactFC>(`/whatif/${w.scenarioId}/geojson`));
+      setGeo(await api<ImpactFC>(`/whatif/${encodeURIComponent(w.scenarioId)}/geojson`));
       router.replace({ query: { scenario: w.scenarioId } }, undefined, { shallow: true });
     } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
   }
