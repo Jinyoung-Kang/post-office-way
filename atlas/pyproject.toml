@@ -23,7 +23,7 @@ dev = ["pytest==9.1.1", "respx==0.23.1"]
 atlas = "atlas.collector.cli:main"
 
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=84.0.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
