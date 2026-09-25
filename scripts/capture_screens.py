@@ -40,6 +40,18 @@ async def main() -> None:
         await page.wait_for_timeout(1500)
         await shot("overview", clip_h=1450)
 
+        # 방문 여건 — 오늘(연휴면 창구 휴무 모드) · 생활 거점 · 데이터·운영(작업 큐)
+        await page.goto(f"{BASE}/today", wait_until="networkidle")
+        await page.wait_for_timeout(3500)
+        await page.evaluate("window.scrollTo(0, 380)")
+        await page.wait_for_timeout(1500)
+        await shot("today", jpeg=True)
+        await page.goto(f"{BASE}/hubs", wait_until="networkidle")
+        await page.wait_for_timeout(2000)
+        await page.evaluate("window.scrollTo(0, 380)")
+        await page.wait_for_timeout(800)
+        await shot("hubs")
+
         # 지도 — 시군구 전국 + 지역 카드 (의성군, 고령인구 2km 밖 지표)
         await page.goto(f"{BASE}/?adm=37520&metric=AGED65_FAR_PPLTN", wait_until="networkidle")
         await page.wait_for_timeout(4000)
@@ -49,7 +61,8 @@ async def main() -> None:
         await page.goto(f"{BASE}/?adm=11010530&metric=NEAREST_FIN_DIST_M", wait_until="networkidle")
         await page.wait_for_timeout(3000)
         await page.get_by_text("우체국 시설 보기").click()
-        await page.wait_for_timeout(3000)
+        await page.get_by_text("약국·의원 보기").click()
+        await page.wait_for_timeout(3500)
         await shot("map-emd", jpeg=True)
 
         # What-if — 의성우체국 폐국 가정
@@ -81,6 +94,8 @@ async def main() -> None:
         await shot("rankings")
         await page.goto(f"{BASE}/quality", wait_until="networkidle")
         await page.wait_for_timeout(1500)
+        await page.evaluate("window.scrollTo(0, 300)")
+        await page.wait_for_timeout(800)
         await shot("quality")
         await browser.close()
 

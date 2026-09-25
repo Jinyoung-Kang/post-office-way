@@ -3,7 +3,9 @@ import { useEffect, useState } from "react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import Layout, { Card, Empty, ErrorBox, Hero, NoDataGuide, Segmented } from "@/components/Layout";
 import { api, qs, type MetricDef, type Region } from "@/lib/api";
-import { num, shortSido, withUnit } from "@/lib/format";
+import { groupMetrics, num, shortSido, withUnit } from "@/lib/format";
+import { TableSkeleton } from "@/components/Skeleton";
+import { useQueryState } from "@/lib/useQueryState";
 
 type Row = { admCd: string; admNm: string; parentNm: string | null; value: number | null; rank: number | null;
   rankOf: number | null; percentile: number | null; totPpltn: number | null; agedChildIdx: number | null };
@@ -13,18 +15,21 @@ export default function Rankings() {
   const router = useRouter();
   const [metrics, setMetrics] = useState<MetricDef[]>([]);
   const [regions, setRegions] = useState<Region[]>([]);
-  const [metric, setMetric] = useState("ACCESS_GAP_SCORE");
-  const [level, setLevel] = useState<2 | 3>(2);
-  const [sido, setSido] = useState("");
-  const [sort, setSort] = useState<"desc" | "asc">("desc");
+  // 모든 조건을 주소에 반영 (?metric=&level=3&sido=37&sort=asc) — 공유·새로고침에도 같은 순위
+  const [metric, setMetric] = useQueryState<string>("metric", "ACCESS_GAP_SCORE");
+  const [levelStr, setLevelStr] = useQueryState<"2" | "3">("level", "2", ["2", "3"]);
+  const level = Number(levelStr) as 2 | 3;
+  const setLevel = (l: 2 | 3) => setLevelStr(String(l) as "2" | "3");
+  const [sidoQ, setSido] = useQueryState<string>("sido", "");
+  const [sort, setSort] = useQueryState<"desc" | "asc">("sort", "desc", ["desc", "asc"]);
   const [data, setData] = useState<Resp | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
     api<{ items: MetricDef[] }>("/metrics").then((r) => setMetrics(r.items.filter((m) => m.available))).catch(() => null);
-    api<{ items: Region[] }>("/meta/regions").then((r) => { setRegions(r.items); setSido(r.items[0]?.admCd || ""); }).catch(() => null);
+    api<{ items: Region[] }>("/meta/regions").then((r) => setRegions(r.items)).catch(() => null);
   }, []);
-  useEffect(() => { if (typeof router.query.metric === "string") setMetric(router.query.metric); }, [router.query.metric]);
+  const sido = sidoQ || regions.find((r) => r.emdCount > 0)?.admCd || "";
 
   useEffect(() => {
     if (level === 3 && !sido) return;
@@ -48,7 +53,11 @@ export default function Rankings() {
       <div className="mx-auto max-w-page space-y-5 px-4 pb-20">
         <div className="card flex flex-wrap items-center gap-3 p-4">
           <select className="field max-w-[280px]" value={metric} onChange={(e) => setMetric(e.target.value)} aria-label="지표">
-            {metrics.map((m) => <option key={m.code} value={m.code}>{m.name}</option>)}
+            {groupMetrics(metrics).map((g) => (
+              <optgroup key={g.label} label={g.label}>
+                {g.items.map((m) => <option key={m.code} value={m.code}>{m.name}</option>)}
+              </optgroup>
+            ))}
           </select>
           <Segmented ariaLabel="단위" value={level} onChange={setLevel}
             options={[{ value: 2, label: "시군구 · 전국" }, { value: 3, label: "읍면동 · 시도 안" }]} />
@@ -62,6 +71,7 @@ export default function Rankings() {
             options={[{ value: "desc", label: "큰 값 20" }, { value: "asc", label: "작은 값 20" }]} />
         </div>
         {err && (noData ? <NoDataGuide /> : <ErrorBox error={err} />)}
+        {!data && !err && <div className="card pt-6"><TableSkeleton rows={8} /></div>}
         {data && (
           <>
             <Card title={data.metric.name}

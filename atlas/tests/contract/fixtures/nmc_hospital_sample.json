@@ -1,0 +1,62 @@
+{
+ "response": {
+  "header": {
+   "resultCode": "00",
+   "resultMsg": "NORMAL SERVICE."
+  },
+  "body": {
+   "items": {
+    "item": [
+     {
+      "dutyAddr": "경상북도 의성군 의성읍 ...",
+      "dutyDiv": "R",
+      "dutyDivNam": "보건소",
+      "dutyName": "의성군보건소",
+      "hpid": "B0000001",
+      "dutyTime1s": "0900",
+      "dutyTime1c": 1800,
+      "wgs84Lat": 36.3526,
+      "wgs84Lon": 128.697
+     },
+     {
+      "dutyAddr": "전북특별자치도 전주시 완산구 백제대로 277",
+      "dutyDiv": "E",
+      "dutyDivNam": "한방병원",
+      "dutyName": "동의한방병원",
+      "hpid": "C2501107",
+      "dutyTime1s": "0900",
+      "dutyTime1c": 2100,
+      "wgs84Lat": 35.817543147787404,
+      "wgs84Lon": 127.1401910690449
+     },
+     {
+      "dutyAddr": "서울특별시 강남구 일원로 81",
+      "dutyDiv": "A",
+      "dutyDivNam": "종합병원",
+      "dutyName": "큰종합병원",
+      "hpid": "A0000028",
+      "dutyEryn": 1,
+      "dutyTime1s": "0830",
+      "dutyTime1c": "1730",
+      "dutyTime8s": "0900",
+      "dutyTime8c": "1300",
+      "wgs84Lat": 37.48813256,
+      "wgs84Lon": 127.0851566
+     },
+     {
+      "dutyAddr": "해외 좌표 의원",
+      "dutyDiv": "C",
+      "dutyDivNam": "의원",
+      "dutyName": "잘못된좌표의원",
+      "hpid": "C0000009",
+      "wgs84Lat": 0,
+      "wgs84Lon": 0
+     }
+    ]
+   },
+   "numOfRows": 1000,
+   "pageNo": 1,
+   "totalCount": 4
+  }
+ }
+}

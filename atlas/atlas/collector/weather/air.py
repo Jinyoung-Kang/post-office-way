@@ -14,7 +14,8 @@ from typing import Any
 from sqlalchemy import text
 
 from atlas.collector import runs
-from atlas.collector.weather.client import DataGoStop, call, items_of, make_fetcher, now_kst
+from atlas.collector.datago.client import DataGoStop, call, items_of, make_fetcher
+from atlas.core.clock import now_kst
 from atlas.core.config import get_settings
 from atlas.core.db import begin
 from atlas.domain.visit import parse_inform_grade

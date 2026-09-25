@@ -175,11 +175,13 @@ def _fin_access_loss(results: list[dict[str, Any]], pops: dict[str, Any], bank: 
 
 def _oa_impact(c: Connection, run: dict[str, Any], ids: list[int], far_m: float) -> dict[str, Any]:
     """① 집계구 단위 — 최근접이 바뀌는 인구와 새로 far_m 밖이 되는 인구(읍면동 대표점 1개보다 정확)."""
-    has = c.execute(text("SELECT 1 FROM mart.oa_nearest WHERE calc_run_id = :r LIMIT 1"), {"r": run["calc_run_id"]}).first()
+    # 계산 통계(oaCount)로 판단 — 'LIMIT 1' 존재 확인은 일반 계획이 계산 여러 개가 쌓인 표를 순차 탐색해 약 100ms (벤치마크)
+    has = c.execute(text("SELECT coalesce(CAST(stats->>'oaCount' AS int), 0) > 0 FROM mart.calc_run WHERE calc_run_id = :r"),
+                    {"r": run["calc_run_id"]}).scalar()
     if not has:
-        return {"oaAffectedPpltn": None, "oaNewlyFarPpltn": None}
+        return {"oaAffectedPpltn": None, "oaNewlyFarPpltn": None, "lifeHubLostPpltn": None}
     rows = c.execute(text("""
-        SELECT n.tot_ppltn, n.dist_m, k.d
+        SELECT n.tot_ppltn, n.dist_m, k.d, n.bank_m, n.pharmacy_m, n.clinic_m
           FROM mart.oa_nearest n
           JOIN mart.oa_area o ON o.oa_cd = n.oa_cd AND o.stat_year = :y
           LEFT JOIN LATERAL (
@@ -190,9 +192,18 @@ def _oa_impact(c: Connection, run: dict[str, Any], ids: list[int], far_m: float)
                  ORDER BY h.geom_5179 <-> o.rep_point_5179 LIMIT 1) k ON true
          WHERE n.calc_run_id = :run AND n.hist_id = ANY(CAST(:ids AS bigint[]))"""),
         {"y": run["stat_year"], "asof": run["facility_as_of"], "ids": ids, "run": run["calc_run_id"]}).all()
-    return {"oaAffectedPpltn": sum(int(p or 0) for p, _, _ in rows),
-            "oaNewlyFarPpltn": sum(int(p or 0) for p, b, a in rows
-                                   if b is not None and float(b) <= far_m and (a is None or float(a) > far_m))}
+    def newly_far(b, a) -> bool:
+        return b is not None and float(b) <= far_m and (a is None or float(a) > far_m)
+
+    def none_near(*ds) -> bool:
+        return all(d is not None and float(d) > far_m for d in ds)
+
+    # ⑦ 새로 2km 밖이 되면서 은행 지점·약국·의원도 2km 안에 없는 인구 — 폐국으로 생활 거점을 모두 잃음
+    has_life = any(r[4] is not None and r[5] is not None for r in rows)
+    return {"oaAffectedPpltn": sum(int(r[0] or 0) for r in rows),
+            "oaNewlyFarPpltn": sum(int(r[0] or 0) for r in rows if newly_far(r[1], r[2])),
+            "lifeHubLostPpltn": (sum(int(r[0] or 0) for r in rows
+                                     if newly_far(r[1], r[2]) and none_near(r[3], r[4], r[5])) if has_life else None)}
 
 
 def get_scenario(c: Connection, scenario_id: str) -> dict[str, Any]:

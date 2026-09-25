@@ -1,108 +1,84 @@
-"""관리 API — 수집·계산 트리거. X-Admin-Token 필수. 작업은 백그라운드로 돌리고 즉시 202 를 반환."""
+"""관리 API — 수집·계산 작업을 큐에 넣습니다(X-Admin-Token 필수). 실행은 워커 몫이라 API 프로세스는 가볍게 유지.
+
+이전에는 API 프로세스 스레드에서 수집기를 돌렸지만, 그러면 API 가 쓰기 권한·긴 작업·재시작 시 유실을 떠안습니다.
+이제는 ops.job 에 INSERT + NOTIFY 만 하고 202 를 돌려줍니다 (ADR-012).
+"""
 from __future__ import annotations
 
 import hmac
 import logging
-import threading
 
-from fastapi import APIRouter, Header
+from fastapi import APIRouter, Header, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
+from atlas.api.common import jsonable
 from atlas.api.errors import ApiError
-from atlas.calc.runner import CalcRunInProgress, create_calc_run, execute_calc_run
-from atlas.collector import runs
+from atlas.api.security import client_ip
 from atlas.core.config import get_settings
+from atlas.jobs import queue, registry
 
 router = APIRouter(prefix="/admin", tags=["admin"])
-log = logging.getLogger(__name__)
-
-KINDS = {"post": "POST_AREA", "sgis-pop": "SGIS_POP", "sgis-bnd": "SGIS_BND", "kosis": "KOSIS_POP",
-         "oa": "SGIS_OA", "geocheck": "KAKAO_GEO", "banks": "KAKAO_BANK", "road": "KAKAO_ROAD",
-         "kma": "KMA_FCST", "air": "AIR_FCST"}
+log = logging.getLogger("atlas.audit")
 
 
 def _auth(token: str | None) -> None:
     expected = get_settings().admin_token
     if not expected:
         raise ApiError(503, "ADMIN_DISABLED", ".env 에 ADMIN_TOKEN 이 없어 관리 API 가 꺼져 있습니다.")
-    if not token or not hmac.compare_digest(token, expected):
+    if not token or not hmac.compare_digest(token.encode(), expected.encode()):
         raise ApiError(401, "UNAUTHORIZED", "X-Admin-Token 이 일치하지 않습니다.")
 
 
-def _bg(name: str, fn, *args) -> None:
-    def run() -> None:
-        try:
-            fn(*args)
-        except Exception:  # 결과는 collect_run / calc_run 에 FAILED 로 남습니다
-            log.exception("admin job failed", extra={"job": name})
-
-    threading.Thread(target=run, name=name, daemon=True).start()
+class JobRequest(BaseModel):
+    kind: str = Field(pattern=r"^[a-z0-9-]{2,20}$")
+    params: dict = Field(default_factory=dict)
 
 
-@router.post("/collect/{kind}", status_code=202, summary="수집 실행 트리거 (FR-101, FR-202)")
-def trigger_collect(kind: str, scope: str | None = None, x_admin_token: str | None = Header(None)):
-    _auth(x_admin_token)
-    if kind not in KINDS:
-        raise ApiError(400, "VALIDATION_ERROR", f"kind 는 {list(KINDS)} 중 하나입니다.")
-    run_kind = KINDS[kind]
-    if rid := runs.running_run(run_kind):
-        raise ApiError(409, "RUN_IN_PROGRESS", f"{run_kind} 수집이 이미 실행 중입니다 (collectRunId={rid}).")
-    codes = [x.strip() for x in scope.split(",")] if scope and scope != "all" else None
-
-    if kind == "post":
-        from atlas.collector.post.pipeline import collect_post
-
-        _bg("collect-post", collect_post, codes)
-    elif kind == "kosis":
-        from atlas.collector.kosis.pipeline import collect_kosis
-
-        if not get_settings().kosis_api_key:
-            raise ApiError(400, "KEY_MISSING", ".env 에 KOSIS_API_KEY 가 없습니다.")
-        _bg("collect-kosis", collect_kosis)
-    elif kind in ("oa", "geocheck", "banks", "road"):
-        if kind != "oa" and not get_settings().kakao_rest_api_key:
-            raise ApiError(400, "KEY_MISSING", ".env 에 KAKAO_REST_API_KEY 가 없습니다.")
-        from atlas.collector.kakao.banks import collect_banks
-        from atlas.collector.kakao.geocheck import run_geocheck
-        from atlas.collector.kakao.road import collect_road
-        from atlas.collector.sgis.oa import collect_oa
-
-        _bg(f"collect-{kind}", {"oa": collect_oa, "geocheck": run_geocheck, "banks": collect_banks,
-                                "road": collect_road}[kind])
-    elif kind in ("kma", "air"):
-        if not get_settings().data_go_kr_key:
-            raise ApiError(400, "KEY_MISSING", ".env 에 DATA_GO_KR_KEY 가 없습니다.")
-        from atlas.collector.weather.air import collect_air
-        from atlas.collector.weather.kma import collect_kma
-
-        _bg(f"collect-{kind}", collect_kma if kind == "kma" else collect_air)
-    elif kind == "sgis-pop":
-        from atlas.collector.sgis.pipeline import collect_population
-
-        _bg("collect-sgis-pop", collect_population)
-    else:
-        from atlas.collector.sgis.pipeline import collect_boundaries
-
-        _bg("collect-sgis-bnd", collect_boundaries)
-    # run 행은 백그라운드 작업이 만듭니다 — 진행 상황은 GET /meta/collect-runs 로 확인
-    return JSONResponse({"kind": run_kind, "status": "QUEUED", "check": "/api/v1/meta/collect-runs"},
+def _enqueue(request: Request, kind: str, params: dict) -> JSONResponse:
+    try:
+        spec = registry.get(kind)
+    except KeyError as e:
+        raise ApiError(400, "VALIDATION_ERROR", f"kind 는 {sorted(registry.JOBS)} 중 하나입니다.") from e
+    if miss := spec.missing():
+        raise ApiError(400, "KEY_MISSING", f".env 에 {', '.join(miss)} 가 없습니다.")
+    ip = client_ip(request)
+    try:
+        jid = queue.enqueue(kind, params, source="api", requested_by=ip)
+    except queue.JobConflict as e:
+        raise ApiError(409, "JOB_IN_PROGRESS", str(e)) from e
+    log.info("admin enqueue", extra={"jobId": jid, "kind": kind, "ip": ip})
+    return JSONResponse({"jobId": jid, "kind": kind, "status": "QUEUED", "check": "/api/v1/meta/jobs"},
                         status_code=202)
 
 
-class CalcRequest(BaseModel):
-    statYear: int | None = None
-    levels: list[int] | None = None
-    params: dict | None = None
-
-
-@router.post("/calc", status_code=202, summary="계산 실행 트리거 (FR-303)")
-def trigger_calc(req: CalcRequest | None = None, x_admin_token: str | None = Header(None)):
+@router.post("/jobs", status_code=202, summary="작업 요청 — 워커가 실행 (kind: post·sgis·kosis·oa·banks·road·geocheck·kma·air·care·holidays·calc)")
+def post_job(req: JobRequest, request: Request, x_admin_token: str | None = Header(None)):
     _auth(x_admin_token)
-    req = req or CalcRequest()
-    try:
-        rid = create_calc_run(req.statYear, req.levels, req.params)
-    except CalcRunInProgress as e:
-        raise ApiError(409, "RUN_IN_PROGRESS", str(e)) from e
-    _bg("calc", execute_calc_run, rid)
-    return JSONResponse({"calcRunId": str(rid), "status": "RUNNING"}, status_code=202)
+    return _enqueue(request, req.kind, req.params)
+
+
+@router.post("/collect/{kind}", status_code=202, summary="수집 요청 (이전 경로 호환) → 작업 큐")
+def trigger_collect(kind: str, request: Request, scope: str | None = None, x_admin_token: str | None = Header(None)):
+    _auth(x_admin_token)
+    return _enqueue(request, kind, {"scope": scope} if scope and scope != "all" else {})
+
+
+@router.post("/calc", status_code=202, summary="계산 요청 (이전 경로 호환) → 작업 큐")
+def trigger_calc(request: Request, x_admin_token: str | None = Header(None)):
+    _auth(x_admin_token)
+    return _enqueue(request, "calc", {})
+
+
+@router.post("/jobs/{job_id}/cancel", summary="대기 중인 작업 취소")
+def cancel_job(job_id: int, x_admin_token: str | None = Header(None)):
+    _auth(x_admin_token)
+    if not queue.cancel(job_id):
+        raise ApiError(409, "JOB_NOT_QUEUED", f"jobId {job_id} 는 대기 중이 아닙니다.")
+    return {"jobId": job_id, "status": "CANCELLED"}
+
+
+@router.get("/jobs", summary="최근 작업 (요청 IP 포함 — 관리자용)")
+def admin_jobs(limit: int = 50, x_admin_token: str | None = Header(None)):
+    _auth(x_admin_token)
+    return {"items": jsonable(queue.recent(min(max(limit, 1), 200), with_requester=True))}

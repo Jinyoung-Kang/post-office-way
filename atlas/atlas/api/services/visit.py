@@ -4,20 +4,25 @@
 """
 from __future__ import annotations
 
+import hashlib
+import json
 from collections import defaultdict
-from datetime import date
+from datetime import date, timedelta
 from typing import Any
 
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
 
+from atlas.api import cache
 from atlas.api.common import jsonable
 from atlas.api.errors import ApiError, bad_request
-from atlas.collector.weather.client import now_kst
+from atlas.api.services import calendar as cal
+from atlas.core.clock import now_kst
 from atlas.core.config import get_settings
+from atlas.domain.calendar import day_status
 from atlas.domain.visit import LEVEL_LABEL, VISIT_RULE_VERSION, WINDOW_HOURS, Hour, air_region, assess
 
-IMPACT_METRICS = ("AGED65_FAR_PPLTN", "FAR2KM_PPLTN", "NEAREST_FIN_DIST_M")
+IMPACT_METRICS = ("AGED65_FAR_PPLTN", "FAR2KM_PPLTN", "NEAREST_FIN_DIST_M", "HOLIDAY_CARE_GAP_PPLTN", "HAS_365")
 
 
 def _latest_calc(c: Connection) -> dict[str, Any] | None:
@@ -55,12 +60,19 @@ def _air(c: Connection, d: date) -> tuple[dict[tuple[str, str], str], Any]:
 
 def _areas(c: Connection, year: int, calc_run_id: Any, adm_cd: str | None = None) -> list[dict[str, Any]]:
     return [dict(r) for r in c.execute(text("""
-        SELECT a.adm_cd, a.adm_nm, pa.adm_nm AS parent_nm, g.nx, g.ny,
+        WITH e AS (   -- 시군구 안 읍면동 중 365코너(ATM)가 없는 곳 — 창구 휴무일에 현금 인출이 어려운 동네
+            SELECT left(adm_cd, 5) AS sgg, count(*) FILTER (WHERE value = 0) AS no365, count(*) AS n
+              FROM mart.access_metric WHERE calc_run_id = CAST(:run AS uuid) AND metric_code = 'HAS_365' AND level = 3
+             GROUP BY 1)
+        SELECT a.adm_cd, a.adm_nm, pa.adm_nm AS parent_nm, g.nx, g.ny, max(e.no365) AS emd_no365, max(e.n) AS emd_n,
                max(m.value) FILTER (WHERE m.metric_code = 'AGED65_FAR_PPLTN') AS aged_far,
                max(m.value) FILTER (WHERE m.metric_code = 'FAR2KM_PPLTN') AS far_ppltn,
-               max(m.value) FILTER (WHERE m.metric_code = 'NEAREST_FIN_DIST_M') AS nearest_m
+               max(m.value) FILTER (WHERE m.metric_code = 'NEAREST_FIN_DIST_M') AS nearest_m,
+               max(m.value) FILTER (WHERE m.metric_code = 'HOLIDAY_CARE_GAP_PPLTN') AS hcare_gap,
+               max(m.value) FILTER (WHERE m.metric_code = 'HAS_365') AS has_365
           FROM mart.admin_area a
           LEFT JOIN mart.area_grid g ON g.adm_cd = a.adm_cd AND g.stat_year = a.stat_year
+          LEFT JOIN e ON e.sgg = a.adm_cd
           LEFT JOIN mart.area_population pa ON pa.adm_cd = left(a.adm_cd, 2) AND pa.stat_year = a.stat_year
           LEFT JOIN mart.access_metric m ON m.adm_cd = a.adm_cd AND m.calc_run_id = CAST(:run AS uuid)
                                         AND m.metric_code = ANY(CAST(:codes AS text[]))
@@ -77,6 +89,9 @@ def _item(a: dict[str, Any], hours: dict[tuple[int, int], list[Hour]], air: dict
         "admCd": a["adm_cd"], "admNm": a["adm_nm"], "parentNm": a["parent_nm"], "airRegion": region,
         "level": res.level, "label": res.label, "reasons": res.reasons, **res.summary,
         "agedFarPpltn": aged_far, "farPpltn": a["far_ppltn"], "nearestFinM": a["nearest_m"],
+        # 창구 휴무일(주말·공휴일)에 쓸 수 있는 거점 — 우체국 365코너, 공휴일 진료 약국·의원
+        "has365": None if a["has_365"] is None else a["has_365"] >= 1, "holidayCareGapPpltn": a["hcare_gap"],
+        "emdWithout365": a["emd_no365"], "emdCount": a["emd_n"],
         # 여건이 주의 이상인 날, 우체국에서 2km 넘게 사는 65세 이상 — 방문이 특히 어려운 사람 수(추정)
         "atRiskAged": aged_far if (res.level or 0) >= 1 else 0,
     })
@@ -87,11 +102,19 @@ def _meta(c: Connection, d: date, dates: list[date], air_at: Any, calc: dict[str
                           WHERE fcst_at >= CAST(:d AS timestamp) AND fcst_at < CAST(:d AS timestamp) + interval '1 day'"""),
                   {"d": d}).scalar()
     today = now_kst().date()
-    return jsonable({"date": d, "dates": [{"date": x, "label": _day_label(x, today)} for x in dates],
+    hol = cal.holidays(c, min([d, *dates]), max([d, *dates]))
+    st = day_status(d, hol)
+    return jsonable({"date": d, "dates": [{"date": x, "label": _day_label(x, today), **_closed(x, hol)} for x in dates],
+                     "closed": st["closed"], "closedReason": st["reason"], "hasCalendar": cal.has_calendar(c, d),
                      "window": f"{WINDOW_HOURS.start:02d}:00~{WINDOW_HOURS.stop - 1:02d}:00",
                      "weatherBaseAt": w, "airAnnouncedAt": air_at, "ruleVersion": VISIT_RULE_VERSION,
                      "calcRunId": calc and calc["calc_run_id"], "levels": LEVEL_LABEL,
                      "note": "기상청 단기예보·에어코리아 예보로 판정한 분석용 참고 정보이며 기상특보가 아닙니다."})
+
+
+def _closed(d: date, hol: dict[date, str]) -> dict[str, Any]:
+    st = day_status(d, hol)
+    return {"closed": st["closed"], "closedReason": st["reason"]}
 
 
 def _no_data() -> ApiError:
@@ -115,8 +138,34 @@ def _pick_date(c: Connection, day: str | None) -> tuple[date, list[date]]:
     return (upcoming or dates)[0], dates
 
 
-def conditions(c: Connection, day: str | None, sido: str | None = None) -> dict[str, Any]:
+def _version(c: Connection, d: date) -> str:
+    """판정 입력의 버전 — 이 값이 같으면 결과도 같음(예보 발표·대기 발표·공휴일·계산·오늘 날짜)."""
+    v = c.execute(text("""SELECT (SELECT max(base_at) FROM mart.weather_hourly
+                                  WHERE fcst_at >= CAST(:d AS timestamp) AND fcst_at < CAST(:d AS timestamp) + interval '1 day'),
+                                 (SELECT max(announced_at) FROM mart.air_forecast WHERE inform_date = :d),
+                                 (SELECT max(fetched_at) FROM mart.holiday),
+                                 (SELECT calc_run_id FROM mart.calc_run WHERE status = 'DONE'
+                                   ORDER BY finished_at DESC NULLS LAST, created_at DESC LIMIT 1)"""), {"d": d}).one()
+    return "|".join(str(x) for x in (*v, now_kst().date(), VISIT_RULE_VERSION))
+
+
+def conditions_json(c: Connection, day: str | None, sido: str | None = None) -> str:
+    """직렬화된 JSON 문자열. 판정은 250여 시군구 × 시간 예보를 파이썬에서 도는 작업(약 300ms)이라 입력 버전이 같으면
+    캐시하고, 적중 시 dict 로 되살렸다 다시 직렬화하지 않고 문자열을 그대로 돌려줌(100KB 응답의 인코딩 비용 제거)."""
     d, dates = _pick_date(c, day)
+    key = "visit:" + hashlib.sha1(f"{_version(c, d)}|{d}|{sido}".encode()).hexdigest()[:20]
+    if hit := cache.get(key):
+        return hit.decode()
+    body = json.dumps(_conditions(c, d, dates, sido), ensure_ascii=False, default=str)
+    cache.set(key, body, ttl=1800)
+    return body
+
+
+def conditions(c: Connection, day: str | None, sido: str | None = None) -> dict[str, Any]:
+    return json.loads(conditions_json(c, day, sido))
+
+
+def _conditions(c: Connection, d: date, dates: list[date], sido: str | None) -> dict[str, Any]:
     calc = _latest_calc(c)
     year = calc["stat_year"] if calc else get_settings().stat_year
     hours, (air, air_at) = _hours_by_grid(c, d), _air(c, d)
@@ -134,7 +183,12 @@ def conditions(c: Connection, day: str | None, sido: str | None = None) -> dict[
     return {"meta": _meta(c, d, dates, air_at, calc), "items": items,
             "summary": {"areas": len(items), "byLevel": by_level, "byReason": dict(reasons),
                         "atRiskAged": sum(x["atRiskAged"] or 0 for x in items),
-                        "atRiskAreas": sum(1 for x in items if (x["level"] or 0) >= 1)}}
+                        "atRiskAreas": sum(1 for x in items if (x["level"] or 0) >= 1),
+                        "holidayCareGapPpltn": (sum(x["holidayCareGapPpltn"] or 0 for x in items)
+                                                if any(x["holidayCareGapPpltn"] is not None for x in items) else None),
+                        "without365Areas": sum(1 for x in items if x["has365"] is False),
+                        "emdWithout365": (sum(x["emdWithout365"] or 0 for x in items)
+                                          if any(x["emdWithout365"] is not None for x in items) else None)}}
 
 
 def area_outlook(c: Connection, adm_cd: str) -> dict[str, Any]:
@@ -151,11 +205,13 @@ def area_outlook(c: Connection, adm_cd: str) -> dict[str, Any]:
     dates = [x for x in available_dates(c, now.date()) if x > now.date() or now.hour < WINDOW_HOURS.stop]
     days = []
     grid = (areas[0]["nx"], areas[0]["ny"]) if areas[0]["nx"] is not None else (-1, -1)
+    hol = cal.holidays(c, now.date(), now.date() + timedelta(days=7))
     for d in dates[:3]:
         hours, (air, _) = _hours_by_grid(c, d, grid), _air(c, d)
-        days.append({"date": d.isoformat(), "dayLabel": _day_label(d, now.date()), **_item(areas[0], hours, air)})
+        days.append({"date": d.isoformat(), "dayLabel": _day_label(d, now.date()), **_closed(d, hol),
+                     **_item(areas[0], hours, air)})
     return {"admCd": sgg, "admNm": areas[0]["adm_nm"], "ruleVersion": VISIT_RULE_VERSION, "days": days}
 
 
 def _day_label(d: date, today: date) -> str:
-    return {0: "오늘", 1: "내일", 2: "모레"}.get((d - today).days, f"{d.month}/{d.day}")
+    return {0: "오늘", 1: "내일", 2: "모레"}.get((d - today).days, "월화수목금토일"[d.weekday()] + "요일")

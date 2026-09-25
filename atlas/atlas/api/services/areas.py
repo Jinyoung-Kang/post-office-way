@@ -1,6 +1,8 @@
 """지역 조회 — 단계구분도 GeoJSON(캐시), 지표 순위 목록, 지역 상세 카드 (FR-304, FR-501, FR-502)."""
 from __future__ import annotations
 
+import gzip
+import hashlib
 import json
 from typing import Any
 
@@ -14,11 +16,9 @@ from atlas.api.common import (FACILITY_COLS, bad_request, jsonable, meta_of, met
 DEFAULT_SIMPLIFY = {2: 200.0, 3: 50.0}
 
 # 지표 값 + 레벨 전체 기준 순위(1 = 값이 가장 큼)·백분위(값 오름차순 0~100)
+# 순위·백분위는 계산 때 미리 넣어 둔 열(V14, calc/10_ranks.sql)을 읽기만 함
 _RANKED = """
-    SELECT adm_cd, value,
-           rank() OVER (ORDER BY value DESC) AS rnk,
-           round(CAST(percent_rank() OVER (ORDER BY value) * 100 AS numeric), 1) AS pct,
-           count(*) OVER () AS n
+    SELECT adm_cd, value, rnk, pct, n
       FROM mart.access_metric
      WHERE calc_run_id = :run AND metric_code = :metric AND level = :level AND value IS NOT NULL
 """
@@ -33,6 +33,25 @@ def _check_level(level: int, parent: str | None, run: dict[str, Any]) -> None:
         raise not_found("LEVEL_NOT_CALCULATED", f"calcRunId {run['calc_run_id']} 는 level {level} 을 계산하지 않았습니다.")
 
 
+def geojson_payload(c: Connection, level: int, metric: str, parent: str | None, calc_run_id: str | None,
+                    simplify: float | None, etag_only: bool = False) -> tuple[bytes | None, str]:
+    """(gzip 본문, ETag). 캐시에는 gzip 으로 저장해 요청마다 수백 KB 를 다시 압축하지 않고,
+    ETag 는 따로 두어 If-None-Match 가 같으면 본문을 Redis 에서 꺼내지도 않습니다(etag_only)."""
+    run = resolve_calc_run(c, calc_run_id)
+    _check_level(level, parent, run)
+    if simplify is not None and not 0 <= simplify <= 5000:
+        raise bad_request("simplify 는 0~5000(m) 입니다.")
+    key = f"geo:gz:{run['calc_run_id']}:{level}:{parent or '-'}:{metric}:{simplify if simplify is not None else 'd'}"
+    if (tag := cache.get(key + ":etag")) and (etag_only or (body := cache.get(key))):
+        return (None if etag_only else body), tag.decode()
+    raw = geojson(c, level, metric, parent, calc_run_id, simplify).encode()
+    gz = gzip.compress(raw, compresslevel=6, mtime=0)          # mtime=0 → 같은 내용이면 같은 바이트
+    tag = 'W/"' + hashlib.blake2b(gz, digest_size=12).hexdigest() + '"'
+    cache.set(key, gz)
+    cache.set(key + ":etag", tag)
+    return gz, tag
+
+
 def geojson(c: Connection, level: int, metric: str, parent: str | None, calc_run_id: str | None,
             simplify: float | None) -> str:
     run = resolve_calc_run(c, calc_run_id)
@@ -40,9 +59,6 @@ def geojson(c: Connection, level: int, metric: str, parent: str | None, calc_run
     mdef = metric_row(c, metric)
     if simplify is not None and not 0 <= simplify <= 5000:
         raise bad_request("simplify 는 0~5000(m) 입니다.")
-    key = f"geo:{run['calc_run_id']}:{level}:{parent or '-'}:{metric}:{simplify if simplify is not None else 'd'}"
-    if hit := cache.get(key):
-        return hit.decode()
 
     if simplify is None or simplify == DEFAULT_SIMPLIFY[level]:
         geom = "coalesce(a.geom_simple, a.geom)"
@@ -52,12 +68,12 @@ def geojson(c: Connection, level: int, metric: str, parent: str | None, calc_run
         geom = "ST_Transform(ST_SimplifyPreserveTopology(a.geom_5179, CAST(:tol AS float8)), 4326)"
     fc = c.execute(text(f"""
         WITH m AS ({_RANKED})
-        SELECT json_build_object('type', 'FeatureCollection', 'features', coalesce(json_agg(json_build_object(
+        SELECT CAST(json_build_object('type', 'FeatureCollection', 'features', coalesce(json_agg(json_build_object(
                  'type', 'Feature', 'id', a.adm_cd,
                  'properties', json_build_object('admCd', a.adm_cd, 'admNm', a.adm_nm, 'level', a.level,
                      'parentCd', a.parent_cd, 'value', m.value, 'unit', CAST(:unit AS text), 'rank', m.rnk, 'rankOf', m.n,
                      'percentile', m.pct, 'totPpltn', p.tot_ppltn, 'agedChildIdx', p.aged_child_idx),
-                 'geometry', CAST(ST_AsGeoJSON({geom}, 5) AS json)) ORDER BY a.adm_cd), CAST('[]' AS json)))
+                 'geometry', CAST(ST_AsGeoJSON({geom}, 5) AS json)) ORDER BY a.adm_cd), CAST('[]' AS json))) AS text)
           FROM mart.admin_area a
           LEFT JOIN m ON m.adm_cd = a.adm_cd
           LEFT JOIN mart.area_population p ON p.adm_cd = a.adm_cd AND p.stat_year = a.stat_year
@@ -67,10 +83,9 @@ def geojson(c: Connection, level: int, metric: str, parent: str | None, calc_run
            "parent": parent, "unit": mdef["unit"], "tol": simplify}).scalar_one()
     meta = meta_of(run, metric=metric, metricName=mdef["name_ko"], unit=mdef["unit"],
                    higherIsWorse=mdef["higher_is_worse"], level=level, parent=parent, crs="EPSG:4326")
+    # text 로 받아 그대로 이어 붙임 — json 으로 받으면 드라이버가 수 MB 를 dict 로 파싱했다가 다시 직렬화함
     fc_text = fc if isinstance(fc, str) else json.dumps(fc, ensure_ascii=False)
-    body = '{"meta":' + json.dumps(meta, ensure_ascii=False) + "," + fc_text.lstrip()[1:]
-    cache.set(key, body)
-    return body
+    return '{"meta":' + json.dumps(meta, ensure_ascii=False) + "," + fc_text.lstrip()[1:]
 
 
 def list_areas(c: Connection, level: int, metric: str, parent: str | None, calc_run_id: str | None,
@@ -122,16 +137,9 @@ def area_detail(c: Connection, adm_cd: str, calc_run_id: str | None) -> dict[str
     if not a:
         raise not_found("AREA_NOT_FOUND", f"admCd {adm_cd} ({run['stat_year']}년) 가 없습니다.")
     metrics = c.execute(text("""
-        WITH r AS (
-            SELECT metric_code, adm_cd, value,
-                   rank() OVER (PARTITION BY metric_code ORDER BY value DESC) AS rnk,
-                   round(CAST(percent_rank() OVER (PARTITION BY metric_code ORDER BY value) * 100 AS numeric), 1) AS pct,
-                   count(*) OVER (PARTITION BY metric_code) AS n
-              FROM mart.access_metric WHERE calc_run_id = :run AND level = :lvl AND value IS NOT NULL)
-        SELECT d.metric_code, d.name_ko, d.unit, d.higher_is_worse, m.value, r.rnk, r.pct, r.n
+        SELECT d.metric_code, d.name_ko, d.unit, d.higher_is_worse, m.value, m.rnk, m.pct, m.n
           FROM mart.access_metric m
           JOIN mart.metric_def d ON d.metric_code = m.metric_code
-          LEFT JOIN r ON r.metric_code = m.metric_code AND r.adm_cd = m.adm_cd
          WHERE m.calc_run_id = :run AND m.adm_cd = :cd
          ORDER BY d.sort_order, d.metric_code"""),
         {"run": run["calc_run_id"], "lvl": a["level"], "cd": adm_cd}).mappings().all()

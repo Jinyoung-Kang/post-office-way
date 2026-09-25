@@ -115,10 +115,14 @@ def execute_calc_run(calc_run_id: uuid.UUID, engine: Engine | None = None) -> di
             step("oa", lambda: run_sql_file(c, "calc/06_oa.sql", far))          # ① 집계구
             step("bank", lambda: run_sql_file(c, "calc/07_bank.sql", far))      # ④ 금융 공백
             step("road", lambda: run_sql_file(c, "calc/08_road.sql", base))     # ② 도로 거리
+            step("life", lambda: run_sql_file(c, "calc/09_life.sql", far))      # ⑦ 생활 거점(약국·의원)
+            step("ranks", lambda: run_sql_file(c, "calc/10_ranks.sql", base))  # 순위·백분위 미리 계산 (V14)
             extra = c.execute(text("""SELECT
                 (SELECT count(*) FROM mart.oa_nearest WHERE calc_run_id = :id),
                 (SELECT count(*) FROM mart.access_metric WHERE calc_run_id = :id AND metric_code = 'NEAREST_BANK_DIST_M'),
-                (SELECT count(*) FROM mart.access_metric WHERE calc_run_id = :id AND metric_code = 'NEAREST_FIN_ROAD_M')"""),
+                (SELECT count(*) FROM mart.access_metric WHERE calc_run_id = :id AND metric_code = 'NEAREST_FIN_ROAD_M'),
+                (SELECT count(*) FROM mart.facility_hub WHERE calc_run_id = :id),
+                (SELECT count(*) FROM mart.care_place)"""),
                 {"id": calc_run_id}).one()
             dq = DQRecorder(calc_run_id=calc_run_id)
             dq.add_sql(c, "SPATIAL_JOIN_MISS", "mart.post_facility_hist", """
@@ -141,6 +145,7 @@ def execute_calc_run(calc_run_id: uuid.UUID, engine: Engine | None = None) -> di
             stats = {"facilities": n_fac, "finFacilities": n_fin, "areas": n_area, "areasByLevel": per_level,
                      "kosisRefPeriod": kosis_period,
                      "oaCount": extra[0], "bankAreas": extra[1], "roadAreas": extra[2],
+                     "hubFacilities": extra[3], "carePlaces": extra[4],
                      "timingsMs": timings, "dq": dq_counts,
                      "elapsedMs": int((time.monotonic() - t0) * 1000)}
             # now() 는 트랜잭션 시작 시각 → 실제 끝난 시각은 clock_timestamp()

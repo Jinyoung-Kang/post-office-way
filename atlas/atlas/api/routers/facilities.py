@@ -4,6 +4,9 @@ from fastapi import APIRouter, Query
 from sqlalchemy import text
 
 from atlas.api.common import FACILITY_COLS, bad_request, facility_json, jsonable, not_found, page_params
+from atlas.api.services import calendar as cal_svc
+from atlas.api.services import hubs as hub_svc
+from atlas.core.clock import now_kst
 from atlas.core.db import get_engine
 
 router = APIRouter(prefix="/facilities", tags=["facilities"])
@@ -62,7 +65,12 @@ def facility_detail(hist_id: int):
         history = c.execute(text("""
             SELECT hist_id, valid_from, valid_to, is_current, finance_time, fin_available FROM mart.post_facility_hist
              WHERE post_id = :pid ORDER BY valid_from DESC"""), {"pid": r["post_id"]}).mappings().all()
+        hub = hub_svc.facility_hub(c, hist_id)
+        now = now_kst()
+        hol = cal_svc.holidays(c, now.date(), now.date())
     out = facility_json(dict(r))
+    out["hub"] = hub
+    out["status"] = cal_svc.business_status(r["finance_time"], now, hol) if r["fin_available"] else None
     out["validTo"] = jsonable(r["valid_to"])
     out["coordSource"] = r["coord_source"]
     out["geocheck"] = jsonable({"status": geo["status"], "distM": geo["dist_m"], "addrLat": geo["addr_lat"],

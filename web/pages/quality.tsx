@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import Layout, { Card, Empty, ErrorBox, Hero, Segmented } from "@/components/Layout";
 import { api, qs, type Page } from "@/lib/api";
 import { dt, num, short } from "@/lib/format";
+import JobsPanel from "@/components/JobsPanel";
 
 type Check = { code: string; severity: string; count: number; description: string };
 type Block = { scope: string; runId: string; kind: string; status: string; checkedAt: string; checks: Check[] };
@@ -17,8 +18,9 @@ const KIND_LABEL: Record<string, string> = {
   POST_AREA: "우체국 시설", POST_DISCOVER: "지역코드 탐색", SGIS_POP: "SGIS 인구", SGIS_BND: "SGIS 경계",
   KOSIS_POP: "KOSIS 주민등록인구", CALC: "지표 계산", SGIS_OA: "SGIS 집계구", KAKAO_GEO: "주소 좌표 검증",
   KAKAO_BANK: "은행·금고 지점", KAKAO_ROAD: "도로 거리", KMA_FCST: "기상청 단기예보", AIR_FCST: "에어코리아 예보",
+  NMC_CARE: "약국·병의원", KASI_HOLIDAY: "공휴일(특일)",
 };
-const KIND_ORDER = ["POST_AREA", "SGIS_POP", "SGIS_BND", "SGIS_OA", "KOSIS_POP", "KAKAO_GEO", "KAKAO_BANK", "KAKAO_ROAD", "KMA_FCST", "AIR_FCST", "CALC"];
+const KIND_ORDER = ["POST_AREA", "SGIS_POP", "SGIS_BND", "SGIS_OA", "KOSIS_POP", "KAKAO_GEO", "KAKAO_BANK", "KAKAO_ROAD", "KMA_FCST", "AIR_FCST", "NMC_CARE", "KASI_HOLIDAY", "CALC"];
 const SEV: Record<string, string> = { ERROR: "badge-error", WARN: "badge-warn", INFO: "badge-info" };
 const STATUS: Record<string, string> = { DONE: "badge-good", PARTIAL: "badge-warn", FAILED: "badge-error", RUNNING: "badge-info" };
 const DETAIL_LABEL: Record<string, string> = {
@@ -53,9 +55,10 @@ export default function Quality() {
   }, [filter]);
 
   return (
-    <Layout title="데이터 품질">
-      <Hero title="데이터 품질." sub="수집과 계산마다 규칙을 모두 실행하고, 걸린 행은 다시 찾을 수 있게 남깁니다. 0건인 규칙도 ‘실행했음’으로 기록됩니다." />
+    <Layout title="데이터·운영">
+      <Hero title="데이터·운영." sub="작업 큐가 무엇을 언제 실행했는지, 수집·계산마다 어떤 품질 규칙에 걸렸는지 봅니다. 0건인 규칙도 ‘실행했음’으로 기록됩니다." />
       <div className="mx-auto max-w-page space-y-5 px-4 pb-20">
+        <JobsPanel />
         {sum && sum.errorCount > 0 && (
           <div className="card flex items-center gap-3 p-4 text-[14px]">
             <span className="badge badge-error">ERROR</span>

@@ -133,6 +133,12 @@ export function FacilityCard({ f: base, onClose }: { f: Facility; onClose?: () =
         </div>
         {onClose && <CloseButton onClick={onClose} />}
       </div>
+      {f.status && (
+        <p className={`flex items-center gap-2 text-[14px] font-medium ${f.status.state === "open" ? "text-[#1d8a3a]" : f.status.state === "closed" ? "text-[#b25000]" : "text-ink-2"}`}>
+          <span className={`inline-block h-2 w-2 rounded-full ${f.status.state === "open" ? "bg-[#34c759]" : f.status.state === "closed" ? "bg-[#ff9500]" : "bg-[#aeaeb2]"}`} aria-hidden="true" />
+          {f.status.label}
+        </p>
+      )}
       <div className="flex flex-wrap gap-1.5">
         <span className={`badge ${f.finAvailable ? "badge-good" : "badge-info"}`}>{f.finAvailable ? "금융 가능" : "금융 불가"}</span>
         {f.post365Yn === "Y" && <span className="badge badge-info">365코너</span>}
@@ -146,6 +152,28 @@ export function FacilityCard({ f: base, onClose }: { f: Facility; onClose?: () =
         <Row k="금융 업무" v={f.financeTime || "—"} />
         <Row k="점심시간" v={f.lunchYn === "Y" ? f.lunchTime || "있음" : "없음"} />
       </Group>
+      {f.hub && (f.hub.servedPpltn || f.hub.nearby.length > 0) && (
+        <Group label="생활 거점 · 이 우체국이 닫힌다면 (2km, 집계구)">
+          {f.hub.servedPpltn !== null && <Row k="담당 인구 (가장 가까운 우체국)" v={`${num(f.hub.servedPpltn)}명`} />}
+          {f.hub.soleFinPpltn !== null && <Row k="금융 창구를 모두 잃는 인구" v={`${num(f.hub.soleFinPpltn)}명`} />}
+          {f.hub.soleHubPpltn !== null && (
+            <div className="row">
+              <span className="text-ink-2">생활 거점을 모두 잃는 인구</span>
+              <span className="tnum text-right">
+                <span className={`font-semibold ${f.hub.soleHubPpltn ? "text-[#d70015]" : ""}`}>{num(f.hub.soleHubPpltn)}명</span>
+                {f.hub.soleHubRank && <span className="ml-1.5 text-[11px] text-ink-3">{f.hub.soleHubRank}/{f.hub.soleHubOf}위</span>}
+              </span>
+            </div>
+          )}
+          {f.hub.nearby.map((n) => (
+            <div key={n.kind} className="row">
+              <span className="min-w-0"><span className="block text-[12px] text-ink-3">{n.kind === "PHARMACY" ? "가까운 약국" : n.kind === "CLINIC" ? "가까운 의원·병원" : "가까운 은행 지점"}</span>
+                <span className="block truncate font-medium">{n.name}{n.openHoliday && <span className="badge badge-good ml-1.5 align-middle">공휴일 진료</span>}</span></span>
+              <span className="tnum shrink-0 font-medium">{dist(n.distM)}</span>
+            </div>
+          ))}
+        </Group>
+      )}
       <Group label="연락처">
         <Row k="주소" v={f.addr || "—"} />
         <Row k="전화" v={f.tel || "—"} />
@@ -199,7 +227,8 @@ function VisitRows({ admCd }: { admCd: string }) {
       {o.days.map((x) => (
         <div key={x.date} className="row">
           <span className="min-w-0">
-            <span className="block font-medium">{x.dayLabel} <span className="text-[12px] font-normal text-ink-3">{num(x.tmpMin, 0)}~{num(x.tmpMax, 0)}℃</span></span>
+            <span className="block font-medium">{x.dayLabel} <span className="text-[12px] font-normal text-ink-3">{num(x.tmpMin, 0)}~{num(x.tmpMax, 0)}℃</span>
+              {x.closed && <span className="badge badge-warn ml-1.5 align-middle">창구 휴무 · {x.closedReason}</span>}</span>
             <span className="block truncate text-[12px] text-ink-3">{x.reasons.map((r) => r.text).join(" · ") || "특이 사항 없음"}</span>
           </span>
           <VisitBadge level={x.level} />

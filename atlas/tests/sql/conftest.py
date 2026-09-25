@@ -42,7 +42,8 @@ def engine():
 @pytest.fixture()
 def clean(engine):
     with engine.begin() as c:
-        c.execute(text("""TRUNCATE mart.area_grid, mart.weather_hourly, mart.air_forecast, mart.oa_nearest, mart.oa_area, mart.area_road, mart.bank_place, mart.facility_geocheck,
+        c.execute(text("""TRUNCATE ops.job, mart.facility_hub, mart.care_place, mart.holiday,
+                          mart.area_grid, mart.weather_hourly, mart.air_forecast, mart.oa_nearest, mart.oa_area, mart.area_road, mart.bank_place, mart.facility_geocheck,
                           mart.geocode_cache, mart.area_resident_pop,
                           mart.whatif_result, mart.whatif_scenario, mart.area_nearest, mart.access_metric,
                           mart.facility_area_map, ops.dq_check, ops.dq_issue, mart.calc_run, mart.post_facility_hist,

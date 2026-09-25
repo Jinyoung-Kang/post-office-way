@@ -157,7 +157,7 @@ def _oa_weights(c: Connection, y: int, oas: list[str], weight: str) -> tuple[dic
     return {cd: float(p or 0) for cd, p, _ in rows}, "pop"
 
 
-ALGO_VERSION = "3"   # 알고리즘·응답 형식이 바뀌면 올려서 이전 캐시를 무효화
+ALGO_VERSION = "4"   # 알고리즘·응답 형식이 바뀌면 올려서 이전 캐시를 무효화
 
 
 def _key(kind: str, run_id: Any, **kw: Any) -> str:
@@ -233,12 +233,16 @@ def plan_close(c: Connection, scope: str, k: int, weight: str, level: int | None
     zero = {"addedCost": 0.0, "newlyFar": 0.0, "areasAffected": 0}
     singles = sorted(({**facs[h], "histId": h, **si.get(h, zero)} for h in facs),
                      key=lambda r: (r["addedCost"], r["histId"]))
+    # ⑦ 닫으면 생활 거점을 모두 잃는 인구(우체국별, 최신 계산) — 제안 목록에 경고로 함께 표시
+    hub = {h: s for h, s in c.execute(text("""SELECT hist_id, sole_hub_ppltn FROM mart.facility_hub
+                                               WHERE calc_run_id = :r AND hist_id = ANY(CAST(:ids AS bigint[]))"""),
+                                      {"r": run["calc_run_id"], "ids": sorted(facs)})}
     removed: set[int] = set()
     out_steps = []
     for st in steps:
         removed.add(st["histId"])
         out_steps.append({**facs[st["histId"]], **st, "addedKmPpl": round(st["addedCost"] / 1000, 1),
-                          "newlyFar": round(st["newlyFar"])})
+                          "newlyFar": round(st["newlyFar"]), "soleHubPpltn": hub.get(st["histId"])})
     # 거리가 늘어나는 수요 지점을 읍면동(집계구면 상위 읍면동)으로 묶어 가중 평균 거리로 표시
     agg: dict[str, list[float]] = {}
     for a in areas:
@@ -261,10 +265,10 @@ def plan_close(c: Connection, scope: str, k: int, weight: str, level: int | None
         "affectedAreas": affected[:50],
         "leastImpact": [{"histId": r["histId"], "name": r["name"], "addr": r["addr"], "lat": r["lat"], "lon": r["lon"],
                          "addedKmPpl": round(r["addedCost"] / 1000, 1), "newlyFar": round(r["newlyFar"]),
-                         "areasAffected": r["areasAffected"]} for r in singles[:15]],
+                         "areasAffected": r["areasAffected"], "soleHubPpltn": hub.get(r["histId"])} for r in singles[:15]],
         "mostCritical": [{"histId": r["histId"], "name": r["name"], "addr": r["addr"],
                           "addedKmPpl": round(r["addedCost"] / 1000, 1), "newlyFar": round(r["newlyFar"]),
-                          "areasAffected": r["areasAffected"]} for r in singles[::-1][:10]],
+                          "areasAffected": r["areasAffected"], "soleHubPpltn": hub.get(r["histId"])} for r in singles[::-1][:10]],
         "caveat": CAVEAT, "meta": meta_of(run),
     })
     cache.set(key, json.dumps(out, ensure_ascii=False), ttl=3600)

@@ -129,11 +129,13 @@ export default function WhatIfPage() {
                 <Stat label="평균 최근접 거리" value={dist(s.avgDistAfterM)} note={`이전 ${dist(s.avgDistBeforeM)} · 최대 +${dist(s.maxIncreaseM)}`} />
               </div>
               {(s.oaNewlyFarPpltn != null || s.lostFinAccessPpltn != null) && (
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <div className={`grid grid-cols-1 gap-3 ${s.lifeHubLostPpltn != null ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
                   {s.oaNewlyFarPpltn != null && <Stat label="새로 2km 밖이 되는 인구 · 집계구" value={`${num(s.oaNewlyFarPpltn)}명`}
                     note={`최근접이 바뀌는 인구 ${num(s.oaAffectedPpltn)}명 (집계구 단위, 읍면동 추정보다 정확)`} tone={s.oaNewlyFarPpltn ? "bad" : undefined} />}
                   {s.lostFinAccessPpltn != null && <Stat label="2km 안 금융 창구가 모두 사라지는 인구" value={`${num(s.lostFinAccessPpltn)}명`}
                     note="우체국이 유일한 대면 금융 창구였던 읍면동 (은행·금고 지점도 2km 밖)" tone={s.lostFinAccessPpltn ? "bad" : undefined} />}
+                  {s.lifeHubLostPpltn != null && <Stat label="2km 안 생활 거점을 모두 잃는 인구" value={`${num(s.lifeHubLostPpltn)}명`}
+                    note="새로 2km 밖이 되면서 은행·약국·의원도 2km 안에 없는 집계구" tone={s.lifeHubLostPpltn ? "bad" : undefined} />}
                 </div>
               )}
               <div className="card overflow-hidden">

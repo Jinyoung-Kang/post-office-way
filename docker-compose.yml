@@ -2,14 +2,21 @@
 # docker-compose.yml — 우체국 접근성 아틀라스 로컬 스택
 #
 #   db        PostgreSQL 16 + PostGIS 3.6 (arm64 네이티브 이미지, ADR-007)
-#   redis     GeoJSON·What-if 캐시 (영속화 끔)
-#   api       FastAPI :8100 — 조회·What-if·관리 트리거. 기동 시 마이그레이션 적용
-#   collector 배치 전용 (profile: batch) — make collect / make sgis / make calc
-#   web       Next.js 15 :3100 — 지도·순위·What-if·품질·지표 정의
+#   redis     캐시·속도 제한 카운터 (영속화 끔)
+#   migrate   소유자 권한으로 마이그레이션 적용 후 종료 (api·worker 가 끝나기를 기다림)
+#   api       FastAPI :8100 — 최소 권한 역할 atlas_api 로 접속. 조회·What-if·작업 요청만 (ADR-012)
+#   worker    작업 큐 실행 + 스케줄러 (예보·공휴일·약국/병의원 자동 갱신)
+#   collector 배치 전용 (profile: batch) — make collect / make sgis / make calc / make test
+#   web       Next.js 15 :3100 — 모든 화면. /api/v1 은 같은 출처로 api 에 프록시
 #
 # 모든 포트는 127.0.0.1 에만 바인딩합니다(NFR-06). 기존 매크로 대시보드
 # (3000/8080/8000/5432/6379)와 동시에 띄울 수 있도록 번호를 옮겼습니다.
 # =============================================================================
+
+# 컨테이너 공통 강화: 권한 상승 금지, 리눅스 capability 전부 제거
+x-hardened: &hardened
+  security_opt: ["no-new-privileges:true"]
+  cap_drop: ["ALL"]
 
 x-atlas-env: &atlas-env
   DATABASE_URL: postgresql+psycopg://atlas:atlas@db:5432/atlas
@@ -21,6 +28,9 @@ x-atlas-env: &atlas-env
   KOSIS_API_KEY: ${KOSIS_API_KEY:-}
   KOSIS_PERIOD: ${KOSIS_PERIOD:-}
   DATA_GO_KR_KEY: ${DATA_GO_KR_KEY:-}
+  API_DB_PASSWORD: ${API_DB_PASSWORD:-}
+  ATLAS_SCHEDULE: ${ATLAS_SCHEDULE:-weather,holidays,care}
+  RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-true}
   ADMIN_TOKEN: ${ADMIN_TOKEN:-}
   STAT_YEAR: ${STAT_YEAR:-2024}
   SGIS_SIDO: ${SGIS_SIDO:-all}
@@ -43,7 +53,9 @@ services:
       POSTGRES_DB: atlas
       LANG: C.UTF-8
       TZ: Asia/Seoul
-    command: ["postgres", "-c", "shared_buffers=512MB", "-c", "work_mem=64MB", "-c", "maintenance_work_mem=256MB"]
+    # 느린 쿼리(500ms+) 로그 + pg_stat_statements (성능 분석용, V13)
+    command: ["postgres", "-c", "shared_buffers=512MB", "-c", "work_mem=64MB", "-c", "maintenance_work_mem=256MB",
+              "-c", "shared_preload_libraries=pg_stat_statements", "-c", "log_min_duration_statement=500"]
     volumes:
       - db-data:/var/lib/postgresql/data
     ports:
@@ -66,18 +78,34 @@ services:
       timeout: 3s
       retries: 20
 
+  migrate:
+    <<: *hardened
+    build:
+      context: .
+      dockerfile: atlas/Dockerfile.collector
+    depends_on:
+      db: { condition: service_healthy }
+    environment:
+      <<: *atlas-env
+    command: ["migrate"]
+    restart: "no"
+
   api:
+    <<: *hardened
     restart: unless-stopped
     build:
       context: .
       dockerfile: atlas/Dockerfile.api
     depends_on:
-      db: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
       redis: { condition: service_healthy }
     environment:
       <<: *atlas-env
-    volumes:
-      - ./seed:/app/seed
+      # 최소 권한 역할 — 조회·What-if 저장·작업 요청만 (raw·stg·DDL 없음)
+      DATABASE_URL: postgresql+psycopg://atlas_api:${API_DB_PASSWORD:?API_DB_PASSWORD 가 없습니다 — make env 를 실행하세요}@db:5432/atlas
+      PROMETHEUS_MULTIPROC_DIR: /tmp/prom
+    read_only: true
+    tmpfs: ["/tmp"]
     ports:
       - "127.0.0.1:8100:8100"
     healthcheck:
@@ -85,6 +113,25 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+
+  worker:
+    <<: *hardened
+    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: atlas/Dockerfile.collector
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+    environment:
+      <<: *atlas-env
+    command: ["worker"]
+    # SIGTERM 뒤 실행 중 작업을 마칠 시간 (못 마치면 하트비트가 끊겨 다음 기동 때 다시 대기열로)
+    stop_grace_period: 60s
+    read_only: true
+    tmpfs: ["/tmp"]
+    volumes:
+      - ./seed:/app/seed:ro
 
   collector:
     profiles: ["batch"]
@@ -102,6 +149,7 @@ services:
       - ./fixtures:/app/fixtures
 
   web:
+    <<: *hardened
     restart: unless-stopped
     build:
       context: ./web
@@ -112,6 +160,8 @@ services:
     environment:
       # 브라우저에 가도 되는 유일한 키. 런타임에 /api/config 로 전달(재빌드 불필요)
       KAKAO_JS_KEY: ${NEXT_PUBLIC_KAKAO_JS_KEY:-}
+    read_only: true
+    tmpfs: ["/tmp", "/app/.next/cache"]
     ports:
       - "127.0.0.1:3100:3100"
 

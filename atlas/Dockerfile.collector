@@ -1,14 +1,15 @@
-# 수집기·계산 배치 이미지 (포트 없음). 테스트도 이 이미지에서 실행합니다.
+# 수집기·계산·워커·마이그레이션 이미지 (포트 없음). 테스트도 이 이미지에서 실행합니다.
 FROM python:3.11-slim-bookworm
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 \
     ATLAS_MIGRATIONS_DIR=/app/db/migrations ATLAS_SEED_DIR=/app/seed
 WORKDIR /app
 COPY atlas/pyproject.toml atlas/pyproject.toml
 COPY atlas/atlas atlas/atlas
-RUN pip install "./atlas[dev]"
+RUN pip install --upgrade pip setuptools && pip install "./atlas[dev]" && useradd --system --uid 10001 --no-create-home atlas
 COPY atlas/tests atlas/tests
 COPY db/migrations db/migrations
 COPY seed seed
+USER 10001
 WORKDIR /app/atlas
 ENTRYPOINT ["atlas"]
 CMD ["--help"]

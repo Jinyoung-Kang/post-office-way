@@ -1,12 +1,12 @@
 import dynamic from "next/dynamic";
 import type AtlasMapType from "@/components/AtlasMap";
 import { useRouter } from "next/router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Layout, { basisText, ErrorBox, NoDataGuide, Segmented, useDataBasis } from "@/components/Layout";
 import RegionCard, { FacilityCard } from "@/components/RegionCard";
-import { BANK_LEGEND, FACILITY_LEGEND, type FacilityLayer } from "@/components/AtlasMap";
+import { BANK_LEGEND, CARE_LEGEND, FACILITY_LEGEND, type CareLayer, type FacilityLayer } from "@/components/AtlasMap";
 import { api, qs, type AreaFC, type AreaProps, type Facility, type MetricDef, type Region } from "@/lib/api";
-import { classOf, NO_DATA, num, quantileBreaks, SEQ, withUnit } from "@/lib/format";
+import { classOf, groupMetrics, NO_DATA, num, quantileBreaks, SEQ, withUnit } from "@/lib/format";
 
 const AtlasMap = dynamic(() => import("@/components/AtlasMap"), { ssr: false }) as typeof AtlasMapType;
 
@@ -26,6 +26,10 @@ export default function MapPage() {
   const [facility, setFacility] = useState<Facility | null>(null);
   const [fac, setFac] = useState<FacilityLayer>(null);
   const [banks, setBanks] = useState(false);
+  const [care, setCare] = useState<CareLayer>(null);
+  const written = useRef<{ adm?: string; metric?: string; in?: string }>({});
+  // 주소 → 상태를 한 번 반영한 다음 렌더부터 상태 → 주소를 씀 (같은 커밋에서 쓰면 옛 상태로 주소를 지움)
+  const [hydrated, setHydrated] = useState(false);
   const [ms, setMs] = useState<number | null>(null);
   const [panelOpen, setPanelOpen] = useState(true);
   const [narrow, setNarrow] = useState(false);
@@ -47,14 +51,22 @@ export default function MapPage() {
 
   // ?adm=11010&metric=… (순위·개요 화면에서 이동) → 레벨·상위 전환, 선택, 확대
   useEffect(() => {
+    if (!router.isReady) return;
+    setHydrated(true);
     const adm = typeof router.query.adm === "string" ? router.query.adm : null;
     const m = typeof router.query.metric === "string" ? router.query.metric : null;
+    const within = typeof router.query.in === "string" ? router.query.in : null;
+    // 이 화면이 방금 주소에 쓴 값이면 다시 확대하지 않음 (지역을 누를 때마다 지도가 튀지 않게)
+    if (adm === (written.current.adm ?? null) && m === (written.current.metric ?? null)
+        && within === (written.current.in ?? null)) return;
     if (m) setMetric(m);
+    if (within && !adm) { setLevel(3); setParent(within); setSelected(null); setFocusCd(null); }
     if (adm) {
       if (adm.length > 5) { setLevel(3); setParent(adm.slice(0, 5)); } else { setLevel(2); setParent(""); }
       setSelected(adm); setFocusCd(adm); setFacility(null);
     }
-  }, [router.query.adm, router.query.metric]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router.isReady, router.query.adm, router.query.metric, router.query.in]);
 
   useEffect(() => {
     if (level === 3 && !parent) return;
@@ -67,6 +79,27 @@ export default function MapPage() {
       .finally(() => alive && setLoading(false));
     return () => { alive = false; };
   }, [level, parent, metric]);
+
+  // 지표·선택 지역을 주소에 반영 → 새로고침·공유·뒤로 가기에도 같은 화면
+  useEffect(() => {
+    if (!router.isReady || !hydrated) return;
+    // adm = 선택한 지역, in = 읍면동으로 보는 범위(시도 2자리·시군구 5자리)
+    const q: { metric?: string; adm?: string; in?: string } = {
+      ...(metric !== "ACCESS_GAP_SCORE" ? { metric } : {}), ...(selected ? { adm: selected } : {}),
+      ...(level === 3 && parent && !(selected && selected.length > 5) ? { in: parent } : {}) };
+    written.current = q;
+    if ((router.query.adm ?? undefined) === q.adm && (router.query.metric ?? undefined) === q.metric
+        && (router.query.in ?? undefined) === q.in) return;
+    router.replace({ pathname: "/", query: q }, undefined, { shallow: true, scroll: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [metric, selected, level, parent, router.isReady, hydrated]);
+
+  // Esc 로 오른쪽 카드 닫기
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { setSelected(null); setFacility(null); setFocusCd(null); } };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   const breaks = useMemo(() => quantileBreaks((fc?.features || []).map((f) => f.properties.value)
     .filter((v): v is number => v !== null)), [fc]);
@@ -83,7 +116,11 @@ export default function MapPage() {
   const sido = parent.slice(0, 2);
   const sigunguOptions = regions.find((r) => r.admCd === sido)?.sigungu || [];
   const noData = !!error && /CALC_RUN_NOT_FOUND|완료된 계산/.test(error);
-  const legend = legendRows(breaks, fc?.meta.unit || "", isBinary);
+  const vals = useMemo(() => (fc?.features || []).map((f) => f.properties.value).filter((v): v is number => v !== null), [fc]);
+  const minV = vals.length ? Math.min(...vals) : null;
+  // 첫 단계가 최솟값 하나뿐이면(예: 0명) '0명' 으로 표시
+  const minOnly = minV !== null && breaks.length > 0 && vals.every((v) => v >= breaks[0] || v === minV);
+  const legend = legendRows(breaks, fc?.meta.unit || "", isBinary, minOnly ? minV : null);
   const detailOpen = !!(selected || facility);
   const mdef = metrics.find((m) => m.code === metric);
 
@@ -97,7 +134,7 @@ export default function MapPage() {
       <AtlasMap<AreaProps> className="absolute inset-0" features={fc?.features || []} styleOf={styleOf}
         tooltipOf={tooltipOf} selected={selected} geomKey={`${level}:${parent}`} focusCd={focusCd}
         onSelect={(cd) => { setSelected(cd); setFacility(null); }}
-        facilities={fac} onFacility={(f) => { setFacility(f); setSelected(null); }} banks={banks}
+        facilities={fac} onFacility={(f) => { setFacility(f); setSelected(null); }} banks={banks} care={care}
         padding={narrow ? [90, 16, 16, 16] : [24, detailOpen ? 400 : 24, 24, panelOpen ? 340 : 24]} />
 
       {/* 왼쪽 떠 있는 패널 — 지표·단위·범례·시설 */}
@@ -115,7 +152,11 @@ export default function MapPage() {
         {panelOpen && (
           <div className="max-h-[calc(100dvh-140px)] space-y-5 overflow-y-auto px-5 pb-5">
             <select className="field" value={metric} onChange={(e) => setMetric(e.target.value)} aria-label="지표 선택">
-              {metrics.map((m) => <option key={m.code} value={m.code}>{m.name}</option>)}
+              {groupMetrics(metrics).map((g) => (
+                <optgroup key={g.label} label={g.label}>
+                  {g.items.map((m) => <option key={m.code} value={m.code}>{m.name}</option>)}
+                </optgroup>
+              ))}
             </select>
             {fc && <p className="-mt-3 text-[12px] leading-snug text-ink-3">
               {fc.meta.higherIsWorse ? "진할수록 접근성이 취약한 쪽입니다." : "진할수록 값이 큽니다(접근성 양호)."}
@@ -176,6 +217,22 @@ export default function MapPage() {
                 <span className="inline-block h-2.5 w-2.5 rounded-[3px]" style={{ background: BANK_LEGEND.color }} />
                 대면 창구(ATM 제외) · 확대하면 보입니다 · 카카오 장소</p>}
             </div>
+            <div className="space-y-2">
+              <Toggle label="약국·의원 보기" on={!!care} onChange={(v) => setCare(v ? { holidayOnly: false } : null)} />
+              {care && (
+                <div className="space-y-2 pl-1">
+                  <Toggle small label="공휴일에 여는 곳만" on={care.holidayOnly} onChange={(v) => setCare({ holidayOnly: v })} />
+                  <ul className="flex flex-wrap gap-x-3 gap-y-1 text-[12px] text-ink-2">
+                    {CARE_LEGEND.map((l) => (
+                      <li key={l.label} className="flex items-center gap-1.5">
+                        <span className="inline-block h-2.5 w-2.5 rotate-45 rounded-[2px]" style={{ background: l.color }} />{l.label}
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="text-[12px] text-ink-3">시군구 안까지 확대하면 보입니다 · 국립중앙의료원</p>
+                </div>
+              )}
+            </div>
             {ms !== null && <p className="text-[11px] text-ink-3">{fc?.features.length.toLocaleString()}개 지역 · {ms}ms</p>}
           </div>
         )}
@@ -215,14 +272,14 @@ function Toggle({ label, on, onChange, small }: { label: string; on: boolean; on
   );
 }
 
-function legendRows(breaks: number[], unit: string, binary: boolean) {
+function legendRows(breaks: number[], unit: string, binary: boolean, minOnly: number | null = null) {
   if (binary) return [{ label: "없음", color: SEQ[0] }, { label: "있음", color: SEQ[3] }];
   if (!breaks.length) return [{ label: "모든 지역 같은 값", color: SEQ[0] }];
   const edges = [null, ...breaks, null];
   return edges.slice(0, -1).map((lo, i) => {
     const hi = edges[i + 1];
     const cls = classOf(lo === null ? -Infinity : lo, breaks);
-    const label = lo === null ? `${withUnit(hi, unit)} 미만` : hi === null ? `${withUnit(lo, unit)} 이상` : `${withUnit(lo, unit)} – ${withUnit(hi, unit)}`;
+    const label = lo === null ? (minOnly !== null ? withUnit(minOnly, unit) : `${withUnit(hi, unit)} 미만`) : hi === null ? `${withUnit(lo, unit)} 이상` : `${withUnit(lo, unit)} – ${withUnit(hi, unit)}`;
     return { label, color: SEQ[Math.max(cls, 0)] };
   });
 }

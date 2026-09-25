@@ -17,10 +17,14 @@ def client() -> redis.Redis:
 
 
 def get(key: str) -> bytes | None:
+    from atlas.api.metrics import CACHE
+
     try:
-        return client().get(key)
+        v = client().get(key)
     except redis.RedisError:
         return None
+    CACHE.labels("hit" if v is not None else "miss").inc()
+    return v
 
 
 def set(key: str, value: str | bytes, ttl: int | None = None) -> None:  # noqa: A001

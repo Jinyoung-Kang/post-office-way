@@ -1,11 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useRef, useState } from "react";
-import { api, qs, type Bank, type Facility, type Feature, type Page } from "@/lib/api";
+import { api, qs, type Bank, type CarePlace, type Facility, type Feature, type Page } from "@/lib/api";
 import { loadKakao, toPaths } from "@/lib/kakao";
 
 export type Style = { fill: string; opacity?: number; stroke?: string };
 export type Marker = { lat: number; lon: number; label: string; tone: "removed" | "new" | "focus" };
 export type FacilityLayer = { finOnly: boolean; types: number[] } | null;
+export type CareLayer = { holidayOnly: boolean } | null;
 
 type Props<P extends { admCd: string; admNm: string }> = {
   features: Feature<P>[];
@@ -16,6 +17,7 @@ type Props<P extends { admCd: string; admNm: string }> = {
   facilities?: FacilityLayer;
   onFacility?: (f: Facility) => void;
   banks?: boolean;               // ④ 은행·금고 지점 레이어
+  care?: CareLayer;              // ⑦ 약국·의원 레이어 (공휴일 진료만 거를 수 있음)
   markers?: Marker[];
   geomKey?: string;              // 바뀌면 폴리곤을 새로 만들고 범위에 맞춤. 같으면 색만 다시 칠함(지표 변경 1초 안 — FR-501)
   focusCd?: string | null;       // 이 지역으로 확대
@@ -26,13 +28,15 @@ type Props<P extends { admCd: string; admNm: string }> = {
 const FAC_TONE: Record<string, string> = { fin: "#ff9500", other: "#8e8e93", c365: "#34c759" };
 const MARKER_TONE: Record<Marker["tone"], string> = { removed: "#d70015", new: "#1d8a3a", focus: "#1d1d1f" };
 const BANK_TONE = "#af52de";
+const CARE_TONE = { PHARMACY: "#30b0c7", CLINIC: "#ff2d55" } as const;
+const WEEK = ["", "월", "화", "수", "목", "금", "토", "일", "공휴일"];
 
 function esc(s: string) {
   return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
 }
 
 export default function AtlasMap<P extends { admCd: string; admNm: string }>(props: Props<P>) {
-  const { features, styleOf, tooltipOf, selected, onSelect, facilities, onFacility, banks, markers, geomKey, focusCd,
+  const { features, styleOf, tooltipOf, selected, onSelect, facilities, onFacility, banks, care, markers, geomKey, focusCd,
     padding = [24, 24, 24, 24], className } = props;
   const el = useRef<HTMLDivElement>(null);
   const map = useRef<any>(null);
@@ -44,6 +48,7 @@ export default function AtlasMap<P extends { admCd: string; admNm: string }>(pro
   const facOverlays = useRef<any[]>([]);
   const markerOverlays = useRef<any[]>([]);
   const bankOverlays = useRef<any[]>([]);
+  const careOverlays = useRef<any[]>([]);
   const cb = useRef({ styleOf, tooltipOf, onSelect, selected, onFacility, padding });
   cb.current = { styleOf, tooltipOf, onSelect, selected, onFacility, padding };
   const [err, setErr] = useState<string | null>(null);
@@ -219,6 +224,42 @@ export default function AtlasMap<P extends { admCd: string; admNm: string }>(pro
     return () => { kakao.maps.event.removeListener(map.current, "idle", h); seq++; clear(); };
   }, [ready, banks]);
 
+  // 약국·의원 레이어 — 확대 수준 7 이하(시군구 안)에서 화면 범위만. 마름모 점, 누르면 진료시간
+  useEffect(() => {
+    const kakao = kakaoRef.current;
+    if (!ready || !kakao) return;
+    let seq = 0;
+    const clear = () => { careOverlays.current.forEach((o) => o.setMap(null)); careOverlays.current = []; };
+    if (!care) { clear(); return; }
+    const load = async () => {
+      const my = ++seq;
+      if (map.current.getLevel() > 7) { clear(); setFacNote("확대하면 약국·의원이 보입니다"); return; }
+      const b = map.current.getBounds();
+      const sw = b.getSouthWest(), ne = b.getNorthEast();
+      try {
+        const res = await api<{ items: CarePlace[] }>(`/care${qs({ bbox: [sw.getLng(), sw.getLat(), ne.getLng(), ne.getLat()]
+          .map((v: number) => v.toFixed(5)).join(","), holidayOnly: care.holidayOnly || undefined, size: 3000 })}`);
+        if (my !== seq) return;
+        clear();
+        for (const p of res.items) {
+          const div = document.createElement("div");
+          div.className = "care-dot";
+          div.style.background = CARE_TONE[p.kind];
+          const hours = Object.entries(p.hours || {}).filter(([d]) => ["1", "6", "7", "8"].includes(d))
+            .map(([d, [a, z]]) => `${WEEK[Number(d)]} ${a.slice(0, 2)}:${a.slice(2)}~${z.slice(0, 2)}:${z.slice(2)}`).join(" · ");
+          div.title = `${p.name} (${p.divName || ""})${hours ? ` — ${hours}` : ""}`;
+          careOverlays.current.push(new kakao.maps.CustomOverlay({ map: map.current, position: new kakao.maps.LatLng(p.lat, p.lon),
+            content: div, zIndex: 4 }));
+        }
+        setFacNote(`약국·의원 ${res.items.length.toLocaleString()}곳${care.holidayOnly ? " (공휴일 진료)" : ""}`);
+      } catch (e: any) { setFacNote(e.message); }
+    };
+    load();
+    const h = () => load();
+    kakao.maps.event.addListener(map.current, "idle", h);
+    return () => { kakao.maps.event.removeListener(map.current, "idle", h); seq++; clear(); setFacNote(null); };
+  }, [ready, care?.holidayOnly, !!care]);
+
   useEffect(() => {
     const kakao = kakaoRef.current;
     if (!ready || !kakao) return;
@@ -246,6 +287,7 @@ export default function AtlasMap<P extends { admCd: string; admNm: string }>(pro
 }
 
 export const BANK_LEGEND = { label: "은행·금고 지점", color: BANK_TONE };
+export const CARE_LEGEND = [{ label: "약국", color: CARE_TONE.PHARMACY }, { label: "의원·병원·보건소", color: CARE_TONE.CLINIC }];
 export const FACILITY_LEGEND = [
   { label: "금융 가능 우체국", color: FAC_TONE.fin },
   { label: "365코너", color: FAC_TONE.c365 },

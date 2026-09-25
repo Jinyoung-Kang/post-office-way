@@ -38,6 +38,18 @@ export const IMPACT = "#eb6834";
 export function quantileBreaks(values: number[], k = SEQ.length): number[] {
   const v = values.filter((x) => x !== null && Number.isFinite(x)).sort((a, b) => a - b);
   if (!v.length) return [];
+  // 최솟값(대개 0)이 30% 넘게 몰린 지표(공백 인구 등)는 최솟값만 첫 단계로 두고 나머지 값으로 분위수 —
+  // 그냥 나누면 경계가 겹쳐 '미만/이상' 두 단계만 남음
+  const minCount = v.filter((x) => x === v[0]).length;
+  if (minCount / v.length > 0.3 && minCount < v.length) {
+    const rest = v.slice(minCount);
+    const out = [rest[0]];
+    for (let i = 1; i < k - 1; i++) {
+      const q = rest[Math.min(rest.length - 1, Math.floor((i * rest.length) / (k - 1)))];
+      if (q > out[out.length - 1]) out.push(q);
+    }
+    return out;
+  }
   const out: number[] = [];
   for (let i = 1; i < k; i++) {
     const q = v[Math.min(v.length - 1, Math.floor((i * v.length) / k))];
@@ -73,3 +85,22 @@ export const VISIT_LABEL: Record<number, string> = { 0: "좋음", 1: "주의", 2
 export const REASON_LABEL: Record<string, string> = {
   RAIN: "비", SNOW: "눈", HEAT: "더위", COLD: "추위", WIND: "바람", PM10: "미세먼지", PM25: "초미세먼지",
 };
+
+// 지표 묶음 — 지표 선택 목록을 주제별 optgroup 으로 (코드가 없으면 '기타')
+const METRIC_GROUP: Record<string, string> = {
+  NEAREST_FIN_DIST_M: "우체국 거리", POPW_FIN_DIST_M: "우체국 거리", NEAREST_FIN_ROAD_M: "우체국 거리",
+  NEAREST_FIN_DRIVE_MIN: "우체국 거리", FAC_CNT_R1KM: "우체국 거리", FAC_CNT_R2KM: "우체국 거리", FAC_CNT_R5KM: "우체국 거리",
+  FAR2KM_PPLTN: "멀리 사는 사람", FAR2KM_SHARE: "멀리 사는 사람", AGED65_FAR_PPLTN: "멀리 사는 사람",
+  AGED65_PPLTN: "멀리 사는 사람", AGED65_RATIO: "멀리 사는 사람", ACCESS_GAP_SCORE: "멀리 사는 사람",
+  NEAREST_BANK_DIST_M: "금융 공백", POST_ONLY_PPLTN: "금융 공백", FIN_DESERT_PPLTN: "금융 공백",
+  POST_SOLE_HUB_PPLTN: "생활 거점", LIFE_DESERT_PPLTN: "생활 거점", CARE_DESERT_PPLTN: "생활 거점",
+  POPW_PHARMACY_DIST_M: "생활 거점", POPW_CLINIC_DIST_M: "생활 거점", HOLIDAY_CARE_GAP_PPLTN: "생활 거점",
+  HAS_365: "운영", LUNCH_CLOSED_RATIO: "운영",
+};
+const GROUP_ORDER = ["우체국 거리", "멀리 사는 사람", "금융 공백", "생활 거점", "운영", "기타"];
+
+export function groupMetrics<T extends { code: string }>(items: T[]): { label: string; items: T[] }[] {
+  const by = new Map<string, T[]>();
+  items.forEach((m) => { const g = METRIC_GROUP[m.code] || "기타"; by.set(g, [...(by.get(g) || []), m]); });
+  return GROUP_ORDER.filter((g) => by.has(g)).map((g) => ({ label: g, items: by.get(g)! }));
+}

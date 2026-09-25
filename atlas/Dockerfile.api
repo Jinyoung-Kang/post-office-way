@@ -1,12 +1,13 @@
-# API 이미지 — 빌드 컨텍스트는 저장소 루트 (db/migrations 를 함께 담기 위해)
+# API 이미지 — 빌드 컨텍스트는 저장소 루트 (스키마 버전 확인용으로 db/migrations 를 함께 담음)
 FROM python:3.11-slim-bookworm
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 \
     ATLAS_MIGRATIONS_DIR=/app/db/migrations ATLAS_SEED_DIR=/app/seed
 WORKDIR /app
 COPY atlas/pyproject.toml atlas/pyproject.toml
 COPY atlas/atlas atlas/atlas
-RUN pip install ./atlas
+RUN pip install --upgrade pip setuptools && pip install ./atlas && useradd --system --uid 10001 --no-create-home atlas
 COPY db/migrations db/migrations
-COPY seed seed
+USER 10001
 EXPOSE 8100
-CMD ["uvicorn", "atlas.api.main:app", "--host", "0.0.0.0", "--port", "8100", "--workers", "2", "--no-access-log"]
+# 워커 2개 — Prometheus 다중 프로세스 디렉터리는 기동마다 비움 (읽기 전용 파일시스템, /tmp 만 tmpfs)
+CMD ["sh", "-c", "rm -rf \"${PROMETHEUS_MULTIPROC_DIR:-/tmp/prom}\" && mkdir -p \"${PROMETHEUS_MULTIPROC_DIR:-/tmp/prom}\" && exec uvicorn atlas.api.main:app --host 0.0.0.0 --port 8100 --workers 2 --no-access-log --no-proxy-headers"]

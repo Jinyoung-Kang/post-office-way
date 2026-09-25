@@ -99,7 +99,8 @@ def smoke() -> bool:
         else:
             from datetime import timedelta
 
-            from atlas.collector.weather.client import _error_of, now_kst
+            from atlas.collector.datago.client import _error_of
+            from atlas.core.clock import now_kst
             from atlas.collector.weather.kma import latest_base
 
             secrets.append(s.data_go_kr_key)

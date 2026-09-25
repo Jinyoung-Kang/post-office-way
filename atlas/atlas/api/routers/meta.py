@@ -68,3 +68,28 @@ def regions(year: int | None = Query(None)):
             "items": [{"admCd": r["sido"], "admNm": r["nm"], "sigunguCount": r["sgg"], "emdCount": r["emd"],
                        "sigungu": [{"admCd": s[0], "admNm": s[1]} for s in sgg if s[0].startswith(r["sido"])]}
                       for r in rows]}
+
+
+@router.get("/jobs", summary="최근 작업 큐 상태 (워커 실행 기록)")
+def jobs(limit: int = Query(30, ge=1, le=100)):
+    from atlas.jobs import queue
+
+    return {"items": [jsonable({"jobId": j["job_id"], "kind": j["kind"], "status": j["status"], "source": j["source"],
+                                "slot": j["slot"], "attempts": j["attempts"], "error": j["error"],
+                                "createdAt": j["created_at"], "startedAt": j["started_at"],
+                                "finishedAt": j["finished_at"], "result": j["result"]})
+                      for j in queue.recent(limit)]}
+
+
+@router.get("/schedule", summary="워커 스케줄과 다음 실행 시각 (KST)")
+def schedule():
+    from atlas.core.clock import now_kst
+    from atlas.jobs import registry, scheduler
+
+    groups = get_settings().atlas_schedule
+    items = scheduler.describe(now_kst(), groups)
+    for it in items:
+        spec = registry.get(it["kind"])
+        it["title"], it["missingKeys"] = spec.title, spec.missing()
+    return {"groups": groups, "items": items, "titles": {k: j.title for k, j in registry.JOBS.items()}}
+

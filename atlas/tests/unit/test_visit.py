@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from atlas.collector.weather.air import latest_by_day, parse_announced
-from atlas.collector.weather.client import _error_of, items_of
+from atlas.collector.datago.client import _error_of, items_of
 from atlas.collector.weather.kma import latest_base, parse_items
 from atlas.domain.visit import Hour, air_region, assess, latlon_to_grid, parse_amount, parse_inform_grade
 

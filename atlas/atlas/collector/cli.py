@@ -11,6 +11,9 @@
   atlas collect geocheck [--max-calls N] ③ 카카오 주소 검색으로 시설 좌표 검증
   atlas collect banks                    ④ 카카오 로컬 은행·금고 지점
   atlas collect weather|kma|air          ⑥ 방문 여건 — 기상청 단기예보·에어코리아 미세먼지 예보 (하루 1~3회)
+  atlas collect care|holidays            ⑦ 약국·병의원(국립중앙의료원) · 공휴일(한국천문연구원 특일)
+  atlas worker [--once]                  작업 큐 워커 + 스케줄러 (API 가 넣은 작업 실행)
+  atlas enqueue KIND [--param k=v]       작업을 큐에 넣기 · atlas jobs 최근 작업 · atlas schedule 스케줄
   atlas calc [--levels 2,3]
   atlas status                           최근 수집·계산 현황
   atlas prune [--keep 3]                 오래된 원문(raw)·스냅샷(stg) 정리 — 종류별 최근 N개 run 만 남김
@@ -20,7 +23,6 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-import uuid
 
 from sqlalchemy import text
 
@@ -35,7 +37,12 @@ def _print(obj) -> None:
 
 
 def cmd_migrate(_: argparse.Namespace) -> int:
-    _print({"applied": migrate(get_engine())})
+    from atlas.core.migrate import set_role_password
+
+    applied = migrate(get_engine())
+    # API 전용 최소 권한 역할(V12)의 비밀번호 — .env API_DB_PASSWORD (make env 가 생성)
+    set_role_password(get_engine(), "atlas_api", get_settings().api_db_password)
+    _print({"applied": applied, "apiRole": "atlas_api" if get_settings().api_db_password else "비밀번호 없음(API_DB_PASSWORD)"})
     return 0
 
 
@@ -48,53 +55,23 @@ def cmd_discover(a: argparse.Namespace) -> int:
     return 0
 
 
+COLLECT_ALIASES = {"weather": ("kma", "air"), "sgis": ("sgis",)}
+
+
 def cmd_collect(a: argparse.Namespace) -> int:
-    if a.what == "post":
-        from atlas.collector.post.pipeline import collect_post
+    """수집을 이 프로세스에서 바로 실행 (make 명령용). 워커로 보내려면 `atlas enqueue`."""
+    from atlas.jobs import registry
 
-        scope = [x.strip() for x in a.scope.split(",")] if a.scope else None
-        rid = collect_post(scope=scope, resume=uuid.UUID(a.resume) if a.resume else None)
-        ids = [rid]
-    elif a.what in ("oa", "road", "geocheck", "banks"):
-        if a.what != "oa" and not get_settings().kakao_rest_api_key:
-            print("KAKAO_REST_API_KEY 가 없어 건너뜁니다 (.env 에 추가하면 켜집니다).")
-            return 0
-        if a.what == "oa":
-            from atlas.collector.sgis.oa import collect_oa
-
-            ids = [collect_oa(refresh=a.refresh)]
-        elif a.what == "road":
-            from atlas.collector.kakao.road import collect_road
-
-            ids = [collect_road(max_calls=a.max_calls)]
-        elif a.what == "geocheck":
-            from atlas.collector.kakao.geocheck import run_geocheck
-
-            ids = [run_geocheck(max_checks=a.max_calls or 8000)]
-        else:
-            from atlas.collector.kakao.banks import collect_banks
-
-            ids = [collect_banks()]
-    elif a.what in ("weather", "kma", "air"):
-        if not get_settings().data_go_kr_key:
-            print("DATA_GO_KR_KEY 가 없어 건너뜁니다 (.env 에 공공데이터포털 일반 인증키를 넣으면 방문 여건이 켜집니다).")
-            return 0
-        from atlas.collector.weather.air import collect_air
-        from atlas.collector.weather.kma import collect_kma
-
-        ids = ([collect_kma()] if a.what != "air" else []) + ([collect_air()] if a.what != "kma" else [])
-    elif a.what == "kosis":
-        from atlas.collector.kosis.pipeline import collect_kosis
-
-        rid = collect_kosis()
-        if rid is None:
-            print("KOSIS_API_KEY 가 없어 건너뜁니다 (.env 에 추가하면 고령인구 지표가 켜집니다).")
-            return 0
-        ids = [rid]
-    else:
-        from atlas.collector.sgis.pipeline import collect_sgis
-
-        ids = collect_sgis({"sgis": "all", "sgis-pop": "pop", "sgis-bnd": "bnd"}[a.what])
+    params = {"scope": a.scope, "resume": a.resume, "refresh": a.refresh, "maxCalls": a.max_calls, "recalc": False}
+    ids: list[str] = []
+    for kind in COLLECT_ALIASES.get(a.what, (a.what,)):
+        spec = registry.get(kind)
+        if miss := spec.missing():
+            print(f"{spec.title}: .env 에 {', '.join(miss)} 가 없어 건너뜁니다 (넣으면 켜집니다).")
+            continue
+        ids += registry.run(kind, params).get("collectRunIds", [])
+    if not ids:
+        return 0
     with get_engine().connect() as c:
         rows = c.execute(text("""SELECT collect_run_id, kind, status, stats - 'doneCodes' - 'failedCodes' AS stats,
                                         jsonb_array_length(CASE WHEN jsonb_typeof(stats->'failedCodes') = 'array'
@@ -105,7 +82,7 @@ def cmd_collect(a: argparse.Namespace) -> int:
     ok = all(r["status"] in ("DONE", "PARTIAL") for r in rows)
     if any((r["stats"] or {}).get("remaining") for r in rows):
         print("\n→ 아직 남은 대상이 있습니다. 같은 명령을 다시 실행하면 이어서 채웁니다(쿼터·예산 보호).")
-    if ok and a.what in ("weather", "kma", "air"):
+    if ok and a.what in ("weather", "kma", "air", "holidays"):
         print("\n→ 화면 「방문 여건」에 바로 반영됩니다(다시 계산할 필요 없음).")
     elif ok and a.what not in ("post", "geocheck"):
         # 인구·경계·주민등록 값은 calc 때 지표로 굳어지므로, 새로 적재했으면 다시 계산해야 화면에 반영됨
@@ -174,6 +151,53 @@ def cmd_prune(a: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_worker(a: argparse.Namespace) -> int:
+    from atlas.jobs.worker import run_forever
+
+    run_forever(poll_s=a.poll, once=a.once)
+    return 0
+
+
+def cmd_enqueue(a: argparse.Namespace) -> int:
+    from atlas.jobs import queue, registry
+
+    registry.get(a.kind)
+    params = dict(kv.split("=", 1) for kv in a.param or [])
+    try:
+        jid = queue.enqueue(a.kind, params, source="cli", requested_by="cli")
+    except queue.JobConflict as e:
+        print(f"오류: {e}", file=sys.stderr)
+        return 2
+    _print({"jobId": jid, "kind": a.kind, "status": "QUEUED", "check": "atlas jobs"})
+    return 0
+
+
+def cmd_jobs(a: argparse.Namespace) -> int:
+    from atlas.jobs import queue
+
+    _print([{k: v for k, v in j.items() if k not in ("result",)} for j in queue.recent(a.limit)])
+    return 0
+
+
+def cmd_schedule(_: argparse.Namespace) -> int:
+    from atlas.core.clock import now_kst
+    from atlas.jobs import scheduler
+
+    _print({"ATLAS_SCHEDULE": get_settings().atlas_schedule,
+            "entries": scheduler.describe(now_kst(), get_settings().atlas_schedule)})
+    return 0
+
+
+def cmd_bench(a: argparse.Namespace) -> int:
+    from atlas.tools.bench import print_table, run
+
+    res = run(base=a.base, n=a.requests, conc=a.concurrency)
+    print_table(res)
+    if a.json:
+        _print(res)
+    return 0
+
+
 def cmd_smoke(_: argparse.Namespace) -> int:
     from atlas.collector.smoke import smoke
 
@@ -198,12 +222,30 @@ def build_parser() -> argparse.ArgumentParser:
     d.set_defaults(fn=cmd_discover)
     c = sub.add_parser("collect")
     c.add_argument("what", choices=["post", "sgis", "sgis-pop", "sgis-bnd", "kosis", "oa", "road", "geocheck", "banks",
-                                   "weather", "kma", "air"])
+                                   "weather", "kma", "air", "care", "holidays"])
     c.add_argument("--refresh", action="store_true", help="집계구 경계를 전부 다시 받기 (oa)")
     c.add_argument("--max-calls", type=int, help="호출 예산 (road·geocheck)")
     c.add_argument("--scope", help="지역코드 목록 (post)")
     c.add_argument("--resume", help="이어서 수집할 collect_run_id (post)")
     c.set_defaults(fn=cmd_collect)
+    w = sub.add_parser("worker", help="작업 큐 워커 + 스케줄러 (compose 서비스 worker)")
+    w.add_argument("--poll", type=float, default=30.0, help="알림이 없을 때 깨어나는 주기(초)")
+    w.add_argument("--once", action="store_true", help="대기열이 빌 때까지만 실행하고 종료")
+    w.set_defaults(fn=cmd_worker)
+    q = sub.add_parser("enqueue", help="작업을 큐에 넣기 (워커가 실행)")
+    q.add_argument("kind")
+    q.add_argument("--param", action="append", help="key=value")
+    q.set_defaults(fn=cmd_enqueue)
+    j = sub.add_parser("jobs", help="최근 작업")
+    j.add_argument("--limit", type=int, default=20)
+    j.set_defaults(fn=cmd_jobs)
+    sub.add_parser("schedule", help="스케줄과 다음 실행 시각").set_defaults(fn=cmd_schedule)
+    bn = sub.add_parser("bench", help="API 부하 측정 (p50/p95·처리량·느린 SQL)")
+    bn.add_argument("--base", default="http://api:8100")
+    bn.add_argument("--requests", type=int, default=200)
+    bn.add_argument("--concurrency", type=int, default=16)
+    bn.add_argument("--json", action="store_true")
+    bn.set_defaults(fn=cmd_bench)
     k = sub.add_parser("calc")
     k.add_argument("--levels")
     k.add_argument("--year", type=int)

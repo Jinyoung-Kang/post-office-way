@@ -37,7 +37,36 @@ export type Facility = {
   finAvailable: boolean; lunchYn: string | null; lunchTime: string | null; post365Yn: string | null;
   collectedAt: string; modDt?: string | null; coordSource?: string;
   geocheck?: { status: string; distM: number | null; addrLat: number | null; addrLon: number | null; checkedAt: string } | null;
+  status?: { state: "open" | "before" | "after" | "closed" | "unknown"; label: string; reason: string | null } | null;
+  hub?: FacilityHub | null;
 };
+
+// ⑦ 생활 거점 — 이 우체국이 닫히면 2km 안 생활 거점을 모두 잃는 인구, 주변 약국·의원·은행
+export type FacilityHub = {
+  servedPpltn: number | null; soleFinPpltn: number | null; soleHubPpltn: number | null; oaCount: number | null;
+  soleHubRank: number | null; soleHubOf: number | null;
+  nearby: { kind: "PHARMACY" | "CLINIC" | "BANK"; name: string; divName: string | null; openHoliday: boolean; distM: number }[];
+};
+export type HubSummary = {
+  meta: Meta; available: boolean;
+  care: { pharmacy: number; clinic: number; holidayOpen: number; asOf: string | null };
+  totals: { soleHubPpltn: number | null; lifeDesertPpltn: number | null; careDesertPpltn: number | null;
+    holidayCareGapPpltn: number | null; popwPharmacyM: number | null; popwClinicM: number | null; oaPpltn: number | null };
+  facilities: { withSoleHub: number; withSoleFin: number; served: number };
+  topAreas: { admCd: string; admNm: string; parentNm: string | null; value: number; totPpltn: number | null }[];
+};
+export type HubFacility = { histId: number; name: string; addr: string | null; financeTime: string | null; lat: number; lon: number;
+  admCd: string | null; admNm: string | null; parentNm: string | null; servedPpltn: number; soleFinPpltn: number;
+  soleHubPpltn: number; oaCount: number };
+export type CarePlace = { id: string; kind: "PHARMACY" | "CLINIC"; divName: string | null; name: string; addr: string | null;
+  openHoliday: boolean; openSunday: boolean; hours: Record<string, [string, string]>; lat: number; lon: number };
+export type CalendarDay = { date: string; weekday: string; closed: boolean; holiday: string | null; reason: string | null;
+  runDays: number | null };
+export type Job = { jobId: number; kind: string; status: "QUEUED" | "RUNNING" | "DONE" | "FAILED" | "CANCELLED";
+  source: string; slot: string | null; attempts: number; error: string | null; createdAt: string; startedAt: string | null;
+  finishedAt: string | null; result: Record<string, unknown> | null };
+export type ScheduleItem = { kind: string; title: string; group: string; enabled: boolean; note: string; times: string[];
+  weekdays: number[] | null; nextRunAt: string | null; missingKeys: string[] };
 
 export type Bank = { placeId: string; name: string; category: string | null; kind: "BRANCH" | "ATM"; addr: string | null;
   lat: number; lon: number };
@@ -52,7 +81,8 @@ export type WhatIf = {
   removed: { histId: number; name: string; addr: string | null; lat: number; lon: number }[];
   summary: { affectedAreas: number; affectedPpltn: number; affectedAged65?: number | null; avgDistBeforeM: number | null;
     avgDistAfterM: number | null; maxIncreaseM: number | null; areasWithoutFacility: number;
-    lostFinAccessPpltn?: number | null; oaAffectedPpltn?: number | null; oaNewlyFarPpltn?: number | null };
+    lostFinAccessPpltn?: number | null; oaAffectedPpltn?: number | null; oaNewlyFarPpltn?: number | null;
+    lifeHubLostPpltn?: number | null };
   areas: { admCd: string; admNm: string; parentNm: string | null; affectedPpltn: number | null; affectedAged65?: number | null;
     distBeforeM: number | null; distAfterM: number | null; newNearestHistId: number | null;
     newNearestName: string | null; lat: number; lon: number; nearestBankM?: number | null }[];
@@ -72,11 +102,14 @@ export type Overview = {
   oa: { count: number; ppltn: number; popwDistM: number; farPpltn: number; farShare: number } | null;
   finGap: { postOnlyPpltn: number | null; desertPpltn: number | null } | null;
   road: { areas: number; popwRoadM: number; popwStraightM: number; popwDriveMin: number } | null;
+  life: { soleHubPpltn: number | null; lifeDesertPpltn: number | null; careDesertPpltn: number | null;
+    holidayCareGapPpltn: number | null; soleHubFacilities: number | null } | null;
+  topSoleHub: { admCd: string; admNm: string; parentNm: string | null; value: number }[];
   meta: Meta;
 };
 
 export type PlanFacility = { histId: number; name: string; addr: string | null; lat: number; lon: number;
-  addedKmPpl: number; newlyFar: number; areasAffected: number };
+  addedKmPpl: number; newlyFar: number; areasAffected: number; soleHubPpltn?: number | null };
 export type PlanArea = { admCd: string; admNm: string | null; weight: number; distBeforeM: number; distAfterM: number };
 export type PlanClose = { mode: "close"; scope: string; scopeName: string | null; k: number; level: number; weight: string;
   demandUnit: "oa" | "area"; demandPoints: number;
@@ -120,11 +153,15 @@ export type VisitItem = {
   hours: number; tmpMin: number | null; tmpMax: number | null; popMax: number | null; pcpMm: number; snoCm: number;
   wsdMax: number | null; pm10: string | null; pm25: string | null;
   agedFarPpltn: number | null; farPpltn: number | null; nearestFinM: number | null; atRiskAged: number | null;
+  has365: boolean | null; holidayCareGapPpltn: number | null; emdWithout365: number | null; emdCount: number | null;
 };
 export type VisitConditions = {
-  meta: { date: string; dates: { date: string; label: string }[]; window: string; weatherBaseAt: string | null;
-    airAnnouncedAt: string | null; ruleVersion: string; calcRunId: string | null; note: string };
+  meta: { date: string; dates: { date: string; label: string; closed: boolean; closedReason: string | null }[]; window: string;
+    weatherBaseAt: string | null; airAnnouncedAt: string | null; ruleVersion: string; calcRunId: string | null; note: string;
+    closed: boolean; closedReason: string | null; hasCalendar: boolean };
   items: VisitItem[];
-  summary: { areas: number; byLevel: Record<string, number>; byReason: Record<string, number>; atRiskAged: number; atRiskAreas: number };
+  summary: { areas: number; byLevel: Record<string, number>; byReason: Record<string, number>; atRiskAged: number; atRiskAreas: number;
+    holidayCareGapPpltn: number | null; without365Areas: number; emdWithout365: number | null };
 };
-export type VisitOutlook = { admCd: string; admNm: string; ruleVersion: string; days: (VisitItem & { date: string; dayLabel: string })[] };
+export type VisitOutlook = { admCd: string; admNm: string; ruleVersion: string;
+  days: (VisitItem & { date: string; dayLabel: string; closed: boolean; closedReason: string | null })[] };

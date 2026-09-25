@@ -1,7 +1,8 @@
 """기상청 단기예보(getVilageFcst) — 시군구 대표점의 5km 격자별 시간 예보를 mart.weather_hourly 에 적재.
 
 - 발표: 02·05·08·11·14·17·20·23시 (API 제공은 발표 10분 뒤). 가장 최근 발표를 받음
-- 시군구 약 250곳 → 격자 중복을 빼면 호출 약 230회(일 한도 1만 회 안)
+- 시군구 약 250곳 → 격자 중복을 빼면 호출 약 240회(일 한도 1만 회 안)
+- 응답 대기(호출당 약 1초)가 대부분이라 격자를 DATAGO_CONCURRENCY(기본 4)개씩 동시에 받음 — 순차 약 290초 → 약 80초
 - 같은 시각 예보는 더 최근 발표로만 덮어씀 → 오늘 이미 지난 시각은 앞선 발표 값이 남아 하루 전체를 판정
 """
 from __future__ import annotations
@@ -9,6 +10,7 @@ from __future__ import annotations
 import logging
 import time
 import uuid
+from concurrent.futures import FIRST_EXCEPTION, ThreadPoolExecutor, wait
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -16,7 +18,8 @@ from sqlalchemy import text
 from sqlalchemy.engine import Connection
 
 from atlas.collector import runs
-from atlas.collector.weather.client import DataGoStop, call, items_of, make_fetcher, now_kst
+from atlas.collector.datago.client import DataGoStop, call, items_of, make_fetcher
+from atlas.core.clock import now_kst
 from atlas.core.config import get_settings
 from atlas.core.db import begin
 from atlas.domain.visit import latlon_to_grid, parse_amount, parse_number
@@ -121,18 +124,27 @@ def collect_kma(now: datetime | None = None) -> uuid.UUID:
         stats["grids"] = len(grids)
         if not grids:
             raise RuntimeError("시군구 경계가 없습니다. 먼저 `make sgis` 를 실행하세요.")
-        for nx, ny in grids:
-            try:
-                hours = fetch_grid(fetcher, base, nx, ny)
-            except DataGoStop as e:
-                stats["stoppedBy"] = str(e)[:200]
-                break
-            if hours is None:
-                stats["failedGrids"].append(f"{nx},{ny}")
-                continue
-            with begin() as c:
-                stats["rows"] += upsert_hours(c, run_id, base, nx, ny, hours)
-            stats["done"] += 1
+        with ThreadPoolExecutor(max_workers=max(1, get_settings().datago_concurrency), thread_name_prefix="kma") as pool:
+            futs = {pool.submit(fetch_grid, fetcher, base, nx, ny): (nx, ny) for nx, ny in grids}
+            pending = set(futs)
+            while pending:
+                done, pending = wait(pending, return_when=FIRST_EXCEPTION)
+                for f in done:
+                    nx, ny = futs[f]
+                    try:
+                        hours = f.result()
+                    except DataGoStop as e:          # 키·한도 오류 — 남은 격자는 취소
+                        stats["stoppedBy"] = str(e)[:200]
+                        for p in pending:
+                            p.cancel()
+                        pending = set()
+                        break
+                    if hours is None:
+                        stats["failedGrids"].append(f"{nx},{ny}")
+                        continue
+                    with begin() as c:               # 적재는 이 스레드에서 차례로 (DB 쓰기 경합 없음)
+                        stats["rows"] += upsert_hours(c, run_id, base, nx, ny, hours)
+                    stats["done"] += 1
         stats.update({"calls": fetcher.calls, "errors": fetcher.errors, "elapsedMs": int((time.monotonic() - t0) * 1000)})
         status = "DONE" if stats["done"] == stats["grids"] else ("PARTIAL" if stats["done"] else "FAILED")
         runs.finish_run(run_id, status, stats, error=stats["stoppedBy"] if status == "FAILED" else None)

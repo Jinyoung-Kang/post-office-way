@@ -4,6 +4,7 @@ from __future__ import annotations
 import gzip
 import json
 import logging
+import threading
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -43,6 +44,7 @@ class Fetcher:
     headers: dict[str, str] = field(default_factory=dict)   # 인증 헤더(카카오 KakaoAK) — raw 에는 저장하지 않음
     gzip_threshold: int = GZIP_THRESHOLD                     # 이 크기 이상 원문은 gzip (대량 수집은 0 = 항상)
     _client: httpx.Client | None = None
+    _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
     def __post_init__(self) -> None:
         s = get_settings()
@@ -62,7 +64,8 @@ class Fetcher:
             if attempt:
                 sleep(2 ** (attempt - 1))
             attempt += 1
-            self.calls += 1
+            with self._lock:       # 여러 스레드가 같은 Fetcher 를 쓸 때 호출 수 집계 (httpx.Client 자체는 스레드 안전)
+                self.calls += 1
             try:
                 r = self._client.get(url, params=params)
                 body = r.text
@@ -75,7 +78,8 @@ class Fetcher:
             except httpx.HTTPError as e:
                 last = FetchResult(False, None, "", f"{type(e).__name__}: {mask_text(str(e))}")
         if not last.ok:
-            self.errors += 1
+            with self._lock:
+                self.errors += 1
             log.warning("fetch failed", extra={"source": source or self.source, "error": last.error,
                                                "params": mask_params(params)})
         if self.store_raw:

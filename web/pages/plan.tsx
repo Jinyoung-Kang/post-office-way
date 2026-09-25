@@ -2,6 +2,7 @@ import dynamic from "next/dynamic";
 import type AtlasMapType from "@/components/AtlasMap";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useQueryState } from "@/lib/useQueryState";
 import Layout, { Card, Empty, ErrorBox, Hero, Segmented, Stat } from "@/components/Layout";
 import type { Marker } from "@/components/AtlasMap";
 import { api, qs, type AreaFC, type AreaProps, type PlanClose, type PlanOpen, type Region } from "@/lib/api";
@@ -14,24 +15,27 @@ type Mode = "close" | "open";
 // ⑤ 배치 제안 — What-if 를 뒤집어, 범위 안에서 '닫아도 영향이 가장 작은 조합' / '열면 효과가 가장 큰 곳'
 export default function PlanPage() {
   const [regions, setRegions] = useState<Region[]>([]);
-  const [mode, setMode] = useState<Mode>("close");
-  const [sido, setSido] = useState("");
-  const [sgg, setSgg] = useState("");
-  const [k, setK] = useState(3);
-  const [weight, setWeight] = useState<"aged65" | "pop">("aged65");
+  // 조건은 주소에 (?mode=open&scope=37520&k=4&weight=pop) — 결과 화면을 그대로 공유
+  const [mode, setMode] = useQueryState<Mode>("mode", "close", ["close", "open"]);
+  const [scopeQ, setScopeQ] = useQueryState<string>("scope", "");
+  const [kStr, setKStr] = useQueryState<string>("k", "3");
+  const k = Math.min(7, Math.max(1, Number(kStr) || 3));
+  const setK = (n: number) => setKStr(String(n));
+  const [weight, setWeight] = useQueryState<"aged65" | "pop">("weight", "aged65", ["aged65", "pop"]);
   const [res, setRes] = useState<PlanClose | PlanOpen | null>(null);
   const [fc, setFc] = useState<AreaFC | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    api<{ items: Region[] }>("/meta/regions").then((r) => {
-      setRegions(r.items);
-      const first = r.items.find((x) => x.emdCount > 0);
-      if (first) { setSido(first.admCd); setSgg(first.sigungu[0]?.admCd || ""); }
-    }).catch(() => null);
+    api<{ items: Region[] }>("/meta/regions").then((r) => setRegions(r.items)).catch(() => null);
   }, []);
-  const scope = sgg || sido;
+  const first = regions.find((x) => x.emdCount > 0);
+  const scope = scopeQ || (first ? first.sigungu[0]?.admCd || first.admCd : "");
+  const sido = scope.slice(0, 2);
+  const sgg = scope.length === 5 ? scope : "";
+  const setSido = (v: string) => setScopeQ(v);
+  const setSgg = (v: string) => setScopeQ(v || sido);
   const latest = useRef({ scope, mode });
   latest.current = { scope, mode };
 
@@ -79,7 +83,7 @@ export default function PlanPage() {
               <Segmented ariaLabel="모드" value={mode} onChange={(v) => { setMode(v); setRes(null); }}
                 options={[{ value: "close", label: "폐국 영향 최소" }, { value: "open", label: "신설 효과 최대" }]} />
               <div className="grid grid-cols-2 gap-2">
-                <select className="field" value={sido} aria-label="시도" onChange={(e) => { setSido(e.target.value); setSgg(""); setRes(null); }}>
+                <select className="field" value={sido} aria-label="시도" onChange={(e) => { setSido(e.target.value); setRes(null); }}>
                   {regions.filter((r) => r.emdCount > 0).map((r) => <option key={r.admCd} value={r.admCd}>{r.admNm}</option>)}
                 </select>
                 <select className="field" value={sgg} aria-label="시군구" onChange={(e) => { setSgg(e.target.value); setRes(null); }}>
@@ -133,10 +137,12 @@ export default function PlanPage() {
           {!res && <Empty>조건을 고르고 ‘제안 받기’를 누르세요. 지도는 지금의 최근접 금융 우체국 거리입니다(진할수록 멂).</Empty>}
           {res?.mode === "close" && (
             <>
-              <Card title="닫는다면 이 순서로" pad={false}>
+              <Card title="닫는다면 이 순서로" pad={false}
+                right={res.steps.some((x) => x.soleHubPpltn) ? <span className="badge badge-warn">생활 거점을 잃는 주민이 있는 우체국 포함</span> : undefined}>
                 <div className="overflow-x-auto px-3 pb-3">
                   <table className="tbl">
-                    <thead><tr><th className="num">순서</th><th>우체국</th><th className="num">늘어나는 거리</th><th className="num">새로 2km 밖</th><th className="num">영향 지역</th><th /></tr></thead>
+                    <thead className="whitespace-nowrap"><tr><th className="num">순서</th><th>우체국</th><th className="num">늘어나는 거리</th><th className="num">새로 2km 밖</th><th className="num">영향 지역</th>
+                      <th className="num" title="닫으면 2km 안 은행·약국·의원도 없어 생활 거점을 모두 잃는 인구">생활 거점 상실</th><th /></tr></thead>
                     <tbody>{res.steps.map((s, i) => (
                       <tr key={s.histId}>
                         <td className="num text-ink-3">{i + 1}</td>
@@ -144,7 +150,9 @@ export default function PlanPage() {
                         <td className="num">{num(s.addedKmPpl)} 명·km</td>
                         <td className="num">{num(s.newlyFar)}명</td>
                         <td className="num">{s.areasAffected}곳</td>
-                        <td><Link className="link text-[13px]" href={`/whatif?add=${s.histId}`}>What-if ›</Link></td>
+                        <td className={`num ${s.soleHubPpltn ? "font-semibold text-[#d70015]" : "text-ink-3"}`}>
+                          {s.soleHubPpltn == null ? "—" : `${num(s.soleHubPpltn)}명`}</td>
+                        <td className="whitespace-nowrap"><Link className="link text-[13px]" href={`/whatif?add=${s.histId}`}>What-if ›</Link></td>
                       </tr>
                     ))}</tbody>
                   </table>

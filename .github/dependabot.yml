@@ -1,0 +1,20 @@
+# 의존성 업데이트 PR — 주 1회. 보안 패치는 GitHub 보안 알림이 따로 즉시 올림
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /atlas
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 5
+  - package-ecosystem: npm
+    directory: /web
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 5
+    groups:
+      dev:
+        dependency-type: development
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly }
+  - package-ecosystem: docker
+    directories: ["/atlas", "/web"]
+    schedule: { interval: weekly }

@@ -7,13 +7,15 @@ import Layout, { Card, ErrorBox, Hero, Segmented, Stat } from "@/components/Layo
 import VisitBadge from "@/components/VisitBadge";
 import { api, qs, type AreaFC, type AreaProps, type VisitConditions, type VisitItem } from "@/lib/api";
 import { dist, dt, num, NO_DATA, REASON_LABEL, shortSido, VISIT_FILL, VISIT_LABEL } from "@/lib/format";
+import { StatSkeletons } from "@/components/Skeleton";
+import { useQueryState } from "@/lib/useQueryState";
 
 const AtlasMap = dynamic(() => import("@/components/AtlasMap"), { ssr: false }) as typeof AtlasMapType;
 type P = AreaProps & { visit?: VisitItem };
 
 export default function TodayPage() {
   const router = useRouter();
-  const [date, setDate] = useState<string | undefined>(undefined);
+  const [date, setDate] = useQueryState<string>("date", "");   // 비우면 서버가 오늘(운영 끝났으면 내일)을 고름
   const [d, setD] = useState<VisitConditions | null>(null);
   const [fc, setFc] = useState<AreaFC | null>(null);
   const [err, setErr] = useState<{ code?: string; message: string } | null>(null);
@@ -25,8 +27,8 @@ export default function TodayPage() {
   useEffect(() => {
     let alive = true;
     setErr(null);
-    api<VisitConditions>(`/visit/conditions${qs({ date })}`)
-      .then((r) => { if (alive) { setD(r); setDate((cur) => cur ?? r.meta.date); } })
+    api<VisitConditions>(`/visit/conditions${qs({ date: date || undefined })}`)
+      .then((r) => { if (alive) setD(r); })
       .catch((e) => { if (alive) { setD(null); setErr({ code: e.code, message: e.message }); } });
     return () => { alive = false; };
   }, [date]);
@@ -48,6 +50,7 @@ export default function TodayPage() {
   const shown = all ? risky : risky.slice(0, 20);
   const topReason = Object.entries(d?.summary.byReason || {}).sort((a, b) => b[1] - a[1])[0];
   const noData = err?.code === "VISIT_NO_DATA";
+  const closed = !!d?.meta.closed;
 
   return (
     <Layout title="방문 여건">
@@ -57,14 +60,30 @@ export default function TodayPage() {
       <div className="mx-auto max-w-page space-y-5 px-4 pb-20">
         {noData && <SetupGuide />}
         {err && !noData && <ErrorBox error={err.message} />}
+        {!d && !err && <StatSkeletons />}
         {d && (
           <>
             <div className="card flex flex-wrap items-center gap-3 p-4">
               <Segmented ariaLabel="날짜" value={d.meta.date} onChange={(v) => setDate(v)}
-                options={d.meta.dates.map((x) => ({ value: x.date, label: `${x.label} ${x.date.slice(5).replace("-", ".")}` }))} />
+                options={d.meta.dates.map((x) => ({ value: x.date,
+                  label: `${x.label} ${x.date.slice(5).replace("-", ".")}${x.closed ? " · 휴무" : ""}` }))} />
               <span className="flex-1" />
-              <span className="text-[12px] text-ink-3">운영 시간 {d.meta.window} 예보 기준</span>
+              <span className="text-[12px] text-ink-3">운영 시간 {d.meta.window} 예보 기준
+                {!d.meta.hasCalendar && " · 공휴일 자료 없음(주말만 휴무로 봄)"}</span>
             </div>
+
+            {closed && (
+              <div className="card rise flex flex-wrap items-start gap-4 border border-[#ff9500]/30 p-5" role="status">
+                <span className="badge badge-warn shrink-0">창구 휴무</span>
+                <div className="min-w-0 flex-1 text-[14px]">
+                  <p className="text-[17px] font-semibold">{d.meta.closedReason} — 우체국 금융 창구가 쉽니다</p>
+                  <p className="mt-1 text-ink-2">이날은 365코너(ATM)와 공휴일에 여는 약국·의원이 생활 거점입니다.
+                    365코너가 없는 읍면동 <b className="text-ink">{num(d.summary.emdWithout365)}곳</b>
+                    {d.summary.holidayCareGapPpltn !== null && <>, 2km 안에 공휴일 진료처가 없는 인구 <b className="text-ink">{num(d.summary.holidayCareGapPpltn)}명</b></>}.
+                    {" "}<Link href="/hubs" className="link">생활 거점 보기 ›</Link></p>
+                </div>
+              </div>
+            )}
 
             <div className="rise grid grid-cols-2 gap-3 md:grid-cols-4">
               <Stat label="나쁨" value={`${num(d.summary.byLevel["나쁨"])}곳`} tone={d.summary.byLevel["나쁨"] ? "bad" : undefined}
@@ -91,13 +110,14 @@ export default function TodayPage() {
               </div>
             </Card>
 
-            <Card title="먼저 살펴볼 지역" pad={false}
+            <Card title={closed ? "휴무일에 먼저 살펴볼 지역" : "먼저 살펴볼 지역"} pad={false}
               right={<span className="text-[12px] text-ink-3">여건 주의 이상 {num(risky.length)}곳 · 나쁨 먼저, 먼 곳 고령인구 많은 순</span>}>
               {risky.length ? (
                 <div className="overflow-x-auto px-3 pb-3">
                   <table className="tbl">
                     <thead className="whitespace-nowrap"><tr><th>지역</th><th>여건</th><th>원인</th><th className="num">기온</th><th className="num">강수</th>
-                      <th className="num">2km 밖 65세+</th><th className="num">최근접 우체국</th></tr></thead>
+                      <th className="num">2km 밖 65세+</th>
+                      {closed ? <><th className="num" title="시군구 안 읍면동 중 365코너가 없는 곳">365코너 없는 읍면동</th><th className="num">공휴일 의료 공백</th></> : <th className="num">최근접 우체국</th>}</tr></thead>
                     <tbody>{shown.map((x) => (
                       <tr key={x.admCd} className="clickable" onClick={() => router.push(`/?adm=${x.admCd}&metric=AGED65_FAR_PPLTN`)}>
                         <td className="whitespace-nowrap"><span className="text-ink-3">{shortSido(x.parentNm)} </span><span className="font-medium">{x.admNm}</span></td>
@@ -106,7 +126,10 @@ export default function TodayPage() {
                         <td className="num whitespace-nowrap">{num(x.tmpMin, 0)}~{num(x.tmpMax, 0)}℃</td>
                         <td className="num whitespace-nowrap">{x.pcpMm ? `${num(x.pcpMm, 1)}mm` : x.snoCm ? `${num(x.snoCm, 1)}cm` : "—"}</td>
                         <td className="num font-medium">{num(x.agedFarPpltn)}</td>
-                        <td className="num whitespace-nowrap">{dist(x.nearestFinM)}</td>
+                        {closed ? <>
+                          <td className="num whitespace-nowrap">{x.emdWithout365 == null ? "—" : <><span className={x.emdWithout365 ? "font-medium text-[#b25000]" : ""}>{num(x.emdWithout365)}</span><span className="text-ink-3"> / {num(x.emdCount)}</span></>}</td>
+                          <td className="num">{num(x.holidayCareGapPpltn)}</td>
+                        </> : <td className="num whitespace-nowrap">{dist(x.nearestFinM)}</td>}
                       </tr>
                     ))}</tbody>
                   </table>

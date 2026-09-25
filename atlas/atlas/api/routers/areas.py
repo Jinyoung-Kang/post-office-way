@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Query
+import gzip
+
+from fastapi import APIRouter, Query, Request
 from fastapi.responses import Response
 
 from atlas.api.services import areas as svc
@@ -17,14 +19,23 @@ def list_areas(level: int = 2, metric: str = "ACCESS_GAP_SCORE", parent: str | N
 
 
 @router.get("/geojson", summary="단계구분도용 FeatureCollection (FR-501, 캐시)")
-def areas_geojson(level: int = Query(..., description="2 시군구 · 3 읍면동"),
+def areas_geojson(request: Request, level: int = Query(..., description="2 시군구 · 3 읍면동"),
                   metric: str = Query(..., description="metric_def 코드"),
                   parent: str | None = Query(None, description="상위 adm_cd (level=3 이면 필수)"),
                   calcRunId: str | None = None,
                   simplify: float | None = Query(None, description="단순화 허용오차(m). 기본 level2=200, level3=50")):
+    inm = request.headers.get("if-none-match")
     with get_engine().connect() as c:
-        body = svc.geojson(c, level, metric, parent, calcRunId, simplify)
-    return Response(body, media_type="application/geo+json; charset=utf-8")
+        gz, tag = svc.geojson_payload(c, level, metric, parent, calcRunId, simplify, etag_only=bool(inm))
+        if inm and inm == tag:                        # 본문을 꺼내지 않고 304
+            return Response(status_code=304, headers={"ETag": tag, "Cache-Control": "no-cache"})
+        if gz is None:
+            gz, tag = svc.geojson_payload(c, level, metric, parent, calcRunId, simplify)
+    headers = {"ETag": tag, "Cache-Control": "no-cache", "Vary": "Accept-Encoding"}
+    if "gzip" in request.headers.get("accept-encoding", ""):
+        # 이미 압축된 본문 — GZip 미들웨어는 Content-Encoding 이 있으면 건너뜀, ETag 미들웨어는 ETag 가 있으면 건너뜀
+        return Response(gz, media_type="application/geo+json; charset=utf-8", headers={**headers, "Content-Encoding": "gzip"})
+    return Response(gzip.decompress(gz), media_type="application/geo+json; charset=utf-8", headers=headers)
 
 
 @router.get("/{adm_cd}", summary="지역 상세 — 인구·지표·최근접 3개 (FR-502)")

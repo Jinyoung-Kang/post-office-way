@@ -1,0 +1,65 @@
+{
+ "response": {
+  "header": {
+   "resultCode": "00",
+   "resultMsg": "NORMAL SERVICE."
+  },
+  "body": {
+   "items": {
+    "item": [
+     {
+      "dutyAddr": "서울특별시 동대문구 고산자로 410, 1층 (용두동)",
+      "dutyName": "연중무휴약국",
+      "dutyTel1": "02-000-0001",
+      "dutyEtc": "연중무휴",
+      "dutyTime1s": "0640",
+      "dutyTime1c": 2330,
+      "dutyTime2s": "0640",
+      "dutyTime2c": 2330,
+      "dutyTime3s": "0640",
+      "dutyTime3c": 2330,
+      "dutyTime4s": "0640",
+      "dutyTime4c": 2330,
+      "dutyTime5s": "0640",
+      "dutyTime5c": 2330,
+      "dutyTime6s": "0640",
+      "dutyTime6c": 2330,
+      "dutyTime7s": 800,
+      "dutyTime7c": 2300,
+      "dutyTime8s": 800,
+      "dutyTime8c": 2300,
+      "hpid": "C1101582",
+      "postCdn1": "025",
+      "postCdn2": "60 ",
+      "wgs84Lat": 37.57629444444444,
+      "wgs84Lon": 127.038525
+     },
+     {
+      "dutyAddr": "경상남도 진주시 범골로 9, 1층 103호 (충무공동)",
+      "dutyName": "평일약국",
+      "dutyTel1": "055-000-0002",
+      "dutyTime1s": "0900",
+      "dutyTime1c": 1800,
+      "dutyTime6s": "0900",
+      "dutyTime6c": 1400,
+      "hpid": "C2802403",
+      "postCdn1": 528,
+      "postCdn2": "10 ",
+      "wgs84Lat": 35.1712,
+      "wgs84Lon": 128.1034
+     },
+     {
+      "dutyAddr": "좌표없는 약국",
+      "dutyName": "좌표없음약국",
+      "hpid": "C9999999",
+      "dutyTime1s": "0900",
+      "dutyTime1c": "1800"
+     }
+    ]
+   },
+   "numOfRows": 1000,
+   "pageNo": 1,
+   "totalCount": 3
+  }
+ }
+}

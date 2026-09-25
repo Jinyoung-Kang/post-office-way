@@ -9,14 +9,11 @@ import json
 import re
 import time
 import uuid
-from datetime import datetime
 from typing import Any
-from zoneinfo import ZoneInfo
 
 from atlas.collector.http import Fetcher
 from atlas.core.config import get_settings
 
-KST = ZoneInfo("Asia/Seoul")
 # 키 미등록·만료·한도 초과 — 재시도해도 같은 결과
 STOP_CODES = {"20", "22", "30", "31", "32", "33"}
 _XML_CODE = re.compile(r"<returnReasonCode>(\d+)</returnReasonCode>")
@@ -25,10 +22,6 @@ _XML_MSG = re.compile(r"<(?:returnAuthMsg|errMsg)>([^<]+)</")
 
 class DataGoStop(RuntimeError):
     """인증 실패·한도 초과 — 계속 호출해도 소용없는 오류."""
-
-
-def now_kst() -> datetime:
-    return datetime.now(KST).replace(tzinfo=None)
 
 
 def require_key() -> str:

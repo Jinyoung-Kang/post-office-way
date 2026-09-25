@@ -2,6 +2,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Bar, BarChart, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import Layout, { Card, ErrorBox, Hero, NoDataGuide, Stat } from "@/components/Layout";
+import { StatSkeletons } from "@/components/Skeleton";
 import { fmtPeriod } from "@/components/RegionCard";
 import { api, type Overview, type VisitConditions } from "@/lib/api";
 import { dist, num, SEQ, shortSido } from "@/lib/format";
@@ -27,6 +28,7 @@ export default function OverviewPage() {
       <div className="mx-auto max-w-page space-y-5 px-4 pb-20">
         {err && (noData ? <NoDataGuide /> : <ErrorBox error={err} />)}
         {visit && <VisitBanner v={visit} />}
+        {!d && !err && <StatSkeletons />}
         {d && (
           <>
             <div className="rise grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -52,6 +54,19 @@ export default function OverviewPage() {
                 {d.finGap && <Stat label="금융 공백 인구" value={`${num(d.finGap.desertPpltn)}명`} tone="bad"
                   note="2km 안에 우체국도 은행·금고 지점도 없음" />}
               </div>
+            )}
+
+            {d.life && (
+              <Link href="/hubs" className="card rise grid grid-cols-2 gap-4 p-5 text-ink no-underline hover:bg-white/90 md:grid-cols-4">
+                <div className="col-span-2 md:col-span-4 flex items-center justify-between">
+                  <span className="text-[13px] font-semibold text-ink-2">생활 거점 — 약국·의원·은행과 함께 본 우체국</span>
+                  <span className="link text-[14px]">자세히 ›</span>
+                </div>
+                <MiniStat label="우체국이 마지막 생활 거점인 인구" value={`${num(d.life.soleHubPpltn)}명`} bad />
+                <MiniStat label="대체할 곳이 없는 우체국" value={`${num(d.life.soleHubFacilities)}곳`} />
+                <MiniStat label="의료 공백 인구" value={`${num(d.life.careDesertPpltn)}명`} />
+                <MiniStat label="공휴일 의료 공백 인구" value={`${num(d.life.holidayCareGapPpltn)}명`} />
+              </Link>
             )}
 
             <Card title="최근접 금융 우체국까지 거리별 인구" right={<span className="text-[12px] text-ink-3">{num(d.areaCount)}개 읍면동 · 인구 비율</span>}>
@@ -87,8 +102,11 @@ export default function OverviewPage() {
                 : <Card title="2km 밖 고령인구"><p className="text-[14px] text-ink-2">KOSIS 주민등록인구를 적재하면 표시됩니다.</p></Card>}
             </div>
 
-            {d.topPostOnly.length > 0 && (
-              <TopList title="우체국이 유일한 금융 창구인 인구가 많은 시군구" unit="명" items={d.topPostOnly} metric="POST_ONLY_PPLTN" />
+            {(d.topPostOnly.length > 0 || d.topSoleHub.length > 0) && (
+              <div className="grid gap-5 md:grid-cols-2">
+                {d.topPostOnly.length > 0 && <TopList title="우체국이 유일한 금융 창구인 인구가 많은 시군구" unit="명" items={d.topPostOnly} metric="POST_ONLY_PPLTN" />}
+                {d.topSoleHub.length > 0 && <TopList title="우체국이 마지막 생활 거점인 인구가 많은 시군구" unit="명" items={d.topSoleHub} metric="POST_SOLE_HUB_PPLTN" />}
+              </div>
             )}
 
             <Card title="시설 구성">
@@ -105,6 +123,15 @@ export default function OverviewPage() {
         )}
       </div>
     </Layout>
+  );
+}
+
+function MiniStat({ label, value, bad }: { label: string; value: string; bad?: boolean }) {
+  return (
+    <div>
+      <div className="text-[12px] text-ink-2">{label}</div>
+      <div className={`tnum text-[22px] font-semibold tracking-tight ${bad ? "text-[#d70015]" : ""}`}>{value}</div>
+    </div>
   );
 }
 
@@ -133,11 +160,13 @@ function TopList({ title, items, unit, metric, digits = 0 }: {
 }
 
 function VisitBanner({ v }: { v: VisitConditions }) {
-  const day = v.meta.dates.find((x) => x.date === v.meta.date)?.label || v.meta.date;
+  const cur = v.meta.dates.find((x) => x.date === v.meta.date);
+  const day = cur?.label || v.meta.date;
   const bad = v.summary.byLevel["나쁨"] || 0, warn = v.summary.byLevel["주의"] || 0;
   return (
     <Link href="/today" className="card rise flex flex-wrap items-center gap-x-4 gap-y-1 p-4 text-ink no-underline hover:bg-white/90">
       <span className="text-[13px] font-semibold text-ink-2">{day}의 방문 여건</span>
+      {v.meta.closed && <span className="badge badge-warn">창구 휴무 · {v.meta.closedReason}</span>}
       <span className="text-[15px]">
         {bad || warn ? <>나쁨 <b className="text-[#d70015]">{num(bad)}곳</b> · 주의 <b>{num(warn)}곳</b>
           {v.summary.atRiskAged > 0 && <> · 우체국에서 먼 65세 이상 <b>{num(v.summary.atRiskAged)}명</b></>}</>

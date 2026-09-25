@@ -68,6 +68,15 @@ def overview(calcRunId: str | None = None):
              WHERE m.calc_run_id = :rid AND m.metric_code = 'NEAREST_FIN_ROAD_M' AND m.level = :lvl"""),
             {"rid": rid, "y": y, "lvl": fine}).mappings().one()
         top_post_only = _top(c, rid, "POST_ONLY_PPLTN", 2, y)
+        # ⑦ 생활 거점 (시군구 합) — 약국·의원 자료를 계산에 넣었을 때만
+        life = dict(c.execute(text("""SELECT metric_code, sum(value) FROM mart.access_metric
+                                       WHERE calc_run_id = :rid AND level = 2
+                                         AND metric_code IN ('POST_SOLE_HUB_PPLTN', 'LIFE_DESERT_PPLTN',
+                                                             'CARE_DESERT_PPLTN', 'HOLIDAY_CARE_GAP_PPLTN') GROUP BY 1"""),
+                              {"rid": rid}).all())
+        hubs = c.execute(text("""SELECT count(*) FILTER (WHERE sole_hub_ppltn > 0) FROM mart.facility_hub
+                                  WHERE calc_run_id = :rid"""), {"rid": rid}).scalar()
+        top_sole_hub = _top(c, rid, "POST_SOLE_HUB_PPLTN", 2, y)
 
     tot_pop = sum(r["pop"] or 0 for r in dist)
     wavg = sum(float(r["d"]) * (r["pop"] or 0) for r in dist) / tot_pop if tot_pop else None
@@ -105,6 +114,11 @@ def overview(calcRunId: str | None = None):
         "road": ({"areas": road["n"], "popwRoadM": round(float(road["popw_road"]), 1),
                   "popwStraightM": round(float(road["popw_straight"]), 1),
                   "popwDriveMin": round(float(road["popw_min"]), 1)} if road["n"] else None),
+        "life": ({"soleHubPpltn": life.get("POST_SOLE_HUB_PPLTN"), "lifeDesertPpltn": life.get("LIFE_DESERT_PPLTN"),
+                  "careDesertPpltn": life.get("CARE_DESERT_PPLTN"),
+                  "holidayCareGapPpltn": life.get("HOLIDAY_CARE_GAP_PPLTN"), "soleHubFacilities": hubs}
+                 if life else None),
+        "topSoleHub": top_sole_hub if life else [],
         "meta": meta_of(run),
     })
     cache.set(key, json.dumps(out, ensure_ascii=False), ttl=3600)

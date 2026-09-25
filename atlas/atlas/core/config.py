@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     kosis_api_key: str = ""
     data_go_kr_key: str = ""                  # 공공데이터포털 일반 인증키 — 기상청 단기예보·에어코리아 (방문 여건)
     admin_token: str = ""
+    api_db_password: str = ""                 # 최소 권한 역할 atlas_api 비밀번호 (make env 가 생성)
 
     stat_year: int = 2024
     sgis_sido: str = "all"
@@ -42,7 +43,16 @@ class Settings(BaseSettings):
     road_max_calls: int = 8000                # 도로 거리 수집 1회 호출 예산 (쿼터 보호, 다음 실행에 이어서)
     kma_base_url: str = "https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0"
     airkorea_base_url: str = "https://apis.data.go.kr/B552584/ArpltnInforInqireSvc"
-    datago_call_delay_ms: int = 100           # 공공데이터포털(기상청·에어코리아) 호출 간 지연
+    pharmacy_url: str = "https://apis.data.go.kr/B552657/ErmctInsttInfoInqireService"
+    hospital_url: str = "https://apis.data.go.kr/B552657/HsptlAsembySearchService"
+    holiday_url: str = "https://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService"
+    datago_call_delay_ms: int = 100
+    datago_concurrency: int = 4               # 공공데이터포털 동시 호출 수 (기상청 격자). 서비스 한도 30 tps 안
+    migrate_on_start: bool = False            # API 기동 때 마이그레이션 (호스트 개발용. compose 는 migrate 서비스가 담당)
+    rate_limit_enabled: bool = True
+    # 이 대역에서 온 요청만 X-Forwarded-For 를 믿음 (web 컨테이너가 있는 도커 사설망 + 로컬)
+    trusted_proxies: str = "127.0.0.1/32,::1/128,172.16.0.0/12,10.0.0.0/8,192.168.0.0/16"
+    atlas_schedule: str = "weather,holidays,care"   # 워커 스케줄 그룹 (weather·holidays·care·post, all, 빈 값=끔)           # 공공데이터포털(기상청·에어코리아) 호출 간 지연
     post_call_delay_ms: int = 300
     http_timeout_s: float = 10.0
     http_retries: int = 3
@@ -51,7 +61,8 @@ class Settings(BaseSettings):
     seed_dir: str = str(_REPO_ROOT / "seed")
 
     @field_validator("post_service_key", "sgis_consumer_key", "sgis_consumer_secret",
-                     "kakao_rest_api_key", "kosis_api_key", "data_go_kr_key", "admin_token", mode="before")
+                     "kakao_rest_api_key", "kosis_api_key", "data_go_kr_key", "admin_token", "api_db_password",
+                     mode="before")
     @classmethod
     def _strip(cls, v: object) -> object:
         if isinstance(v, str):

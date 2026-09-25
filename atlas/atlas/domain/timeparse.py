@@ -23,6 +23,14 @@ class TimeRange:
         """00:00~00:00 — 명세 예시에서 우편취급국이 갖는 값 (R-FIN-01 에서 '금융 미제공'으로 해석)."""
         return self.start_min == 0 and self.end_min == 0
 
+    @property
+    def start_str(self) -> str:
+        return f"{self.start_min // 60:02d}:{self.start_min % 60:02d}"
+
+    @property
+    def end_str(self) -> str:
+        return f"{self.end_min // 60:02d}:{self.end_min % 60:02d}"
+
     def fmt(self) -> str:
         return f"{self.start_min // 60:02d}:{self.start_min % 60:02d}~{self.end_min // 60:02d}:{self.end_min % 60:02d}"
 

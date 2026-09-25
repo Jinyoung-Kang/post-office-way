@@ -1,5 +1,31 @@
 # 변경 이력
 
+## 2026-09-25 — 생활 거점·영업일, 작업 큐 아키텍처, 보안·성능 강화
+
+**기능**
+- **생활 거점** (`/hubs`): 국립중앙의료원 약국·병의원 FullData(약국 25,442 · 의원급 42,514)로 집계구마다 은행·약국·의원·공휴일 진료처 거리 →
+  우체국이 마지막 생활 거점인 인구·의료 공백·공휴일 의료 공백 지표 6종, **우체국별 대체 불가능성**(`facility_hub`) 순위.
+  What-if 에 '생활 거점 상실 인구', 배치 제안에 경고, 시설 카드에 주변 약국·의원·은행, 지도에 약국·의원 레이어(공휴일 진료만).
+- **영업일 달력**: 한국천문연구원 특일 정보 + 주말 → 창구 휴무 판정. 방문 여건 연휴 모드(365코너 없는 읍면동·공휴일 의료 공백),
+  머리글 '오늘 휴무' 알림, 시설 카드 '지금 영업 중/휴무', `GET /calendar`.
+- UI: 모든 화면 조건을 주소에 저장(공유·새로고침), 주제별 지표 묶음, 불러오는 중 자리 표시, 0 이 많은 지표의 범례 개선,
+  키보드 포커스 링·본문 건너뛰기·`Esc`, 데이터·운영 화면에 작업 큐·스케줄, 지표 정의에 규칙 카드.
+
+**아키텍처** ([ADR-012](adr/ADR-012-job-queue-least-privilege.md))
+- Postgres 작업 큐 + 워커·스케줄러(compose `worker`): API 는 INSERT+NOTIFY 만, 워커가 `SKIP LOCKED` 로 실행, 수집 뒤 재계산 자동 연결.
+- 마이그레이션 전용 단계(compose `migrate`) + API 최소 권한 역할 `atlas_api`. 시계(KST)를 `core.clock` 으로, 공공데이터 클라이언트를 `collector.datago` 로 정리.
+
+**보안** ([ADR-013](adr/ADR-013-api-security.md))
+- 속도 제한(신뢰 프록시 기반 IP), API·웹 보안 헤더와 CSP, 비루트·읽기 전용 컨테이너, 관리 작업 감사 기록.
+- 의존성 취약점 제거: Next.js 15.1.6 → 15.5.26(critical 1·high 2), FastAPI 0.115 → 0.141(starlette 0.41 → 1.7) 등 → npm·pip 모두 0건.
+- CI 에 pip-audit·npm audit·gitleaks·이미지 빌드(비루트 확인), Dependabot.
+
+**성능** ([ADR-014](adr/ADR-014-performance.md), [벤치마크](benchmarks.md))
+- 시군구 GeoJSON p50 797 → 49ms, 방문 여건 331 → 38ms, What-if 193 → 18ms, 지역 상세 74 → 28ms, 기상청 수집 288 → 74초.
+- Prometheus `/metrics`, `pg_stat_statements`, `make bench`.
+
+**테스트** Python 161개(+36: 생활 거점·달력·작업 큐·워커 NOTIFY·권한·보안 헤더·ETag·속도 제한) · 웹 vitest 7개(신규)
+
 ## 2026-09-24 — 방문 여건 · 화면 캡처
 
 **추가**
