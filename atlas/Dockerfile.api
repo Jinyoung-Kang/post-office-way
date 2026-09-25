@@ -1,5 +1,5 @@
 # API 이미지 — 빌드 컨텍스트는 저장소 루트 (스키마 버전 확인용으로 db/migrations 를 함께 담음)
-FROM python:3.11-slim-bookworm
+FROM python:3.14-slim-bookworm
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 \
     ATLAS_MIGRATIONS_DIR=/app/db/migrations ATLAS_SEED_DIR=/app/seed
 WORKDIR /app
