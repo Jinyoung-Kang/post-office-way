@@ -12,7 +12,7 @@
 | 관리 API | 토큰 상수 시간 비교, 작업 `kind` 정규식 검증 후 허용 목록 확인, 요청 IP 를 작업 행(`requested_by`)과 감사 로그(`atlas.audit`)에 기록 — 공개 작업 목록에는 IP 를 내보내지 않음 |
 | 컨테이너 | api·worker·migrate 비루트(uid 10001), web 비루트(node). `read_only` 루트 파일시스템 + `/tmp` tmpfs, `cap_drop: ALL`, `no-new-privileges`. 포트는 모두 `127.0.0.1` 바인딩 |
 | DB | 최소 권한 역할(ADR-012), 역할 단위 타임아웃 |
-| 공급망 | CI 에서 `pip-audit`·`npm audit --audit-level=high`·gitleaks(전체 이력) 실패 시 병합 불가. Dependabot(pip·npm·actions·docker) |
+| 공급망 | CI 에서 `pip-audit`(러너 pip·setuptools 포함)·`npm audit --audit-level=high`·gitleaks(전체 이력) 실패 시 병합 불가. Dependabot 은 minor·patch 만 묶어서 주 1회(메이저·런타임 이미지 버전은 계획해서 수동) |
 
 ## 조치 기록 (2026-09-25)
 - `npm audit`: Next.js 15.1.6 critical 1·high 2 → **15.5.26** + Next 내부 PostCSS 를 `overrides` 로 8.5.28 → **0건**.

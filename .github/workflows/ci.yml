@@ -26,7 +26,8 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
         with: { python-version: "3.11" }
-      - run: pip install --upgrade pip && pip install "./atlas[dev]" pip-audit ruff
+      # 러너 기본 파이썬의 pip·setuptools 도 감사 대상이라 함께 올림
+      - run: pip install --upgrade pip setuptools && pip install "./atlas[dev]" pip-audit ruff
       - name: 정적 검사 (pyflakes · 문법)
         run: ruff check --isolated --select F,E9 --target-version py311 atlas/atlas atlas/tests
       - name: 의존성 취약점 (pip-audit)
