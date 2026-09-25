@@ -127,7 +127,11 @@ export class ApiError extends Error {
   constructor(public status: number, public code: string, message: string) { super(message); }
 }
 
+// 같은 출처 /api/v1 아래 경로만 — 주소창 값(?scenario= 등)이 섞여도 '..'·'//'·스킴으로 다른 경로를 부르지 못하게
+const SAFE_PATH = /^\/(?!.*\.\.)(?!\/)[A-Za-z0-9_\-./?=&%,:+ ]*$/;
+
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
+  if (!SAFE_PATH.test(path)) throw new ApiError(400, "BAD_PATH", `허용되지 않은 요청 경로입니다: ${path.slice(0, 80)}`);
   const r = await fetch(`/api/v1${path}`, {
     ...init, headers: { "Content-Type": "application/json", ...(init?.headers || {}) },
   });

@@ -80,8 +80,9 @@ class Fetcher:
         if not last.ok:
             with self._lock:
                 self.errors += 1
+            # 값은 남기지 않고 파라미터 이름만 — 마스킹을 거쳐도 로그에 키가 흘러갈 여지를 없앰
             log.warning("fetch failed", extra={"source": source or self.source, "error": last.error,
-                                               "params": mask_params(params)})
+                                               "paramNames": sorted(params)})
         if self.store_raw:
             last.response_id = self._store(url, params, last, source or self.source)
         return last
