@@ -3,9 +3,10 @@ import type AtlasMapType from "@/components/AtlasMap";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Layout, { basisText, ErrorBox, NoDataGuide, Segmented, useDataBasis } from "@/components/Layout";
+import MapWarmup from "@/components/MapWarmup";
 import RegionCard, { FacilityCard } from "@/components/RegionCard";
 import { BANK_LEGEND, CARE_LEGEND, FACILITY_LEGEND, type CareLayer, type FacilityLayer, type MapLabel } from "@/components/AtlasMap";
-import { api, qs, type AreaFC, type AreaProps, type Facility, type MetricDef, type Region } from "@/lib/api";
+import { cachedApi, qs, type AreaFC, type AreaProps, type Facility, type MetricDef, type Region } from "@/lib/api";
 import { classOf, groupMetrics, NO_DATA, num, quantileBreaks, SEQ, withUnit } from "@/lib/format";
 
 const AtlasMap = dynamic(() => import("@/components/AtlasMap"), { ssr: false }) as typeof AtlasMapType;
@@ -46,8 +47,8 @@ export default function MapPage() {
   }, []);
 
   useEffect(() => {
-    api<{ items: MetricDef[] }>("/metrics").then((r) => setMetrics(r.items.filter((m) => m.available))).catch(() => null);
-    api<{ items: Region[] }>("/meta/regions").then((r) => setRegions(r.items)).catch(() => null);
+    cachedApi<{ items: MetricDef[] }>("/metrics", 600_000).then((r) => setMetrics(r.items.filter((m) => m.available))).catch(() => null);
+    cachedApi<{ items: Region[] }>("/meta/regions", 600_000).then((r) => setRegions(r.items)).catch(() => null);
   }, []);
 
   // ?adm=11010&metric=… (순위·개요 화면에서 이동) → 레벨·상위 전환, 선택, 확대
@@ -74,7 +75,7 @@ export default function MapPage() {
     let alive = true;
     setLoading(true); setError(null);
     const t0 = performance.now();
-    api<AreaFC>(`/areas/geojson${qs({ level, metric, parent: parent || undefined })}`)
+    cachedApi<AreaFC>(`/areas/geojson${qs({ level, metric, parent: parent || undefined })}`)
       .then((r) => { if (alive) { setFc(r); setMs(Math.round(performance.now() - t0)); } })
       .catch((e) => { if (alive) { setFc(null); setError(e.message); } })
       .finally(() => alive && setLoading(false));
@@ -143,6 +144,7 @@ export default function MapPage() {
 
   return (
     <Layout full title="지도">
+      <MapWarmup />
       <AtlasMap<AreaProps> className="absolute inset-0" features={fc?.features || []} styleOf={styleOf}
         tooltipOf={tooltipOf} selected={selected} geomKey={`${level}:${parent}`} focusCd={focusCd}
         onSelect={(cd) => { setSelected(cd); setFacility(null); }}
@@ -163,7 +165,7 @@ export default function MapPage() {
         </button>
         {panelOpen && (
           <div className="max-h-[calc(100dvh-140px)] space-y-5 overflow-y-auto px-5 pb-5">
-            <select className="field" value={metric} onChange={(e) => setMetric(e.target.value)} aria-label="지표 선택">
+            <select name="metric" className="field" value={metric} onChange={(e) => setMetric(e.target.value)} aria-label="지표 선택">
               {groupMetrics(metrics).map((g) => (
                 <optgroup key={g.label} label={g.label}>
                   {g.items.map((m) => <option key={m.code} value={m.code}>{m.name}</option>)}
@@ -179,11 +181,11 @@ export default function MapPage() {
                 options={[{ value: 2, label: "시군구 · 전국" }, { value: 3, label: "읍면동" }]} />
               {level === 3 && (
                 <div className="grid grid-cols-2 gap-2">
-                  <select className="field" value={sido} aria-label="시도"
+                  <select name="sido" className="field" value={sido} aria-label="시도"
                     onChange={(e) => { setParent(e.target.value); setSelected(null); setFocusCd(null); }}>
                     {regions.filter((r) => r.emdCount > 0).map((r) => <option key={r.admCd} value={r.admCd}>{r.admNm}</option>)}
                   </select>
-                  <select className="field" value={parent.length === 5 ? parent : ""} aria-label="시군구"
+                  <select name="sgg" className="field" value={parent.length === 5 ? parent : ""} aria-label="시군구"
                     onChange={(e) => { setParent(e.target.value || sido); setSelected(null); setFocusCd(null); }}>
                     <option value="">시도 전체</option>
                     {sigunguOptions.map((s) => <option key={s.admCd} value={s.admCd}>{s.admNm}</option>)}
@@ -280,7 +282,7 @@ function Toggle({ label, on, onChange, small }: { label: string; on: boolean; on
     <label className={`flex cursor-pointer items-center justify-between gap-3 ${small ? "text-[13px]" : "text-[14px] font-medium"}`}>
       {label}
       <span className="relative inline-flex">
-        <input type="checkbox" className="peer sr-only" checked={on} onChange={(e) => onChange(e.target.checked)} />
+        <input type="checkbox" name={label} className="peer sr-only" checked={on} onChange={(e) => onChange(e.target.checked)} />
         <span className={`h-[22px] w-[38px] rounded-full transition-colors ${on ? "bg-[#34c759]" : "bg-[rgba(120,120,128,.24)]"}`} />
         <span className={`absolute top-[2px] h-[18px] w-[18px] rounded-full bg-white shadow transition-transform ${on ? "translate-x-[18px]" : "translate-x-[2px]"}`} />
       </span>

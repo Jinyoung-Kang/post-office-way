@@ -1,7 +1,8 @@
 # 문서 안내
 
 우체국 가는 길(Postal Access Atlas)의 설계·API·데이터 구조 문서입니다. 설치·사용법은 저장소 [README](../README.md),
-시스템 구성은 [아키텍처](architecture.md), 성능 측정은 [벤치마크](benchmarks.md), 바뀐 내용은 [CHANGELOG](CHANGELOG.md) 를 보세요.
+시스템 구성은 [아키텍처](architecture.md), 성능 측정은 [벤치마크](benchmarks.md), 버그·접근성·성능 점검 방법과 결과는 [품질 검증](quality.md),
+바뀐 내용은 [CHANGELOG](CHANGELOG.md) 를 보세요.
 
 ## 설계 결정 (ADR)
 
@@ -23,12 +24,13 @@
 | [ADR-014](adr/ADR-014-performance.md) | 측정 기반 성능 개선 |
 | [ADR-015](adr/ADR-015-life-hub-calendar.md) | 생활 거점(약국·병의원)과 영업일 달력(특일 정보) — API 선정·제외 이유 |
 | [ADR-016](adr/ADR-016-map-display.md) | 지도 표시 방식 — 첫 그리기 보장, 늘 보이는 라벨, 누르면 고정 |
+| [ADR-017](adr/ADR-017-worker-lanes-ops.md) | 워커 차선(short·long)·생존 신호, 생존/준비 확인 분리, 백업·복원 |
 
 ## API (`http://localhost:8100/api/v1`, 자동 문서 `/docs`)
 
 | 메서드 · 경로 | 내용 |
 |---|---|
-| `GET /health` | DB·Redis 연결 상태 |
+| `GET /health` · `GET /health/live` | 준비 상태(DB·Redis·스키마·작업 큐·워커 차선별 생존 신호) · 프로세스 생존만 |
 | `GET /overview` | 전국 개요 — 시설·거리 분포·고령인구·금융 공백·취약 지역 |
 | `GET /areas` · `/areas/geojson` · `/areas/{admCd}` | 지역 목록·순위 / 단계구분도 GeoJSON(캐시) / 지역 상세(최근접 3·은행·지표·인구) |
 | `GET /facilities` · `/facilities/{histId}` | 시설 목록(bbox·유형·검색) / 시설 상세 |
@@ -66,11 +68,12 @@
 | V13 | `pg_stat_statements` (성능 분석) |
 | V14 | 순위·백분위 사전 계산(`access_metric.rnk·pct·n`) + 기존 계산 채움 |
 | V15 | 오류 로그(`ops.app_error`) — API 가 처리하지 못한 예외, 30일 보관(make prune) |
+| V16 | 워커 생존 신호(`ops.worker`) — 차선별 마지막 신호·실행 중 작업, API 는 읽기만 |
 
 - 지표 계산 SQL: `atlas/atlas/sql/calc/00_snapshot.sql` ~ `10_ranks.sql` (계산 실행 `calc_run` 단위로 결과 보존)
 - 판정 규칙: 금융 가능 `R-FIN-01` (`domain/rules.py`), 방문 여건 `VISIT-1` (`domain/visit.py`), 영업일 (`domain/calendar.py`),
   약국·병의원 행 해석 (`domain/care.py`)
-- 작업: 종류 목록 `jobs/registry.py` · 큐 `jobs/queue.py` · 스케줄 `jobs/scheduler.py` · 워커 `jobs/worker.py`
+- 작업: 종류 목록·차선 `jobs/registry.py` · 큐·생존 신호 `jobs/queue.py` · 스케줄 `jobs/scheduler.py` · 워커(차선별 스레드) `jobs/worker.py`
 
 ## 화면 캡처
 

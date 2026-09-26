@@ -34,3 +34,13 @@ def mask_secrets_in(s: str, secrets: list[str]) -> str:
         for form in {sec, quote(sec, safe=""), quote_plus(sec)}:
             s = s.replace(form, MASK)
     return s
+
+
+# SQLAlchemy 예외 문자열 끝에 붙는 SQL 원문·바인드 값(사용자 입력일 수 있음)·안내 링크
+_SQLA_TAIL = re.compile(r"\n\s*(?:\[SQL:|\[parameters:|\(Background on this error).*", re.S)
+
+
+def brief_error(s: str, limit: int = 300) -> str:
+    """오류 로그용 한 줄 — SQL 원문·바인드 값을 떼고 공백을 합친 뒤 limit 자로 자름 (전체 내용은 traceId 로 서버 로그에서)."""
+    s = " ".join(_SQLA_TAIL.sub("", s or "").split())
+    return s if len(s) <= limit else s[: limit - 1] + "…"

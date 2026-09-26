@@ -2,7 +2,7 @@ import Head from "next/head";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useEffect, useState, type ReactNode } from "react";
-import { api, type CalendarDay } from "@/lib/api";
+import { cachedApi, type CalendarDay } from "@/lib/api";
 import { dt, short } from "@/lib/format";
 
 const NAV = [
@@ -24,8 +24,8 @@ export function useDataBasis() {
   const [calc, setCalc] = useState<CalcRun | null>(null);
   const [dqErrors, setDqErrors] = useState(0);
   useEffect(() => {
-    api<{ items: CalcRun[] }>("/meta/calc-runs?size=10").then((r) => setCalc(r.items.find((x) => x.status === "DONE") || null)).catch(() => null);
-    api<{ errorCount: number }>("/dq/summary").then((r) => setDqErrors(r.errorCount)).catch(() => null);
+    cachedApi<{ items: CalcRun[] }>("/meta/calc-runs?size=10").then((r) => setCalc(r.items.find((x) => x.status === "DONE") || null)).catch(() => null);
+    cachedApi<{ errorCount: number }>("/dq/summary").then((r) => setDqErrors(r.errorCount)).catch(() => null);
   }, []);
   return { calc, dqErrors };
 }
@@ -40,7 +40,7 @@ export function basisText(calc: CalcRun | null): string {
 function useToday() {
   const [day, setDay] = useState<CalendarDay | null>(null);
   useEffect(() => {
-    api<{ items: CalendarDay[] }>("/calendar?days=1").then((r) => setDay(r.items[0] || null)).catch(() => null);
+    cachedApi<{ items: CalendarDay[] }>("/calendar?days=1", 600_000).then((r) => setDay(r.items[0] || null)).catch(() => null);
   }, []);
   return day;
 }
@@ -82,7 +82,7 @@ export default function Layout({ children, full, title }: { children: ReactNode;
           </span>
         </div>
       </header>
-      <main id="main" className={`flex-1 ${full ? "relative min-h-0" : ""}`}>{children}</main>
+      <main id="main" className={`flex-1 ${full ? "relative min-h-0" : "min-h-[calc(100dvh-48px)]"}`}>{children}</main>
       {!full && (
         <footer className="border-t border-line bg-surface">
           <div className="mx-auto max-w-page space-y-2 px-4 py-6 text-[12px] leading-relaxed text-ink-2">

@@ -5,7 +5,9 @@ import { api, type Job, type ScheduleItem } from "@/lib/api";
 import { dt, num } from "@/lib/format";
 
 type Health = { status: string; schema: { upToDate: boolean; pending: string[] } | null;
-  queue: { queued: number; running: number; oldestQueuedS: number | null } | null; redis: boolean };
+  queue: { queued: number; running: number; oldestQueuedS: number | null } | null; redis: boolean;
+  workers: { worker: string; lane: "short" | "long"; jobId: number | null; seenS: number; upS: number }[] | null };
+const LANE: Record<string, string> = { short: "짧은 작업", long: "긴 작업" };
 
 const STATUS: Record<Job["status"], string> = { DONE: "badge-good", FAILED: "badge-error", RUNNING: "badge-info",
   QUEUED: "badge-info", CANCELLED: "badge-info" };
@@ -39,6 +41,8 @@ export default function JobsPanel() {
   }, []);
 
   const stale = (health?.queue?.oldestQueuedS ?? 0) > 600;
+  const lanes = new Set((health?.workers || []).map((w) => w.lane));
+  const lanesOk = lanes.has("short") && lanes.has("long");
   return (
     <Card title="작업 큐 · 스케줄" pad={false}
       right={health && (
@@ -47,11 +51,18 @@ export default function JobsPanel() {
             스키마 {health.schema?.upToDate ? "최신" : `대기 ${health.schema?.pending.length}`}</span>
           <span className={`badge ${stale ? "badge-error" : "badge-info"}`} title={stale ? "10분 넘게 대기 — 워커(compose 서비스 worker)를 확인하세요" : undefined}>
             대기 {num(health.queue?.queued)} · 실행 {num(health.queue?.running)}</span>
+          {health.workers && (
+            <span className={`badge ${lanesOk ? "badge-good" : "badge-error"}`}
+              title={health.workers.map((w) => `${LANE[w.lane]}: ${w.worker}${w.jobId ? ` (#${w.jobId} 실행 중)` : " 대기"} · ${w.seenS}초 전 신호`).join("\n")
+                || "2분 안에 신호를 보낸 워커가 없습니다 — docker compose logs worker 를 확인하세요"}>
+              워커 {lanesOk ? "동작 중" : lanes.size ? `${LANE[[...lanes][0]]}만` : "멈춤"}</span>
+          )}
           <span className={`badge ${health.redis ? "badge-good" : "badge-warn"}`}>캐시 {health.redis ? "연결" : "없음"}</span>
         </span>
       )}>
       <p className="-mt-2 px-6 pb-3 text-[13px] text-ink-2">
-        관리 API·스케줄이 넣은 작업을 워커가 차례로 실행합니다(Postgres 작업 큐). 수집이 끝나면 지표 재계산이 자동으로 이어집니다.
+        관리 API·스케줄이 넣은 작업을 워커가 실행합니다(Postgres 작업 큐). 오래 걸리는 도로 거리·영업점 수집과 예보 같은 짧은 작업은
+        차선을 나눠 서로 막지 않고, 수집이 끝나면 지표 재계산이 자동으로 이어집니다.
       </p>
       <div className="grid gap-5 px-3 pb-3 lg:grid-cols-[1fr_320px]">
         <div className="overflow-x-auto">

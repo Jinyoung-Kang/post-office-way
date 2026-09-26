@@ -3,10 +3,11 @@ export function Skeleton({ className = "" }: { className?: string }) {
   return <div className={`skeleton ${className}`} aria-hidden="true" />;
 }
 
-export function StatSkeletons({ n = 4 }: { n?: number }) {
+// 실제 카드와 같은 줄 수로 자리를 잡아 두어 데이터가 와도 아래 내용이 밀리지 않게 (CLS)
+export function StatSkeletons({ n = 4, rows = 1 }: { n?: number; rows?: number }) {
   return (
     <div className="grid grid-cols-2 gap-3 md:grid-cols-4" role="status" aria-label="불러오는 중">
-      {Array.from({ length: n }, (_, i) => (
+      {Array.from({ length: n * rows }, (_, i) => (
         <div key={i} className="card space-y-3 p-5"><Skeleton className="h-3 w-24" /><Skeleton className="h-7 w-32" /><Skeleton className="h-3 w-20" /></div>
       ))}
     </div>

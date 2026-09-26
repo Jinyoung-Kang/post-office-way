@@ -4,16 +4,16 @@ import { Bar, BarChart, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YA
 import Layout, { Card, ErrorBox, Hero, NoDataGuide, Stat } from "@/components/Layout";
 import { StatSkeletons } from "@/components/Skeleton";
 import { fmtPeriod } from "@/components/RegionCard";
-import { api, type Overview, type VisitConditions } from "@/lib/api";
+import { api, cachedApi, type Overview, type VisitConditions } from "@/lib/api";
 import { dist, num, SEQ, shortSido } from "@/lib/format";
 
 export default function OverviewPage() {
   const [d, setD] = useState<Overview | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const [visit, setVisit] = useState<VisitConditions | null>(null);
+  const [visit, setVisit] = useState<VisitConditions | null | undefined>(undefined);   // undefined = 불러오는 중
   useEffect(() => {
-    api<Overview>("/overview").then(setD).catch((e) => setErr(e.message));
-    api<VisitConditions>("/visit/conditions").then(setVisit).catch(() => null);   // 예보를 안 받았으면 배너 없음
+    cachedApi<Overview>("/overview").then(setD).catch((e) => setErr(e.message));
+    api<VisitConditions>("/visit/conditions").then(setVisit).catch(() => setVisit(null));   // 예보를 안 받았으면 배너 없음
   }, []);
   const noData = !!err && /CALC_RUN_NOT_FOUND|완료된 계산/.test(err);
 
@@ -27,8 +27,10 @@ export default function OverviewPage() {
 
       <div className="mx-auto max-w-page space-y-5 px-4 pb-20">
         {err && (noData ? <NoDataGuide /> : <ErrorBox error={err} />)}
+        {/* 배너 자리를 먼저 잡아 두어 예보가 늦게 와도 아래 숫자가 밀리지 않게 (CLS) */}
+        {visit === undefined && !err && <div className={`card ${BANNER_H}`} aria-hidden="true" />}
         {visit && <VisitBanner v={visit} />}
-        {!d && !err && <StatSkeletons />}
+        {!d && !err && <StatSkeletons rows={2} />}
         {d && (
           <>
             <div className="rise grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -159,12 +161,14 @@ function TopList({ title, items, unit, metric, digits = 0 }: {
   );
 }
 
+const BANNER_H = "min-h-[124px] md:min-h-[54px]";   // 휴무 배지까지 들어간 배너 높이 (모바일은 줄바꿈)
+
 function VisitBanner({ v }: { v: VisitConditions }) {
   const cur = v.meta.dates.find((x) => x.date === v.meta.date);
   const day = cur?.label || v.meta.date;
   const bad = v.summary.byLevel["나쁨"] || 0, warn = v.summary.byLevel["주의"] || 0;
   return (
-    <Link href="/today" className="card rise flex flex-wrap items-center gap-x-4 gap-y-1 p-4 text-ink no-underline hover:bg-white/90">
+    <Link href="/today" className={`card rise flex flex-wrap content-center items-center gap-x-4 gap-y-1 p-4 text-ink no-underline hover:bg-white/90 ${BANNER_H}`}>
       <span className="text-[13px] font-semibold text-ink-2">{day}의 방문 여건</span>
       {v.meta.closed && <span className="badge badge-warn">창구 휴무 · {v.meta.closedReason}</span>}
       <span className="text-[15px]">

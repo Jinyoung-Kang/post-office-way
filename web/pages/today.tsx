@@ -5,8 +5,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type AtlasMapType from "@/components/AtlasMap";
 import type { MapLabel } from "@/components/AtlasMap";
 import Layout, { Card, ErrorBox, Hero, Segmented, Stat } from "@/components/Layout";
+import MapWarmup from "@/components/MapWarmup";
 import VisitBadge from "@/components/VisitBadge";
-import { api, qs, type AreaFC, type AreaProps, type VisitConditions, type VisitItem } from "@/lib/api";
+import { api, cachedApi, qs, type AreaFC, type AreaProps, type VisitConditions, type VisitItem } from "@/lib/api";
 import { dist, dt, num, NO_DATA, REASON_LABEL, shortSido, VISIT_FILL, VISIT_LABEL } from "@/lib/format";
 import { StatSkeletons } from "@/components/Skeleton";
 import { useQueryState } from "@/lib/useQueryState";
@@ -23,7 +24,7 @@ export default function TodayPage() {
   const [all, setAll] = useState(false);
 
   useEffect(() => {
-    api<AreaFC>(`/areas/geojson${qs({ level: 2, metric: "AGED65_FAR_PPLTN" })}`).then(setFc).catch(() => setFc(null));
+    cachedApi<AreaFC>(`/areas/geojson${qs({ level: 2, metric: "AGED65_FAR_PPLTN" })}`).then(setFc).catch(() => setFc(null));
   }, []);
   useEffect(() => {
     let alive = true;
@@ -65,6 +66,7 @@ export default function TodayPage() {
 
   return (
     <Layout title="방문 여건">
+      <MapWarmup />
       <Hero eyebrow="오늘의 방문 여건" title={<>오늘, 우체국 가는 길은<br className="hidden sm:block" /> 괜찮을까요.</>}
         sub="기상청 단기예보와 에어코리아 미세먼지 예보로 시군구마다 창구 운영 시간(09~18시)의 방문 부담을 판정하고, 우체국에서 멀리 사는 고령인구와 함께 보여 줍니다." />
 
@@ -139,7 +141,7 @@ export default function TodayPage() {
                         <td className="num whitespace-nowrap">{x.pcpMm ? `${num(x.pcpMm, 1)}mm` : x.snoCm ? `${num(x.snoCm, 1)}cm` : "—"}</td>
                         <td className="num font-medium">{num(x.agedFarPpltn)}</td>
                         {closed ? <>
-                          <td className="num whitespace-nowrap">{x.emdWithout365 == null ? "—" : <><span className={x.emdWithout365 ? "font-medium text-[#b25000]" : ""}>{num(x.emdWithout365)}</span><span className="text-ink-3"> / {num(x.emdCount)}</span></>}</td>
+                          <td className="num whitespace-nowrap">{x.emdWithout365 == null ? "—" : <><span className={x.emdWithout365 ? "font-medium text-[#a34700]" : ""}>{num(x.emdWithout365)}</span><span className="text-ink-3"> / {num(x.emdCount)}</span></>}</td>
                           <td className="num">{num(x.holidayCareGapPpltn)}</td>
                         </> : <td className="num whitespace-nowrap">{dist(x.nearestFinM)}</td>}
                       </tr>
@@ -161,7 +163,7 @@ export default function TodayPage() {
               </div>
               <p className="mt-4 text-[12px] leading-relaxed text-ink-3">
                 ⚠ {d.meta.note} 날씨는 시군구 대표점이 있는 5km 격자 한 곳의 예보입니다. 규칙 {d.meta.ruleVersion} ·
-                기상청 발표 {dt(d.meta.weatherBaseAt)} · 에어코리아 발표 {dt(d.meta.airAnnouncedAt)} · 먼 곳 고령인구는 calcRun 기준
+                기상청 발표 {dt(d.meta.weatherBaseAt)} · {d.meta.airAnnouncedAt ? `에어코리아 발표 ${dt(d.meta.airAnnouncedAt)}` : "미세먼지 예보는 아직 이 날짜까지 발표되지 않음"} · 먼 곳 고령인구는 calcRun 기준
                 {" "}<Link href="/about/metrics" className="link text-[12px]">지표 정의 ›</Link>
               </p>
             </Card>

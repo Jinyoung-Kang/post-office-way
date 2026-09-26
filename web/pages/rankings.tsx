@@ -2,7 +2,7 @@ import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import Layout, { Card, Empty, ErrorBox, Hero, NoDataGuide, Segmented } from "@/components/Layout";
-import { api, qs, type MetricDef, type Region } from "@/lib/api";
+import { api, cachedApi, qs, type MetricDef, type Region } from "@/lib/api";
 import { groupMetrics, num, shortSido, withUnit } from "@/lib/format";
 import { TableSkeleton } from "@/components/Skeleton";
 import { useQueryState } from "@/lib/useQueryState";
@@ -26,19 +26,21 @@ export default function Rankings() {
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    api<{ items: MetricDef[] }>("/metrics").then((r) => setMetrics(r.items.filter((m) => m.available))).catch(() => null);
-    api<{ items: Region[] }>("/meta/regions").then((r) => setRegions(r.items)).catch(() => null);
+    cachedApi<{ items: MetricDef[] }>("/metrics", 600_000).then((r) => setMetrics(r.items.filter((m) => m.available))).catch(() => null);
+    cachedApi<{ items: Region[] }>("/meta/regions", 600_000).then((r) => setRegions(r.items)).catch(() => null);
   }, []);
   const sido = sidoQ || regions.find((r) => r.emdCount > 0)?.admCd || "";
 
+  // 시군구 순위는 시도와 무관 — 시도 목록이 늦게 와 기본 시도가 정해져도 다시 요청하지 않게 요청에 쓰는 값만 의존
+  const parent = level === 3 ? sido : "";
   useEffect(() => {
-    if (level === 3 && !sido) return;
+    if (level === 3 && !parent) return;
     setErr(null);
     let alive = true;   // 조건을 빠르게 바꿀 때 이전 응답이 덮어쓰지 않게
-    api<Resp>(`/areas${qs({ level, metric, parent: level === 3 ? sido : undefined, sort, size: 20 })}`)
+    api<Resp>(`/areas${qs({ level, metric, parent: parent || undefined, sort, size: 20 })}`)
       .then((r) => { if (alive) setData(r); }).catch((e) => { if (alive) { setData(null); setErr(e.message); } });
     return () => { alive = false; };
-  }, [metric, level, sido, sort]);
+  }, [metric, level, parent, sort]);
 
   const unit = data?.metric.unit || "";
   const worseFirst = data ? (data.metric.higherIsWorse ? sort === "desc" : sort === "asc") : true;
@@ -52,7 +54,7 @@ export default function Rankings() {
       <Hero title="지역 순위." sub="지표를 고르면 전국 시군구(또는 시도 안 읍면동)를 값 순서로 보여 줍니다. 막대나 행을 누르면 지도로 이동합니다." />
       <div className="mx-auto max-w-page space-y-5 px-4 pb-20">
         <div className="card flex flex-wrap items-center gap-3 p-4">
-          <select className="field max-w-[280px]" value={metric} onChange={(e) => setMetric(e.target.value)} aria-label="지표">
+          <select name="metric" className="field max-w-[280px]" value={metric} onChange={(e) => setMetric(e.target.value)} aria-label="지표">
             {groupMetrics(metrics).map((g) => (
               <optgroup key={g.label} label={g.label}>
                 {g.items.map((m) => <option key={m.code} value={m.code}>{m.name}</option>)}
@@ -62,7 +64,7 @@ export default function Rankings() {
           <Segmented ariaLabel="단위" value={level} onChange={setLevel}
             options={[{ value: 2, label: "시군구 · 전국" }, { value: 3, label: "읍면동 · 시도 안" }]} />
           {level === 3 && (
-            <select className="field max-w-[180px]" value={sido} onChange={(e) => setSido(e.target.value)} aria-label="시도">
+            <select name="sido" className="field max-w-[180px]" value={sido} onChange={(e) => setSido(e.target.value)} aria-label="시도">
               {regions.filter((r) => r.emdCount > 0).map((r) => <option key={r.admCd} value={r.admCd}>{r.admNm}</option>)}
             </select>
           )}
@@ -81,7 +83,7 @@ export default function Rankings() {
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={chartData} layout="vertical" margin={{ left: 4, right: 28, top: 0, bottom: 0 }} barCategoryGap={5}>
                       <CartesianGrid horizontal={false} stroke="#e8e8ed" />
-                      <XAxis type="number" tick={{ fontSize: 12, fill: "#86868b" }} axisLine={false} tickLine={false}
+                      <XAxis type="number" tick={{ fontSize: 12, fill: "#6e6e73" }} axisLine={false} tickLine={false}
                         tickFormatter={(v) => (unit === "m" ? `${num(v / 1000, 1)}km` : num(v, 1))} />
                       <YAxis type="category" dataKey="name" width={150} tick={{ fontSize: 13, fill: "#1d1d1f" }} axisLine={false} tickLine={false} />
                       <Tooltip cursor={{ fill: "rgba(0,0,0,.03)" }} contentStyle={{ borderRadius: 12, border: 0, boxShadow: "0 4px 20px rgba(0,0,0,.12)" }}

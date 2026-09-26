@@ -78,8 +78,8 @@ def test_worker_wakes_on_notify(fake_jobs, monkeypatch, engine):
     done, stop = threading.Event(), threading.Event()
     orig = worker.execute
 
-    def spy(job):
-        r = orig(job)
+    def spy(job, *a, **kw):
+        r = orig(job, *a, **kw)
         done.set()
         return r
 
@@ -193,3 +193,79 @@ def test_error_log_collects_all_sources(client, fake_jobs):
     assert "serviceKey=***" in by["API"]["message"] and "SECRET123" not in by["API"]["line"]      # 키 마스킹
     assert by["작업"]["line"].split(" [작업] ")[1].startswith("#") and "수집 실패" in by["작업"]["line"]
     assert r["items"][0]["at"] >= r["items"][-1]["at"]                                           # 최신순
+
+
+def test_long_job_does_not_block_short_lane(fake_jobs, monkeypatch, engine):
+    """차선 분리 — long 작업이 도는 동안 short 작업(예보 등)이 먼저 끝나야 함. 워커 생존 신호도 기록."""
+    from atlas.core.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "atlas_schedule", "")
+    release, long_started, short_done = threading.Event(), threading.Event(), threading.Event()
+
+    def slow(_):
+        long_started.set()
+        release.wait(10)
+        return {}
+
+    def fast(_):
+        short_done.set()
+        return {}
+
+    monkeypatch.setitem(registry.JOBS, "slowjob", JobSpec("slowjob", "느린 작업", slow, long=True))
+    monkeypatch.setitem(registry.JOBS, "fastjob", JobSpec("fastjob", "빠른 작업", fast))
+    assert registry.lane_of("slowjob") == "long" and registry.lane_of("fastjob") == "short"
+    stop = threading.Event()
+    t = threading.Thread(target=worker.run_forever, kwargs={"poll_s": 2.0, "stop": stop}, daemon=True)
+    t.start()
+    try:
+        queue.enqueue("slowjob")
+        assert long_started.wait(5)
+        queue.enqueue("fastjob")                      # 나중에 들어왔지만
+        assert short_done.wait(5), "long 작업에 막히지 않고 short 차선이 처리해야 함"
+        lanes = {w["lane"]: w for w in queue.workers()}
+        assert set(lanes) == {"short", "long"} and lanes["long"]["job_id"] is not None
+    finally:
+        release.set()
+        stop.set()
+        with engine.begin() as c:
+            c.execute(text("SELECT pg_notify('atlas_jobs', 'stop')"))
+        t.join(10)
+    assert not t.is_alive()
+    assert queue.workers() == []                       # 정상 종료 시 생존 신호 행 삭제
+
+
+def test_health_live_and_workers(client):
+    assert client.get("/api/v1/health/live").json() == {"status": "ok"}
+    assert client.get("/api/v1/health").json()["workers"] == []
+
+
+def test_worker_survives_db_disconnect(fake_jobs, monkeypatch, engine):
+    """DB 가 연결을 모두 끊어도(장애 복구·재시작) 차선이 죽지 않고 다시 연결해 작업을 처리."""
+    from atlas.core.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "atlas_schedule", "")
+    monkeypatch.setattr(worker, "RETRY_MAX_S", 1)
+    stop = threading.Event()
+    t = threading.Thread(target=worker.run_forever, kwargs={"poll_s": 1.0, "stop": stop}, daemon=True)
+    t.start()
+    try:
+        import time
+
+        time.sleep(1.0)
+        with engine.begin() as c:                           # 이 DB 의 다른 연결(워커 LISTEN·풀)을 모두 끊음
+            n = c.execute(text("""SELECT count(pg_terminate_backend(pid)) FROM pg_stat_activity
+                                   WHERE datname = current_database() AND pid <> pg_backend_pid()""")).scalar()
+        assert n >= 2
+        time.sleep(0.5)
+        queue.enqueue("okjob", {"recalc": False})
+        deadline = time.time() + 10
+        while time.time() < deadline and queue.recent(1)[0]["status"] != "DONE":
+            time.sleep(0.2)
+        assert queue.recent(1)[0]["status"] == "DONE"
+        assert t.is_alive() and {w["lane"] for w in queue.workers()} == {"short", "long"}
+    finally:
+        stop.set()
+        with engine.begin() as c:
+            c.execute(text("SELECT pg_notify('atlas_jobs', 'stop')"))
+        t.join(10)
+    assert not t.is_alive()

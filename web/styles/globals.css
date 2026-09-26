@@ -9,15 +9,15 @@
   --bg: #f5f5f7;
   --surface: #ffffff;
   --text: #1d1d1f;
-  --text-2: #6e6e73;
-  --text-3: #86868b;
+  --text-2: #515154;
+  --text-3: #6e6e73;
   --line: rgba(0, 0, 0, 0.08);
   --fill: rgba(118, 118, 128, 0.12);
   --accent: #0071e3;
   --accent-hover: #0077ed;
   --link: #0066cc;
-  --good: #1d8a3a;
-  --warn: #b25000;
+  --good: #18782f;
+  --warn: #a34700;
   --bad: #d70015;
   --glass: rgba(255, 255, 255, 0.72);
 }
@@ -76,6 +76,8 @@ a { color: var(--link); }
 .btn-ghost:disabled { opacity: 0.4; }
 .link { color: var(--link); font-size: 14px; }
 .link:hover { text-decoration: underline; }
+/* 문장 속 링크는 색만으로 구분되지 않게 밑줄 (WCAG 1.4.1) */
+p .link, li .link, p > a:not(.btn):not(.btn-ghost):not(.badge) { text-decoration: underline; text-underline-offset: 2px; }
 
 /* 세그먼트 컨트롤 */
 .seg { display: inline-flex; background: var(--fill); border-radius: 9px; padding: 2px; gap: 2px; }
@@ -124,7 +126,9 @@ select.field { appearance: none; padding-right: 32px;
 }
 
 /* 등장 애니메이션 */
-@keyframes rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+/* 투명도는 건드리지 않음 — opacity 0 에서 시작하면 첫 그림 뒤 0.5초 동안 제목이 안 보이고, 브라우저가 LCP 후보에서도 빼
+   데이터가 온 뒤의 작은 글자가 LCP 가 됐음. 살짝 올라오는 움직임만 남김 */
+@keyframes rise { from { transform: translateY(12px); } to { transform: none; } }
 .rise { animation: rise .5s cubic-bezier(.2, .8, .2, 1) both; }
 @media (prefers-reduced-motion: reduce) { .rise { animation: none; } }
 

@@ -4,8 +4,9 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryState } from "@/lib/useQueryState";
 import Layout, { Card, Empty, ErrorBox, Hero, Segmented, Stat } from "@/components/Layout";
+import MapWarmup from "@/components/MapWarmup";
 import type { MapLabel, Marker } from "@/components/AtlasMap";
-import { api, qs, type AreaFC, type AreaProps, type PlanClose, type PlanOpen, type Region } from "@/lib/api";
+import { api, cachedApi, qs, type AreaFC, type AreaProps, type PlanClose, type PlanOpen, type Region } from "@/lib/api";
 import { classOf, dist, NO_DATA, num, quantileBreaks, SEQ } from "@/lib/format";
 
 const AtlasMap = dynamic(() => import("@/components/AtlasMap"), { ssr: false }) as typeof AtlasMapType;
@@ -28,7 +29,7 @@ export default function PlanPage() {
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    api<{ items: Region[] }>("/meta/regions").then((r) => setRegions(r.items)).catch(() => null);
+    cachedApi<{ items: Region[] }>("/meta/regions", 600_000).then((r) => setRegions(r.items)).catch(() => null);
   }, []);
   const first = regions.find((x) => x.emdCount > 0);
   const scope = scopeQ || (first ? first.sigungu[0]?.admCd || first.admCd : "");
@@ -44,7 +45,7 @@ export default function PlanPage() {
   useEffect(() => {
     if (!scope) return;
     let alive = true;
-    api<AreaFC>(`/areas/geojson${qs({ level: 3, metric: "NEAREST_FIN_DIST_M", parent: scope })}`)
+    cachedApi<AreaFC>(`/areas/geojson${qs({ level: 3, metric: "NEAREST_FIN_DIST_M", parent: scope })}`)
       .then((r) => { if (alive) setFc(r); }).catch(() => { if (alive) setFc(null); });
     return () => { alive = false; };
   }, [scope]);
@@ -80,6 +81,7 @@ export default function PlanPage() {
 
   return (
     <Layout title="배치 제안">
+      <MapWarmup />
       <Hero title="어디를, 어떻게." sub="범위를 고르면 ‘닫아도 영향이 가장 작은 우체국 조합’과 ‘새로 열면 효과가 가장 큰 자리’를 계산합니다. 탐욕법 근사이며 결정 근거가 아닌 검토용입니다." />
       <div className="mx-auto grid max-w-wide gap-5 px-4 pb-20 lg:grid-cols-[360px_1fr]">
         <div className="space-y-5">
@@ -88,17 +90,17 @@ export default function PlanPage() {
               <Segmented ariaLabel="모드" value={mode} onChange={(v) => { setMode(v); setRes(null); }}
                 options={[{ value: "close", label: "닫을 곳 찾기" }, { value: "open", label: "열 곳 찾기" }]} />
               <div className="grid grid-cols-2 gap-2">
-                <select className="field" value={sido} aria-label="시도" onChange={(e) => { setSido(e.target.value); setRes(null); }}>
+                <select name="sido" className="field" value={sido} aria-label="시도" onChange={(e) => { setSido(e.target.value); setRes(null); }}>
                   {regions.filter((r) => r.emdCount > 0).map((r) => <option key={r.admCd} value={r.admCd}>{r.admNm}</option>)}
                 </select>
-                <select className="field" value={sgg} aria-label="시군구" onChange={(e) => { setSgg(e.target.value); setRes(null); }}>
+                <select name="sgg" className="field" value={sgg} aria-label="시군구" onChange={(e) => { setSgg(e.target.value); setRes(null); }}>
                   <option value="">시도 전체</option>
                   {sgus.map((s) => <option key={s.admCd} value={s.admCd}>{s.admNm}</option>)}
                 </select>
               </div>
               <div>
                 <p className="group-label">{mode === "close" ? "닫을" : "열"} 곳 수 · {k}곳</p>
-                <input type="range" min={1} max={7} value={k} onChange={(e) => setK(Number(e.target.value))} className="w-full accent-[#0071e3]" aria-label="개수" />
+                <input name="k" type="range" min={1} max={7} value={k} onChange={(e) => setK(Number(e.target.value))} className="w-full accent-[#0071e3]" aria-label="개수" />
               </div>
               <div>
                 <p className="group-label">누구를 기준으로</p>
@@ -183,7 +185,7 @@ export default function PlanPage() {
                   <thead><tr><th className="num">순서</th><th>후보지 (읍면동 대표점)</th><th className="num">줄어드는 거리</th><th className="num">새로 2km 안</th><th className="num">좋아지는 지역</th></tr></thead>
                   <tbody>{res.steps.map((s, i) => (
                     <tr key={s.siteCd}><td className="num text-ink-3">{i + 1}</td><td className="font-medium">{s.siteNm || s.siteCd}</td>
-                      <td className="num">{num(s.gainKmPpl)} 명·km</td><td className="num text-[#1d8a3a]">{num(s.newlyNear)}명</td><td className="num">{s.areasImproved}곳</td></tr>
+                      <td className="num">{num(s.gainKmPpl)} 명·km</td><td className="num text-[#18782f]">{num(s.newlyNear)}명</td><td className="num">{s.areasImproved}곳</td></tr>
                   ))}</tbody>
                 </table>
                 {!res.steps.length && <p className="px-3 py-4 text-[14px] text-ink-2">이 범위에서는 새로 열어 거리가 줄어드는 곳이 없습니다.</p>}
@@ -197,7 +199,7 @@ export default function PlanPage() {
                   <thead><tr><th>지역</th><th className="num">{wLabel(res.weight)}</th><th className="num">전</th><th className="num">후</th></tr></thead>
                   <tbody>{(res.mode === "close" ? res.affectedAreas : res.improvedAreas).map((a) => (
                     <tr key={a.admCd}><td>{a.admNm || a.admCd}</td><td className="num">{num(a.weight)}</td><td className="num">{dist(a.distBeforeM)}</td>
-                      <td className={`num font-medium ${a.distAfterM > a.distBeforeM ? "text-[#d70015]" : "text-[#1d8a3a]"}`}>{dist(a.distAfterM)}</td></tr>
+                      <td className={`num font-medium ${a.distAfterM > a.distBeforeM ? "text-[#d70015]" : "text-[#18782f]"}`}>{dist(a.distAfterM)}</td></tr>
                   ))}</tbody>
                 </table>
               </div>

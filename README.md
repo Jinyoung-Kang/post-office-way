@@ -9,11 +9,16 @@
 - **방문 여건 · 영업일** — 기상청·에어코리아 예보로 오늘~모레 방문이 어려운 지역, 공휴일·연휴엔 창구 휴무와 365코너·휴일 진료 공백
 - **데이터·운영** — 오류 로그(한곳에 모아 복사), 작업 큐·스케줄·품질 검사·원본 응답(키 마스킹)을 모두 기록
 
-**엔지니어링**: Postgres 작업 큐(`SKIP LOCKED` + `LISTEN/NOTIFY`) 워커·스케줄러 · 마이그레이션 전용 단계 · 최소 권한 DB 역할 ·
-속도 제한·CSP·비루트/읽기 전용 컨테이너 · 측정 기반 최적화(`make bench`, 주요 경로 p50 2.6~16배 개선) · Prometheus 지표 ·
-CI(테스트 169개, pip-audit·npm audit·gitleaks·이미지 빌드).
+**엔지니어링**: Postgres 작업 큐(`SKIP LOCKED` + `LISTEN/NOTIFY`) — **short·long 차선**으로 긴 수집이 예보 갱신을 막지 않고,
+워커 생존 신호·DB 끊김 자동 복구 · 마이그레이션 전용 단계 · 최소 권한 DB 역할 · 속도 제한·CSP·비루트/읽기 전용 컨테이너 ·
+측정 기반 최적화(`make bench`, 주요 경로 p50 2.6~16배 개선) · Prometheus 지표 · 백업/복원 ·
+CI(테스트 178개, pip-audit·npm audit·gitleaks·이미지 빌드).
 
-문서: [아키텍처](docs/architecture.md) · [설계 결정·API·데이터 구조](docs/README.md) · [벤치마크](docs/benchmarks.md) · [변경 이력](docs/CHANGELOG.md)
+**품질 검증**: API 퍼징 534건 5xx 0 · 9개 메뉴 상호작용 크롤링 오류 0 · axe-core 접근성 위반 0 · Lighthouse 모바일 중앙값
+— 결과와 찾아서 고친 문제는 [품질 검증](docs/quality.md).
+
+문서: [아키텍처](docs/architecture.md) · [설계 결정·API·데이터 구조](docs/README.md) · [품질 검증](docs/quality.md) ·
+[벤치마크](docs/benchmarks.md) · [변경 이력](docs/CHANGELOG.md)
 
 > ⚠ 이 서비스의 지표는 이 프로젝트가 정의한 **분석용 지표이며 공식 통계가 아닙니다.** 거리는 직선거리입니다(도로 거리 지표 제외).
 
@@ -34,7 +39,7 @@ CI(테스트 169개, pip-audit·npm audit·gitleaks·이미지 빌드).
 </tr>
 <tr>
 <td><img src="docs/images/rankings.png" alt="지역 순위"><br><sub><b>지역 순위</b> · 주제별 지표, 조건은 주소에 저장(공유 가능)</sub></td>
-<td><img src="docs/images/quality.png" alt="데이터·운영 — 작업 큐·스케줄·품질"><br><sub><b>데이터·운영</b> · 작업 큐·자동 실행 스케줄·스키마·품질 검사</sub></td>
+<td><img src="docs/images/quality.png" alt="데이터·운영 — 오류 로그·작업 큐·워커 상태"><br><sub><b>데이터·운영</b> · 한 줄 오류 로그(복사) · 작업 큐·워커 차선 상태·자동 실행 스케줄</sub></td>
 </tr>
 </table>
 
@@ -82,7 +87,7 @@ open http://localhost:3100/overview
 | **지역 순위** | `/rankings` | 지표·단위·시도·정렬로 상·하위 20곳 막대와 표. 누르면 지도로 |
 | **What-if** | `/whatif` | 우체국 1~5곳이 문을 닫는다고 하면 → 영향 지역·인구·65세 이상·거리 변화, 새로 2km 밖(집계구), 금융 창구 상실, **생활 거점 상실** 인구. `?scenario=` 로 공유 |
 | **배치 제안** | `/plan` | 결과 전엔 범위 안에서 우체국이 가장 먼 곳을 라벨로. 범위·개수·기준으로 **닫을 곳 찾기**(닫아도 영향이 가장 작은 조합, 생활 거점을 잃는 주민이 있으면 경고) 또는 **열 곳 찾기**(새로 열면 효과가 가장 큰 후보지) |
-| **데이터·운영** | `/quality` | **오류 로그** — API 예외·작업·수집·계산 실패·품질 ERROR·화면 요청 실패를 시간순 한 줄 로그로 모으고, 출처별로 거르고, 한 줄/모두 복사. 작업 큐(요청·스케줄·자동 재계산)·자동 실행 스케줄과 다음 시각·스키마·캐시 상태, 수집·계산별 품질 규칙 건수와 이슈 |
+| **데이터·운영** | `/quality` | **오류 로그** — API 예외·작업·수집·계산 실패·품질 ERROR·화면 요청 실패를 시간순 한 줄 로그로 모으고(SQL·입력값은 빼고 traceId 로 추적), 출처별로 거르고, 한 줄/모두 복사. 작업 큐(요청·스케줄·자동 재계산)·자동 실행 스케줄과 다음 시각, **워커 차선 동작 여부**·스키마·캐시 상태, 수집·계산별 품질 규칙 건수와 이슈 |
 | **지표 정의** | `/about/metrics` | 주제별 지표 계산식·한계, R-FIN-01·VISIT-1·생활 거점·영업일 규칙, 자료 출처 |
 
 API 문서: http://localhost:8100/docs · Prometheus 지표: http://localhost:8100/metrics
@@ -115,7 +120,8 @@ API 문서: http://localhost:8100/docs · Prometheus 지표: http://localhost:81
 | `make jobs` · `make schedule` · `make status` | 최근 작업 · 스케줄과 다음 시각 · 수집·계산·키 현황 | — |
 | `make bench` | API 부하 측정(p50/p95·처리량) + 누적 시간 상위 SQL | 약 1분 |
 | `make migrate` | 스키마 마이그레이션 + API 역할 비밀번호 설정 (`make up` 이 자동 실행) | — |
-| `make test` | Python 테스트 162개 (단위·계약·PostGIS SQL·What-if 동등성·작업 큐·권한·보안) | 7초 |
+| `make backup` · `make restore FILE=…` | DB 백업(`backups/`, `LITE=1` 은 원본 응답 제외) · 확인 후 복원 | 14초(경량 113MB) |
+| `make test` | Python 테스트 167개 (단위·계약·PostGIS SQL·What-if 동등성·작업 큐·차선·DB 끊김 복구·권한·보안) | 약 30초 |
 | `make prune` | 오래된 원문·스냅샷은 종류별 최근 `KEEP=3` 수집만, 계산 결과는 최근 `KEEP_CALC=5` 만 | — |
 
 관리 API: `POST /api/v1/admin/jobs {"kind": "care"}` (헤더 `X-Admin-Token`) → 202 + `jobId`. 실행은 워커가 합니다.
@@ -153,15 +159,19 @@ VISIT-1(09~18시 비·눈·더위·추위·바람·미세먼지 → 좋음/주�
 브라우저 ─▶ web (Next.js 15, CSP, 비루트) ─ /api/v1 ─▶ api (FastAPI, uvicorn×2, 읽기 전용 FS)
                                                         │  atlas_api 역할: 조회 · What-if 저장 · 작업 INSERT + NOTIFY
                                                         ▼
-            migrate(1회, 소유자) ─▶ PostgreSQL 16 + PostGIS ◀── worker (작업 큐 + 스케줄러, 소유자) ─▶ 외부 API
-                                    raw · stg · mart · ops        LISTEN · FOR UPDATE SKIP LOCKED
-                                         ▲                             │
-                                    Redis (캐시 · 속도 제한) ◀─────────┘ 캐시 무효화
+            migrate(1회, 소유자) ─▶ PostgreSQL 16 + PostGIS ◀── worker (소유자) ─▶ 외부 API
+                                    raw · stg · mart · ops        ├ short 차선: 예보·공휴일·약국/병의원·계산 + 스케줄러
+                                         ▲                        └ long 차선: 집계구·영업점·도로 거리·좌표 검증
+                                    Redis (캐시 · 속도 제한) ◀──── 캐시 무효화     (LISTEN · FOR UPDATE SKIP LOCKED · 생존 신호)
 ```
 
 - 다이어그램과 흐름: [docs/architecture.md](docs/architecture.md). 지도 표시 방식은 [ADR-016](docs/adr/ADR-016-map-display.md). 모든 포트는 `127.0.0.1` 에만 바인딩합니다.
 - **작업 큐 (ADR-012)** — API 는 `ops.job` 에 넣고 알리기만, 워커가 `SKIP LOCKED` 로 가져가 실행. 같은 종류 중복 방지, 하트비트·재시도,
   수집 뒤 재계산 자동 연결, 스케줄 슬롯 고유키로 한 번만.
+- **차선·생존 신호 (ADR-017)** — short·long 차선 스레드가 자기 종류만 가져가 25분짜리 도로 거리 수집 중에도 예보가 제때 갱신.
+  차선마다 30초 간격 생존 신호(`ops.worker`) → `/health`·데이터·운영 배지·compose healthcheck. DB 가 끊기면 차선이 스스로 다시 연결.
+  `/health/live`(생존)와 `/health`(준비) 분리, `make backup`/`restore`.
+- **웹** — 조회 요청 메모리 캐시(같은 요청 합치기, 메뉴 이동 때 재요청 없음), 지도 폴리곤을 12ms 조각으로 나눠 만들기, 카카오 SDK 조기 로드·preconnect.
 - **What-if 부분 재계산 (ADR-005)** — 지역별 최근접 상위 3개로 영향 지역만 재계산, 무작위 20회로 전체 재계산과 동등성 테스트.
 - **생활 거점 (ADR-015)** — 집계구 10만 곳마다 2순위 우체국·은행·약국·의원·공휴일 진료처를 KNN(GiST)으로, 계산 1회 약 20초.
 - **방문 여건 (ADR-011)** — 격자 시간 예보는 더 최근 발표로만 덮어써 하루 전체 판정, 판정 결과는 입력 버전 키로 캐시.
@@ -171,9 +181,12 @@ VISIT-1(09~18시 비·눈·더위·추위·바람·미세먼지 → 좋음/주�
 
 - **최소 권한**: API 는 `atlas_api` 역할 — raw(원본 응답)·stg 접근 없음, DDL 없음, 역할 단위 `statement_timeout`. 마이그레이션은 별도 단계.
 - **API**: 속도 제한(관리 10/분 · 계산 30/분 · 조회 600/분, 신뢰 프록시에서만 `X-Forwarded-For`), 보안 헤더, 관리 토큰 상수 시간 비교·감사 로그.
-- **웹**: CSP(스크립트는 자기 출처 + 카카오 SDK 만), `frame-ancestors 'none'`, Permissions-Policy.
+- **웹**: CSP(스크립트는 자기 출처 + 카카오 SDK 만, 외부 출처는 https 만 + `upgrade-insecure-requests` — http 로 띄워도 제3자 스크립트는 암호화 연결로),
+  `eval` 불허, `frame-ancestors 'none'`, Permissions-Policy.
 - **컨테이너**: 비루트, 읽기 전용 루트 FS + tmpfs, `cap_drop: ALL`, `no-new-privileges`.
 - **비밀값**: 키는 `.env`(git 제외)에만, 원본 응답은 키 마스킹 후 저장. CI 가 gitleaks·pip-audit·npm audit 로 막음(현재 취약점 0건).
+  GitHub CodeQL·비밀값 스캔·푸시 보호·Dependabot 보안 업데이트.
+- **입력**: 범위를 넘는 값은 400 (퍼징 534건에서 5xx 0), 오류 로그에는 SQL·바인드 값을 남기지 않음.
 
 ## 7. 성능 (ADR-014, [벤치마크](docs/benchmarks.md))
 
@@ -207,6 +220,17 @@ gzip 캐시 + ETag 304, 순위 사전 계산, `json`→`text` 전달, 입력 버
 - **우체국이 마지막 생활 거점인 인구 5.5만 명** — 닫히면 대신할 곳이 없는 우체국 **99곳**(1위 경주 불국사우체국 2,125명).
 - 의료 공백 인구 **190만 명**, 공휴일 의료 공백 인구 **506만 명**, 약국까지 인구 가중 거리 612m · 의원 454m.
 
+## 7-2. 품질 검증 ([자세히](docs/quality.md))
+
+| 점검 | 결과 |
+|---|---|
+| 테스트 | Python 167 (워커 차선·DB 끊김 복구·최소 권한·보안 헤더 포함) · 웹 11 |
+| API 퍼징 (경계값·비정상 입력 534건) | 처음 5xx 4건 → **0건** |
+| 9개 메뉴 상호작용 크롤링 · 중복 요청 | 콘솔·페이지·HTTP 오류 0 · 중복 요청 2건 → 0 |
+| 접근성 (axe-core, WCAG 2.1 AA) · 모바일 가로 넘침 | 위반 0 · 0 |
+| Lighthouse 모바일 (3회 중앙값) | 성능 100: 한눈에·생활 거점·지역 순위·What-if·배치 제안·데이터·운영 / 지도 91 · 방문 여건 92 · 지표 정의 94. 접근성·SEO 모두 100, CLS 0~0.004 |
+| 혼합 콘텐츠 | 카카오 SDK 평문 요청 24건 → 0 (CSP `upgrade-insecure-requests`) |
+
 ---
 
 ## 8. 한계
@@ -223,8 +247,8 @@ gzip 캐시 + ETag 304, 순위 사전 계산, `json`→`text` 전달, 입력 버
 ```bash
 make api-dev     # 호스트에서 FastAPI (--reload, 소유자 역할로 접속해 기동 때 마이그레이션)
 make web-dev     # 호스트에서 Next.js dev 서버 :3100
-make test        # Python 162개 (PostGIS 테스트 DB)
-cd web && npm test   # 웹 단위 테스트 7개 (vitest)
+make test        # Python 167개 (PostGIS 테스트 DB)
+cd web && npm test   # 웹 단위 테스트 11개 (vitest)
 ```
 
 CI(GitHub Actions): Python(pyflakes·pip-audit·pytest + PostGIS 서비스) · 웹(npm audit·타입 검사·vitest·빌드) · 비밀값(gitleaks 전체 이력) ·

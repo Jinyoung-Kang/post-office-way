@@ -96,7 +96,7 @@ def schedule():
 
 @router.get("/errors", summary="오류 로그 — API 예외·작업·수집·계산 실패·품질 ERROR 를 시간순 한곳에 (복사용 한 줄 포함)")
 def errors(days: int = Query(14, ge=1, le=90), limit: int = Query(200, ge=1, le=1000)):
-    from atlas.core.masking import mask_secrets_in, mask_text
+    from atlas.core.masking import brief_error, mask_secrets_in, mask_text
 
     s = get_settings()
     secrets = [s.post_service_key, s.sgis_consumer_key, s.sgis_consumer_secret, s.kakao_rest_api_key,
@@ -128,6 +128,6 @@ def errors(days: int = Query(14, ge=1, le=90), limit: int = Query(200, ge=1, le=
         msg = mask_secrets_in(mask_text(r["message"] or ""), secrets)
         at = r["at"].astimezone().strftime("%Y-%m-%d %H:%M:%S") if r["at"] else "-"
         items.append({"at": jsonable(r["at"]), "source": r["source"], "ref": r["ref"], "title": r["title"],
-                      "message": msg, "line": f"{at} [{r['source']}] {r['ref']} {r['title']} — {msg}"})
+                      "message": msg, "line": f"{at} [{r['source']}] {r['ref']} {r['title']} — {brief_error(msg)}"})
     return {"days": days, "items": items, "total": len(items)}
 

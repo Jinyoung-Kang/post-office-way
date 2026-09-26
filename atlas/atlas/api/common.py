@@ -13,6 +13,7 @@ from atlas.api.errors import ApiError, bad_request, not_found
 from atlas.domain.rules import POST_DIV_LABEL
 
 MAX_SIZE = 200
+MAX_PAGE = 100_000   # OFFSET 이 bigint 를 넘지 않게 (그 이상은 의미 없는 페이지)
 
 
 def jsonable(v: Any) -> Any:
@@ -64,8 +65,8 @@ def meta_of(run: dict[str, Any], **extra: Any) -> dict[str, Any]:
 
 
 def page_params(page: int, size: int, cap: int = MAX_SIZE) -> tuple[int, int, int]:
-    if page < 1:
-        raise bad_request("page 는 1 이상이어야 합니다.")
+    if not 1 <= page <= MAX_PAGE:
+        raise bad_request(f"page 는 1~{MAX_PAGE} 이어야 합니다.")
     if not 1 <= size <= cap:
         raise bad_request(f"size 는 1~{cap} 이어야 합니다.")
     return page, size, (page - 1) * size

@@ -31,3 +31,14 @@ def test_mask_kosis_apikey():
     out = mask_text(url)
     assert "ZjZjOTI3" not in out and f"apiKey={MASK}" in out and "orgId=101" in out
     assert mask_params({"apiKey": "k", "tblId": "DT_1B04005N"}) == {"apiKey": MASK, "tblId": "DT_1B04005N"}
+
+
+def test_brief_error_drops_sql_and_bind_values():
+    from atlas.core.masking import brief_error
+
+    raw = ("(psycopg.errors.NumericValueOutOfRange) bigint out of range\n[SQL: \n        SELECT h.hist_id\n"
+           "  FROM mart.facility_hub h WHERE h.calc_run_id = %(rid)s]\n[parameters: {'rid': '홍길동 010-1234-5678'}]\n"
+           "(Background on this error at: https://sqlalche.me/e/20/9h9h)")
+    assert brief_error(raw) == "(psycopg.errors.NumericValueOutOfRange) bigint out of range"
+    assert brief_error("a\n  b\tc") == "a b c"
+    assert len(brief_error("x" * 500)) == 300 and brief_error("x" * 500).endswith("…")

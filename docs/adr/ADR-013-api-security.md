@@ -19,6 +19,19 @@
 - `pip-audit`: starlette 0.41.3(FastAPI 0.115.6) 등 32건 → FastAPI 0.141.1(starlette 1.7), lxml 6.1.3, pytest 9.1.1,
   이미지의 pip·setuptools 업그레이드 → **0건**. 전체 테스트 통과로 호환 확인.
 
+## 조치 기록 (2026-09-26)
+- **혼합 콘텐츠**: 카카오 지도 SDK 로더는 https 로 받지만, 로더가 본체(`kakao.js`)·이미지·타일을 **페이지 프로토콜**로 받아
+  로컬(http)에서는 제3자 스크립트 포함 24건이 평문이었다(중간자 스크립트 주입 경로). SDK 에 https 강제 옵션이 없어
+  CSP 에 `upgrade-insecure-requests` 를 넣고 외부 출처를 `https://*.daumcdn.net` 처럼 스킴까지 적었다. Chrome 은 자기 출처
+  `http://localhost` 를 올리지 않으므로 앱은 그대로 동작하고, 외부 요청은 모두 https(지도·방문 여건·배치 제안에서 확인).
+- **SDK 의 eval**: 카카오 SDK 가 `eval` 을 시도해 CSP 위반이 콘솔에 남지만, SDK 는 대체 경로로 정상 동작한다.
+  `'unsafe-eval'` 을 허용하면 모든 스크립트에 eval 이 열리므로 **허용하지 않는다**(Lighthouse 모범 사례 점수 일부 감점을 감수).
+- **입력 범위**: 퍼징에서 범위를 넘는 정수가 DB 형 변환에서 500 을 내던 4곳 → 쿼리 매개변수 범위 검사 + DB `DataError` → 400.
+  내부 오류가 SQL 원문을 응답에 드러내지는 않았지만(응답은 `INTERNAL_ERROR` 와 traceId 뿐), 오류 로그에 SQL·바인드 값이 남던 것을
+  한 줄 요약으로 바꿨다(바인드 값은 사용자 입력일 수 있음).
+- **GitHub**: CodeQL(기본 설정)·Dependabot 보안 업데이트·비밀값 스캔·푸시 보호를 켰다. CodeQL 경고 3건 중 2건 조치
+  (클라이언트 요청 경로 검사 `SAFE_PATH`, 주소창 값은 `encodeURIComponent` 로 한 조각만), 1건은 오탐으로 닫음.
+
 ## 남는 위험
 - 로컬 전용 서비스라 TLS·HSTS 는 없다(공개 배포 시 리버스 프록시에서 종료).
 - 신뢰 프록시 대역에 호스트(도커 브리지)가 포함되어, 호스트에서 직접 8100 을 호출하면 `X-Forwarded-For` 를 믿는다(127.0.0.1 바인딩이라 외부 노출 없음).

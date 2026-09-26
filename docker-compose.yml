@@ -126,6 +126,13 @@ services:
     environment:
       <<: *atlas-env
     command: ["worker"]
+    # 차선(short·long) 스레드마다 30초 간격으로 ops.worker 에 신호 — 90초 넘게 끊긴 차선이 있으면 unhealthy
+    healthcheck:
+      test: ["CMD", "atlas", "worker-check"]
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
     # SIGTERM 뒤 실행 중 작업을 마칠 시간 (못 마치면 하트비트가 끊겨 다음 기동 때 다시 대기열로)
     stop_grace_period: 60s
     read_only: true

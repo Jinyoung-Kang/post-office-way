@@ -48,23 +48,25 @@ export default function ErrorLog({ clientErrors = [] }: { clientErrors?: string[
     <Card title={<span className="flex items-center gap-2">오류 로그
       {items && <span className={`badge ${all.length ? "badge-error" : "badge-good"}`}>{all.length ? `${all.length}건` : "없음"}</span>}</span>}
       pad={false}
-      right={all.length > 0 && (
-        <button className="btn-ghost text-[13px]" onClick={() => copy(shown.map((e) => e.line).join("\n"), "all")}>
+      right={
+        // 불러오기 전후로 머리글 높이가 같도록 버튼은 늘 두고 비활성만 바꿈 (CLS)
+        <button className="btn-ghost text-[13px] disabled:opacity-40" disabled={!shown.length}
+          onClick={() => copy(shown.map((e) => e.line).join("\n"), "all")}>
           {copied === "all" ? "복사했습니다 ✓" : `${src === "전체" ? "모두" : src} 복사 (${shown.length})`}
         </button>
-      )}>
+      }>
       <p className="-mt-2 px-6 pb-3 text-[13px] text-ink-2">최근 14일 · API 예외, 작업·수집·계산 실패, 품질 ERROR 규칙, 이 화면의 요청 실패를 시간순으로 모았습니다. 키 값은 가려져 있습니다.</p>
-      {!items ? <div className="px-6 pb-6"><Skeleton className="h-24 w-full" /></div> : all.length === 0 ? (
-        <p className="px-6 pb-6 text-[14px] text-[#1d8a3a]">최근 14일 동안 기록된 오류가 없습니다.</p>
-      ) : (
-        <div className="px-3 pb-3">
-          <div className="mb-2 flex flex-wrap gap-1.5 px-3" role="radiogroup" aria-label="출처">
-            {SOURCES.filter((s) => s === "전체" || counts[s]).map((s) => (
-              <button key={s} role="radio" aria-checked={src === s} onClick={() => setSrc(s)}
-                className={`badge ${src === s ? "badge-error" : "badge-info"}`}>{s} {counts[s]}</button>
-            ))}
-          </div>
-          <ol className="max-h-[360px] overflow-auto rounded-[12px] bg-[#1d1d1f] p-2 font-mono text-[12px] leading-relaxed text-[#f5f5f7]">
+      {/* 로그 창은 불러오는 중·오류 없음·오류 있음 모두 같은 높이 — 아래 작업 큐 카드가 밀리지 않게 */}
+      <div className="px-3 pb-3">
+        <div className="mb-2 flex h-7 items-center gap-1.5 overflow-x-auto px-3" role="radiogroup" aria-label="출처">
+          {!items ? <Skeleton className="h-5 w-48" /> : SOURCES.filter((s) => s === "전체" || counts[s]).map((s) => (
+            <button key={s} role="radio" aria-checked={src === s} onClick={() => setSrc(s)}
+              className={`badge shrink-0 ${src === s ? "badge-error" : "badge-info"}`}>{s} {counts[s] || 0}</button>
+          ))}
+        </div>
+        {!items ? <Skeleton className="h-[240px] w-full !rounded-[12px]" /> : (
+          <ol className="h-[240px] overflow-auto rounded-[12px] bg-[#1d1d1f] p-2 font-mono text-[12px] leading-relaxed text-[#f5f5f7]">
+            {all.length === 0 && <li className="px-2 py-1 text-[#7ee29a]">최근 14일 동안 기록된 오류가 없습니다.</li>}
             {shown.map((e, i) => (
               <li key={`${e.line}-${i}`} className="group/log flex items-start gap-2 rounded-[6px] px-2 py-1 hover:bg-white/10">
                 <span className="min-w-0 flex-1 whitespace-pre-wrap break-all select-text">{e.line}</span>
@@ -75,8 +77,8 @@ export default function ErrorLog({ clientErrors = [] }: { clientErrors?: string[
               </li>
             ))}
           </ol>
-        </div>
-      )}
+        )}
+      </div>
     </Card>
   );
 }

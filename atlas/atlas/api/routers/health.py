@@ -11,9 +11,14 @@ from atlas.core.migrate import pending
 router = APIRouter(tags=["health"])
 
 
-@router.get("/health", summary="DB·Redis·스키마·작업 큐 상태 (FR-701)")
+@router.get("/health/live", summary="프로세스 생존 확인 (DB 를 보지 않음 — 재시작 판단용)")
+def live():
+    return {"status": "ok"}
+
+
+@router.get("/health", summary="준비 상태 — DB·Redis·스키마·작업 큐·워커 (FR-701)")
 def health():
-    db_ok, postgis, counts, schema, queue = False, None, {}, None, None
+    db_ok, postgis, counts, schema, queue, wk = False, None, {}, None, None, None
     try:
         eng = get_engine()
         with eng.connect() as c:
@@ -28,6 +33,10 @@ def health():
                                                   extract(epoch FROM now() - min(created_at) FILTER (WHERE status = 'QUEUED'))
                                                       AS oldest_queued_s
                                              FROM ops.job""")).mappings().one())
+        from atlas.jobs.queue import workers as live_workers
+
+        wk = [{"worker": w["worker"], "lane": w["lane"], "jobId": w["job_id"], "seenS": int(w["seen_s"]),
+               "upS": int(w["up_s"])} for w in live_workers(eng)]
         todo = pending(eng)
         schema = {"upToDate": not todo, "pending": todo}
         db_ok = True
@@ -37,6 +46,8 @@ def health():
     ok = db_ok and bool(schema and schema["upToDate"])
     body = {"status": "ok" if ok else "degraded", "db": db_ok, "redis": redis_ok, "postgis": postgis,
             "schema": schema, "queue": _queue(queue),
+            # 워커는 API 와 별도 서비스라 준비 상태(status)에는 넣지 않고 정보로만 — 대기 작업이 쌓이는데 비어 있으면 워커 확인
+            "workers": wk,
             "counts": counts}
     return JSONResponse(body, status_code=200 if ok else 503)
 

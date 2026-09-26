@@ -132,6 +132,18 @@ JOBS: dict[str, JobSpec] = {j.kind: j for j in (
 )}
 
 
+LANES = ("short", "long")
+
+
+def lane_of(kind: str) -> str:
+    """차선 — 수십 분 걸릴 수 있는 작업(long)은 따로 돌려 예보처럼 짧고 시간이 중요한 작업을 막지 않게."""
+    return "long" if JOBS[kind].long else "short"
+
+
+def kinds_for(lane: str) -> list[str]:
+    return sorted(k for k in JOBS if lane_of(k) == lane)
+
+
 def get(kind: str) -> JobSpec:
     if kind not in JOBS:
         raise KeyError(kind)

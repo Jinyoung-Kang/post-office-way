@@ -62,3 +62,15 @@ def test_calc_finished_at_is_real_end_time(client, engine):
         created, finished, ms = c.execute(text("""SELECT created_at, finished_at, (stats->>'elapsedMs')::int
                                                  FROM mart.calc_run WHERE calc_run_id = :r"""), {"r": client.rid}).one()
     assert (finished - created).total_seconds() * 1000 >= ms * 0.9
+
+
+def test_out_of_range_inputs_are_400_not_500(client):
+    """fuzz 로 찾은 버그 — 아주 큰 숫자가 DB 의 bigint/smallint 범위를 넘어 500 이 나던 경로들."""
+    huge = "99999999999999999999"
+    for path in (f"/api/v1/meta/collect-runs?page={huge}", f"/api/v1/facilities?page={huge}",
+                 f"/api/v1/facilities?types={huge}", f"/api/v1/hubs/facilities?page={huge}", "/api/v1/facilities?types=0,42"):
+        r = client.get(path)
+        assert r.status_code == 400 and r.json()["code"] == "VALIDATION_ERROR", path
+    # 안전망: 검사를 빠져나간 범위 초과도 DB DataError → 400
+    r = client.post("/api/v1/whatif", json={"removeHistIds": [int(huge)], "level": 2})
+    assert r.status_code in (400, 404) and r.json()["code"] != "INTERNAL"

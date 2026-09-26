@@ -65,15 +65,42 @@ def try_enqueue_slot(kind: str, slot: str, params: dict[str, Any] | None = None,
         return jid
 
 
-def claim(worker: str, engine: Engine | None = None) -> dict[str, Any] | None:
+def claim(worker: str, kinds: list[str] | None = None, engine: Engine | None = None) -> dict[str, Any] | None:
+    """가장 오래 기다린 작업 하나 — kinds 를 주면 그 종류만(차선별 워커)."""
     with (engine or get_engine()).begin() as c:
         r = c.execute(text("""
             UPDATE ops.job SET status = 'RUNNING', started_at = now(), heartbeat_at = now(),
                                attempts = attempts + 1, worker = :w, error = NULL
              WHERE job_id = (SELECT job_id FROM ops.job WHERE status = 'QUEUED'
+                               AND (CAST(:kinds AS text[]) IS NULL OR kind = ANY(CAST(:kinds AS text[])))
                               ORDER BY created_at, job_id FOR UPDATE SKIP LOCKED LIMIT 1)
-            RETURNING job_id, kind, params, source, attempts, max_attempts"""), {"w": worker}).mappings().first()
+            RETURNING job_id, kind, params, source, attempts, max_attempts"""),
+            {"w": worker, "kinds": kinds}).mappings().first()
     return dict(r) if r else None
+
+
+def worker_beat(worker: str, lane: str, job_id: int | None = None, engine: Engine | None = None) -> None:
+    """워커 생존 신호 (ops.worker) — 실행 중 작업이 있으면 함께 기록."""
+    with (engine or get_engine()).begin() as c:
+        c.execute(text("""INSERT INTO ops.worker (worker, lane, job_id) VALUES (:w, :l, :j)
+                          ON CONFLICT (worker) DO UPDATE SET last_seen = now(), job_id = EXCLUDED.job_id"""),
+                  {"w": worker, "l": lane, "j": job_id})
+
+
+def worker_gone(worker: str, engine: Engine | None = None) -> None:
+    with (engine or get_engine()).begin() as c:
+        c.execute(text("DELETE FROM ops.worker WHERE worker = :w"), {"w": worker})
+
+
+def workers(engine: Engine | None = None, alive_s: int = 120) -> list[dict[str, Any]]:
+    """최근 alive_s 초 안에 신호를 보낸 워커."""
+    # 읽기 전용 — API(atlas_api 역할, DELETE 권한 없음)도 부름. 오래된 행 정리는 워커의 reap() 가 함
+    with (engine or get_engine()).connect() as c:
+        return [dict(r) for r in c.execute(text("""
+            SELECT worker, lane, job_id, round(extract(epoch FROM now() - last_seen)) AS seen_s,
+                   round(extract(epoch FROM now() - started_at)) AS up_s
+              FROM ops.worker WHERE last_seen > now() - make_interval(secs => :a) ORDER BY lane, worker"""),
+            {"a": alive_s}).mappings()]
 
 
 def heartbeat(job_id: int, engine: Engine | None = None) -> None:
@@ -101,6 +128,7 @@ def reap(engine: Engine | None = None) -> dict[str, int]:
         failed = c.execute(text(f"""
             UPDATE ops.job SET status = 'FAILED', finished_at = now(), error = '워커 응답 없음 — 재시도 횟수 초과'
              WHERE status = 'RUNNING' AND heartbeat_at < now() - interval '{STALE_MIN} minutes'""")).rowcount
+        c.execute(text("DELETE FROM ops.worker WHERE last_seen < now() - interval '1 day'"))   # 꺼진 워커 흔적
     return {"requeued": requeued, "failed": failed}
 
 

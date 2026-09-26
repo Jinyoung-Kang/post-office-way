@@ -23,6 +23,8 @@
 #   make test      단위·계약·SQL 테스트 (PostGIS 테스트 DB 사용)
 #   make status    수집·계산 현황   make logs / make psql / make down
 #   make prune     오래된 원문·스냅샷·계산 결과 정리 (KEEP=3 수집 run, KEEP_CALC=5 계산 run)
+#   make backup    DB 백업 → backups/*.dump (LITE=1 이면 원본 응답 raw 데이터 제외)
+#   make restore   FILE=backups/….dump 로 DB 되돌리기 (확인 후 api·worker·web 멈추고 복원)
 # =============================================================================
 
 SHELL := /bin/bash
@@ -31,7 +33,7 @@ RUN := $(COMPOSE) --profile batch run --rm collector
 
 .DEFAULT_GOAL := help
 .PHONY: help env up down restart logs ps build migrate smoke discover collect sgis sgis-pop sgis-bnd kosis oa banks road geocheck \
-        extras weather care holidays calc all-data prune jobs schedule enqueue bench \
+        extras weather care holidays calc all-data prune backup restore jobs schedule enqueue bench \
         status test test-unit psql web-dev api-dev reset
 
 help:
@@ -154,6 +156,22 @@ status:
 
 prune: env
 	$(RUN) prune --keep $(or $(KEEP),3) --keep-calc $(or $(KEEP_CALC),5)
+
+# pg_dump 사용자 지정 형식(-Fc, 압축) — 역할(atlas_api)은 클러스터 전역이라 덤프에 없고 migrate 가 다시 설정합니다.
+backup:
+	@mkdir -p backups
+	@f=backups/atlas-$$(date +%Y%m%d-%H%M)$(if $(LITE),-lite).dump; \
+	  $(COMPOSE) exec -T db pg_dump -U atlas -d atlas -Fc $(if $(LITE),--exclude-table-data='raw.*') > $$f.part \
+	  && mv $$f.part $$f && echo "백업: $$f ($$(du -h $$f | cut -f1))" || { rm -f $$f.part; exit 1; }
+
+restore:
+	@test -f "$(FILE)" || { echo "FILE=backups/<파일>.dump 를 지정하세요"; ls backups/*.dump 2>/dev/null; exit 2; }
+	@read -p "현재 DB 를 $(FILE) 내용으로 바꿉니다. 계속할까요? [y/N] " a && [ "$$a" = y ]
+	$(COMPOSE) stop api worker web
+	$(COMPOSE) exec -T db psql -U atlas -d postgres -v ON_ERROR_STOP=1 \
+	  -c "DROP DATABASE IF EXISTS atlas WITH (FORCE)" -c "CREATE DATABASE atlas"
+	$(COMPOSE) exec -T db pg_restore -U atlas -d atlas --exit-on-error < $(FILE)
+	$(COMPOSE) up -d
 
 # 테스트 DB(atlas_test)는 운영 DB 와 분리 — 테스트가 스키마를 지우고 다시 만듭니다.
 test: env

@@ -153,10 +153,27 @@ def cmd_prune(a: argparse.Namespace) -> int:
 
 
 def cmd_worker(a: argparse.Namespace) -> int:
+    from atlas.jobs.registry import LANES
     from atlas.jobs.worker import run_forever
 
-    run_forever(poll_s=a.poll, once=a.once)
+    run_forever(poll_s=a.poll, once=a.once, lanes=LANES if a.lane == "all" else (a.lane,))
     return 0
+
+
+def cmd_worker_check(a: argparse.Namespace) -> int:
+    """compose healthcheck — 이 컨테이너의 워커가 차선마다 최근에 신호를 보냈는지 (멈춘 스레드 감지)."""
+    import socket
+
+    from atlas.jobs.queue import workers
+    from atlas.jobs.registry import LANES
+
+    host = socket.gethostname() + ":"
+    seen = {w["lane"] for w in workers(alive_s=a.within) if w["worker"].startswith(host)}
+    want = set(LANES if a.lane == "all" else (a.lane,))
+    if want <= seen:
+        return 0
+    print(f"신호 없는 차선: {', '.join(sorted(want - seen))}", file=sys.stderr)
+    return 1
 
 
 def cmd_enqueue(a: argparse.Namespace) -> int:
@@ -232,7 +249,13 @@ def build_parser() -> argparse.ArgumentParser:
     w = sub.add_parser("worker", help="작업 큐 워커 + 스케줄러 (compose 서비스 worker)")
     w.add_argument("--poll", type=float, default=30.0, help="알림이 없을 때 깨어나는 주기(초)")
     w.add_argument("--once", action="store_true", help="대기열이 빌 때까지만 실행하고 종료")
+    w.add_argument("--lane", choices=["all", "short", "long"], default="all",
+                   help="처리할 차선 (all = short·long 을 스레드로 함께, 워커를 나눠 띄울 때는 하나씩)")
     w.set_defaults(fn=cmd_worker)
+    wc = sub.add_parser("worker-check", help="워커 생존 확인 (healthcheck 용, 이상 시 종료 코드 1)")
+    wc.add_argument("--lane", choices=["all", "short", "long"], default="all")
+    wc.add_argument("--within", type=int, default=90, help="이 초 안에 신호가 있어야 정상")
+    wc.set_defaults(fn=cmd_worker_check)
     q = sub.add_parser("enqueue", help="작업을 큐에 넣기 (워커가 실행)")
     q.add_argument("kind")
     q.add_argument("--param", action="append", help="key=value")

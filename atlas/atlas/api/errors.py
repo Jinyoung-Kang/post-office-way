@@ -44,6 +44,15 @@ def install(app: FastAPI) -> None:
         code = {404: "NOT_FOUND", 405: "METHOD_NOT_ALLOWED", 401: "UNAUTHORIZED"}.get(exc.status_code, "HTTP_ERROR")
         return JSONResponse(_body(request, code, str(exc.detail)), status_code=exc.status_code)
 
+    # 안전망: 입력값 때문에 DB 가 거부한 경우(숫자 범위 초과·형식 오류)는 서버 오류가 아니라 잘못된 요청 (fuzz 로 찾은 버그)
+    from sqlalchemy.exc import DataError
+
+    @app.exception_handler(DataError)
+    async def _data(request: Request, exc: DataError):
+        log.warning("db data error", extra={"traceId": getattr(request.state, "trace_id", None),
+                                            "path": request.url.path, "error": str(exc.orig)[:200]})
+        return JSONResponse(_body(request, "VALIDATION_ERROR", "입력값이 허용 범위나 형식을 벗어났습니다."), status_code=400)
+
     @app.exception_handler(Exception)
     async def _any(request: Request, exc: Exception):
         tid = getattr(request.state, "trace_id", None)
@@ -58,12 +67,12 @@ def record(trace_id: str | None, method: str, path: str, exc: BaseException) -> 
         from sqlalchemy import text
 
         from atlas.core.db import get_engine
-        from atlas.core.masking import mask_text
+        from atlas.core.masking import brief_error, mask_text
 
         with get_engine().begin() as c:
             c.execute(text("""INSERT INTO ops.app_error (source, trace_id, method, path, error_type, message)
                               VALUES ('api', :t, :m, :p, :e, :msg)"""),
                       {"t": trace_id, "m": method, "p": path[:500], "e": type(exc).__name__,
-                       "msg": mask_text(str(exc))[:2000]})
+                       "msg": brief_error(mask_text(str(exc)), 1000)})
     except Exception:  # noqa: BLE001 — 오류 기록 실패가 또 오류를 만들지 않게
         log.warning("app_error record failed")

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import Layout, { Card, Empty, ErrorBox, Hero, Segmented } from "@/components/Layout";
-import { api, qs, type Page } from "@/lib/api";
+import { api, cachedApi, qs, type Page } from "@/lib/api";
 import { dt, num, short } from "@/lib/format";
 import JobsPanel from "@/components/JobsPanel";
 import ErrorLog from "@/components/ErrorLog";
@@ -40,7 +40,7 @@ export default function Quality() {
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    api<Summary>("/dq/summary").then(setSum).catch((e) => setErr(e.message));
+    cachedApi<Summary>("/dq/summary", 5_000).then(setSum)   // 머리글 배지와 같은 요청을 하나로 (운영 화면이라 짧게).catch((e) => setErr(e.message));
     api<Page<CollectRun>>("/meta/collect-runs?size=12").then((r) => setRuns(r.items)).catch(() => null);
     api<Page<CalcRun>>("/meta/calc-runs?size=5").then((r) => setCalcs(r.items)).catch(() => null);
   }, []);
@@ -97,7 +97,7 @@ export default function Quality() {
             {(filter.run || filter.code) && (
               <span className="badge badge-info">{filter.run ? KIND_LABEL[filter.run.kind] || filter.run.kind : ""} {filter.code || ""}</span>
             )}
-            <select className="field w-auto py-1.5 text-[13px]" value={filter.severity || ""} aria-label="심각도"
+            <select name="severity" className="field w-auto py-1.5 text-[13px]" value={filter.severity || ""} aria-label="심각도"
               onChange={(e) => setFilter({ ...filter, severity: e.target.value || undefined, page: 1 })}>
               <option value="">모든 심각도</option><option>ERROR</option><option>WARN</option><option>INFO</option>
             </select>

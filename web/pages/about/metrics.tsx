@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import Layout, { Card, ErrorBox, Hero } from "@/components/Layout";
-import { api, type MetricDef } from "@/lib/api";
+import { cachedApi, type MetricDef } from "@/lib/api";
 import { groupMetrics } from "@/lib/format";
 
 type Resp = { items: MetricDef[]; finRule: { code: string; version: string; name: string; conditions: string[] }; disclaimer: string };
@@ -9,7 +9,7 @@ type Resp = { items: MetricDef[]; finRule: { code: string; version: string; name
 export default function MetricsAbout() {
   const [d, setD] = useState<Resp | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  useEffect(() => { api<Resp>("/metrics").then(setD).catch((e) => setErr(e.message)); }, []);
+  useEffect(() => { cachedApi<Resp>("/metrics", 600_000).then(setD).catch((e) => setErr(e.message)); }, []);
 
   return (
     <Layout title="지표 정의">

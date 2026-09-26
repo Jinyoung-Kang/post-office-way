@@ -23,5 +23,8 @@ web/test-results/
 fixtures/*
 !fixtures/.gitkeep
 
+# DB 백업 (make backup)
+backups/
+
 .DS_Store
 *.tsbuildinfo

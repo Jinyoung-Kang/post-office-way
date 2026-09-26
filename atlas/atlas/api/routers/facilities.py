@@ -30,6 +30,8 @@ def list_facilities(bbox: str | None = Query(None, description="minLon,minLat,ma
     if types:
         try:
             p["types"] = [int(t) for t in types.split(",") if t.strip()]
+            if any(not 0 <= t <= 9 for t in p["types"]):
+                raise ValueError("post_div 범위 밖")
         except ValueError as e:
             raise bad_request("types 는 숫자 목록입니다 (0 총괄국 · 1 우체국 · 2 우체통 · 3 365코너 · 4 무인창구 · 5 우표판매소).") from e
         where.append("h.post_div = ANY(CAST(:types AS smallint[]))")

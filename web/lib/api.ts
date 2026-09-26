@@ -143,6 +143,28 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   return r.json() as Promise<T>;
 }
 
+// 페이지를 옮겨도 다시 받지 않는 조회용 캐시 — 같은 경로의 동시 요청은 하나로 합치고, 실패는 캐시하지 않음.
+// 지표는 계산(calc)이 끝나야 바뀌므로 짧은 TTL 로 충분 (서버도 ETag·304 로 한 번 더 막음)
+const CACHE = new Map<string, { at: number; p: Promise<unknown> }>();
+const CACHE_MAX = 40;
+
+export function cachedApi<T>(path: string, ttlMs = 60_000): Promise<T> {
+  const hit = CACHE.get(path);
+  if (hit && Date.now() - hit.at < ttlMs) {
+    CACHE.delete(path);                                 // 최근 사용 순서 갱신 (Map 은 삽입 순서)
+    CACHE.set(path, hit);
+    return hit.p as Promise<T>;
+  }
+  const p = api<T>(path).catch((e) => { if (CACHE.get(path)?.p === p) CACHE.delete(path); throw e; });
+  CACHE.set(path, { at: Date.now(), p });
+  while (CACHE.size > CACHE_MAX) CACHE.delete(CACHE.keys().next().value as string);
+  return p;
+}
+
+export function clearApiCache(prefix = "/"): void {
+  for (const k of [...CACHE.keys()]) if (k.startsWith(prefix)) CACHE.delete(k);
+}
+
 export function qs(p: Record<string, string | number | boolean | null | undefined>): string {
   const s = new URLSearchParams();
   Object.entries(p).forEach(([k, v]) => { if (v !== null && v !== undefined && v !== "") s.set(k, String(v)); });

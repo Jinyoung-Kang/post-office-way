@@ -87,7 +87,7 @@ export default function WhatIfPage() {
       <div className="mx-auto grid max-w-wide gap-5 px-4 pb-20 lg:grid-cols-[360px_1fr]">
         <div className="space-y-5">
           <Card title="우체국 고르기">
-            <input className="field" placeholder="이름이나 주소로 검색" value={q} onChange={(e) => setQ(e.target.value)} aria-label="우체국 검색" />
+            <input name="q" className="field" placeholder="이름이나 주소로 검색" value={q} onChange={(e) => setQ(e.target.value)} aria-label="우체국 검색" />
             {hits.length > 0 && (
               <ul className="mt-2 max-h-64 overflow-y-auto rounded-[12px] bg-surface p-1 text-[14px]">
                 {hits.map((h) => {

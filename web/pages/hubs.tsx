@@ -2,7 +2,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import Layout, { Card, Empty, ErrorBox, Hero, NoDataGuide, Segmented, Stat } from "@/components/Layout";
 import { StatSkeletons, TableSkeleton } from "@/components/Skeleton";
-import { api, qs, type HubFacility, type HubSummary, type Page, type Region } from "@/lib/api";
+import { api, cachedApi, qs, type HubFacility, type HubSummary, type Page, type Region } from "@/lib/api";
 import { dist, dt, num, shortSido } from "@/lib/format";
 import { useQueryState } from "@/lib/useQueryState";
 
@@ -24,8 +24,8 @@ export default function HubsPage() {
   const [loadingList, setLoadingList] = useState(true);
 
   useEffect(() => {
-    api<HubSummary>("/hubs/summary").then(setSum).catch((e) => setErr(e.message));
-    api<{ items: Region[] }>("/meta/regions").then((r) => setRegions(r.items)).catch(() => null);
+    cachedApi<HubSummary>("/hubs/summary").then(setSum).catch((e) => setErr(e.message));
+    cachedApi<{ items: Region[] }>("/meta/regions", 600_000).then((r) => setRegions(r.items)).catch(() => null);
   }, []);
   useEffect(() => {
     let alive = true;
@@ -47,7 +47,7 @@ export default function HubsPage() {
 
       <div className="mx-auto max-w-page space-y-5 px-4 pb-20">
         {err && (noData ? <NoDataGuide /> : <ErrorBox error={err} />)}
-        {!sum && !err && <StatSkeletons />}
+        {!sum && !err && <StatSkeletons rows={2} />}
         {sum && !sum.available && (
           <div className="card mx-auto max-w-lg p-6 text-center">
             <p className="text-[17px] font-semibold">약국·병의원 자료가 아직 계산에 없습니다</p>
@@ -78,7 +78,7 @@ export default function HubsPage() {
 
         <Card title="지켜야 할 우체국" pad={false}
           right={<div className="flex flex-wrap items-center gap-2">
-            <select className="field w-auto py-1.5 text-[13px]" value={sido} aria-label="시도"
+            <select name="sido" className="field w-auto py-1.5 text-[13px]" value={sido} aria-label="시도"
               onChange={(e) => { setSido(e.target.value); setPageStr("1"); }}>
               <option value="">전국</option>
               {regions.map((r) => <option key={r.admCd} value={r.admCd}>{r.admNm}</option>)}
@@ -95,7 +95,7 @@ export default function HubsPage() {
               <div className="overflow-x-auto">
                 <table className="tbl">
                   <thead className="whitespace-nowrap"><tr><th className="num">순위</th><th>우체국</th><th>지역</th>
-                    <th className="num">담당 인구</th><th className="num">금융 대체 불가</th><th className="num">마지막 거점</th><th /></tr></thead>
+                    <th className="num">담당 인구</th><th className="num">금융 대체 불가</th><th className="num">마지막 거점</th><th><span className="sr-only">이동</span></th></tr></thead>
                   <tbody>{list.items.map((f, i) => (
                     <tr key={f.histId}>
                       <td className="num text-ink-3">{(page - 1) * SIZE + i + 1}</td>

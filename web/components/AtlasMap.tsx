@@ -30,10 +30,16 @@ type Props<P extends { admCd: string; admNm: string }> = {
 };
 
 const FAC_TONE: Record<string, string> = { fin: "#ff9500", other: "#8e8e93", c365: "#34c759" };
-const MARKER_TONE: Record<Marker["tone"], string> = { removed: "#d70015", new: "#1d8a3a", focus: "#1d1d1f" };
+const MARKER_TONE: Record<Marker["tone"], string> = { removed: "#d70015", new: "#18782f", focus: "#1d1d1f" };
 const BANK_TONE = "#af52de";
 const CARE_TONE = { PHARMACY: "#30b0c7", CLINIC: "#ff2d55" } as const;
 const WEEK = ["", "월", "화", "수", "목", "금", "토", "일", "공휴일"];
+
+// 긴 작업을 나눌 때 브라우저에 차례를 넘김 (scheduler.yield 가 있으면 우선순위를 지킨 채로)
+function yieldToMain(): Promise<void> {
+  const sch = (globalThis as any).scheduler;
+  return sch?.yield ? sch.yield() : new Promise((r) => setTimeout(r, 0));
+}
 
 function esc(s: string) {
   return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
@@ -61,6 +67,7 @@ export default function AtlasMap<P extends { admCd: string; admNm: string }>(pro
   const [err, setErr] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const [facNote, setFacNote] = useState<string | null>(null);
+  const [built, setBuilt] = useState(0);   // 폴리곤을 다 만든 횟수 — 나눠 만들기가 끝난 뒤 확대 등이 다시 돌게
 
   useEffect(() => {
     let cancelled = false;
@@ -121,12 +128,13 @@ export default function AtlasMap<P extends { admCd: string; admNm: string }>(pro
       return;
     }
     polys.current.forEach(({ shapes }) => shapes.forEach((s) => s.setMap(null)));
-    polys.current.clear();
+    polys.current = new Map();
     pinned.current = null;
     tip.current?.setMap(null);
+    const next = new Map<string, { shapes: any[]; props: P }>();
     const all: any[] = [];
-    for (const f of features) {
-      if (!f.geometry) continue;
+    const make = (f: (typeof features)[number]) => {
+      if (!f.geometry) return;
       const entry = { shapes: [] as any[], props: f.properties };
       // 처음엔 지도에 붙이지 않고 만든 뒤, 화면 이동이 끝난 다음 한꺼번에 붙임(아래 attach)
       entry.shapes = toPaths(kakao, f.geometry).map((path) => {
@@ -144,12 +152,11 @@ export default function AtlasMap<P extends { admCd: string; admNm: string }>(pro
         return poly;
       });
       all.push(...entry.shapes);
-      polys.current.set(f.properties.admCd, entry);
-    }
-    builtKey.current = key;
+      next.set(f.properties.admCd, entry);
+    };
     // 폴리곤을 먼저 붙이고 setBounds 하면 일부 브라우저(특히 고해상도·Safari)에서 이동 뒤 벡터를 다시 그리지 않아
     // 마우스를 올려야 색이 보였음 → 화면을 먼저 맞추고 이동이 끝난(idle) 뒤 붙여서 칠함. idle 이 안 오면 400ms 뒤 붙임
-    let attached = false;
+    let cancelled = false, built = false, attached = false, timer: ReturnType<typeof setTimeout> | undefined;
     const attach = () => {
       if (attached) return;
       attached = true;
@@ -158,13 +165,32 @@ export default function AtlasMap<P extends { admCd: string; admNm: string }>(pro
       paint();
       requestAnimationFrame(() => paint());
     };
-    if (all.length && !focusCd) {
-      kakao.maps.event.addListener(map.current, "idle", attach);
-      fit(all);
-      const t = setTimeout(attach, 400);
-      return () => { clearTimeout(t); kakao.maps.event.removeListener(map.current, "idle", attach); if (!attached) attach(); };
-    }
-    attach();
+    // 시군구 252곳이면 좌표 수만 개를 LatLng·Polygon 으로 만드느라 느린 기기에서 0.5초 넘게 한 번에 막혔음(긴 작업) →
+    // 약 12ms 씩 나눠 만들고 사이에 브라우저에 양보해 스크롤·클릭이 끼어들 수 있게 함
+    (async () => {
+      let i = 0;
+      while (i < features.length) {
+        const until = performance.now() + 12;
+        while (i < features.length && performance.now() < until) make(features[i++]);
+        if (i < features.length) await yieldToMain();
+        if (cancelled) return;
+      }
+      polys.current = next;
+      builtKey.current = key;
+      built = true;
+      setBuilt((n) => n + 1);
+      if (all.length && !focusCd) {
+        kakao.maps.event.addListener(map.current, "idle", attach);
+        fit(all);
+        timer = setTimeout(attach, 400);
+      } else attach();
+    })();
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+      kakao.maps.event.removeListener(map.current, "idle", attach);
+      if (built && !attached) attach();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, features, geomKey]);
 
@@ -177,7 +203,7 @@ export default function AtlasMap<P extends { admCd: string; admNm: string }>(pro
     const e = polys.current.get(focusCd);
     if (e) { fit(e.shapes); focusedCd.current = focusCd; }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, focusCd, features]);
+  }, [ready, focusCd, features, built]);
 
   function paint() {
     polys.current.forEach(({ shapes, props: p }, cd) => {

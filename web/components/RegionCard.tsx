@@ -134,7 +134,7 @@ export function FacilityCard({ f: base, onClose }: { f: Facility; onClose?: () =
         {onClose && <CloseButton onClick={onClose} />}
       </div>
       {f.status && (
-        <p className={`flex items-center gap-2 text-[14px] font-medium ${f.status.state === "open" ? "text-[#1d8a3a]" : f.status.state === "closed" ? "text-[#b25000]" : "text-ink-2"}`}>
+        <p className={`flex items-center gap-2 text-[14px] font-medium ${f.status.state === "open" ? "text-[#18782f]" : f.status.state === "closed" ? "text-[#a34700]" : "text-ink-2"}`}>
           <span className={`inline-block h-2 w-2 rounded-full ${f.status.state === "open" ? "bg-[#34c759]" : f.status.state === "closed" ? "bg-[#ff9500]" : "bg-[#aeaeb2]"}`} aria-hidden="true" />
           {f.status.label}
         </p>
