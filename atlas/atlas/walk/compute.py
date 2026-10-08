@@ -83,6 +83,10 @@ def run_walk(calc_run_id: str | None = None, graph=None) -> dict[str, Any]:
         if not gp.exists():
             return {"skipped": "도보 그래프 없음 — `make osm` 으로 OSM 도로망을 먼저 받으세요."}
         graph = Graph.load(gp)
+        from atlas.walk.osm import GRAPH_VERSION
+
+        if (v := graph.meta.get("graphVersion")) != GRAPH_VERSION:   # 규칙이 바뀐 뒤 남은 예전 그래프는 쓰지 않음 (R12)
+            return {"skipped": f"도보 그래프 규칙이 바뀌었습니다(파일 {v} ≠ 코드 {GRAPH_VERSION}) — `make osm` 으로 다시 만드세요."}
     with eng.connect() as c:
         run = c.execute(text("""SELECT calc_run_id, stat_year, facility_as_of, params FROM mart.calc_run
                                 WHERE status = 'DONE' AND (CAST(:id AS uuid) IS NULL OR calc_run_id = CAST(:id AS uuid))

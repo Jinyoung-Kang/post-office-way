@@ -87,3 +87,40 @@ def test_save_load_roundtrip(tmp_path):
     g.save(tmp_path / "g.npz")
     h = Graph.load(tmp_path / "g.npz")
     assert np.array_equal(g.indptr, h.indptr) and h.meta == {"a": 1}
+
+
+# ---- R12: OSM 파일 관리 ----
+
+def test_download_error_leaves_no_partial_file(tmp_path):
+    """내려받다 끊기면 .part(약 275MB)를 남기지 않음."""
+    import httpx
+
+    from atlas.walk.osm import _download
+
+    class Boom(httpx.SyncByteStream):
+        def __iter__(self):
+            yield b"x" * 1024
+            raise httpx.ReadError("connection reset")
+
+    def handler(req: httpx.Request):
+        if req.method == "HEAD":
+            return httpx.Response(200, headers={"last-modified": "Mon, 01 Jan 2026 00:00:00 GMT"})
+        if req.url.path.endswith(".md5"):
+            return httpx.Response(200, text="d41d8cd98f00b204e9800998ecf8427e  x.pbf")
+        return httpx.Response(200, stream=Boom())
+
+    dest = tmp_path / "south-korea.osm.pbf"
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client, pytest.raises(httpx.ReadError):
+        _download("https://example.invalid/x.pbf", dest, {}, client)
+    assert not list(tmp_path.iterdir())
+
+
+def test_meta_written_atomically(tmp_path, monkeypatch):
+    from atlas.core.config import get_settings
+    from atlas.walk import osm
+
+    monkeypatch.setattr(get_settings(), "osm_dir", str(tmp_path))
+    osm.write_meta({"graphVersion": osm.GRAPH_VERSION})
+    assert osm.read_meta() == {"graphVersion": osm.GRAPH_VERSION}
+    assert [p.name for p in tmp_path.iterdir()] == ["meta.json"]          # 임시 파일이 남지 않음
+

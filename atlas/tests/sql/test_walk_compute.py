@@ -116,3 +116,19 @@ def test_walk_failure_keeps_previous_results(terrain, engine, monkeypatch):
     with engine.connect() as c2:
         assert count() == before
         assert c2.execute(text("SELECT status FROM mart.walk_run WHERE calc_run_id = :r"), {"r": rid}).scalar() == "FAILED"
+
+
+def test_stale_graph_version_is_not_used(terrain, engine, monkeypatch, tmp_path):
+    """그래프 규칙(GRAPH_VERSION)이 바뀌었는데 예전 그래프가 남아 있으면 쓰지 않고 다시 만들라고 알림 (R12)."""
+    from atlas.core.config import get_settings
+    from atlas.walk import compute, osm
+    from atlas.walk.graph import Graph
+
+    monkeypatch.setattr(get_settings(), "osm_dir", str(tmp_path))
+    run_calc(stat_year=2024, levels=[2])
+    g = Graph(np.array([0, 0]), np.array([], dtype=np.int32), np.array([]), np.array([127.0]), np.array([37.0]),
+              {"graphVersion": osm.GRAPH_VERSION - 1})
+    g.save(osm.paths()["graph"])
+    out = compute.run_walk()
+    assert "skipped" in out and "make osm" in out["skipped"]
+

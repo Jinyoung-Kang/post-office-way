@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import os
 import time
 from pathlib import Path
 from typing import Any
@@ -33,6 +34,14 @@ def read_meta() -> dict[str, Any]:
     return json.loads(p.read_text()) if p.exists() else {}
 
 
+def write_meta(data: dict[str, Any]) -> None:
+    """임시 파일에 다 쓴 뒤 바꿔치기 — 쓰다 끊겨도 반쯤 쓴 meta.json 때문에 다음 실행이 계속 실패하지 않게 (R12)."""
+    p = paths()["meta"]
+    tmp = p.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(data, ensure_ascii=False))
+    os.replace(tmp, p)
+
+
 def _download(url: str, dest: Path, meta: dict[str, Any], client: httpx.Client) -> dict[str, Any]:
     """바뀌었을 때만 받음. 반환: {"downloaded": bool, "lastModified", "bytes", "md5"}"""
     head = client.head(url, follow_redirects=True)
@@ -46,13 +55,17 @@ def _download(url: str, dest: Path, meta: dict[str, Any], client: httpx.Client) 
     tmp = dest.with_suffix(".part")
     h = hashlib.md5()                                   # 무결성 확인용(보안 해시 아님) — 제공자가 md5 만 줌
     size = 0
-    with client.stream("GET", url, follow_redirects=True) as r:
-        r.raise_for_status()
-        with tmp.open("wb") as f:
-            for chunk in r.iter_bytes(CHUNK):
-                f.write(chunk)
-                h.update(chunk)
-                size += len(chunk)
+    try:
+        with client.stream("GET", url, follow_redirects=True) as r:
+            r.raise_for_status()
+            with tmp.open("wb") as f:
+                for chunk in r.iter_bytes(CHUNK):
+                    f.write(chunk)
+                    h.update(chunk)
+                    size += len(chunk)
+    except BaseException:                               # 끊기면 받다 만 파일(약 275MB)을 남기지 않음 (R12)
+        tmp.unlink(missing_ok=True)
+        raise
     got = h.hexdigest()
     if got != want_md5:
         tmp.unlink(missing_ok=True)
@@ -86,8 +99,8 @@ def refresh(force_graph: bool = False) -> dict[str, Any]:
         else:
             stats["graph"] = meta.get("graph", {})
             stats["graphReused"] = True
-        p["meta"].write_text(json.dumps({"lastModified": dl["lastModified"], "md5": dl["md5"], "bytes": dl["bytes"],
-                                         "graphVersion": GRAPH_VERSION, "graph": stats["graph"]}, ensure_ascii=False))
+        write_meta({"lastModified": dl["lastModified"], "md5": dl["md5"], "bytes": dl["bytes"],
+                    "graphVersion": GRAPH_VERSION, "graph": stats["graph"]})
         stats["elapsedMs"] = int((time.monotonic() - t0) * 1000)
         runs.finish_run(run_id, "DONE", stats)
     except Exception as e:
