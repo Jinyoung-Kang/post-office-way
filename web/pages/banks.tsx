@@ -7,7 +7,7 @@ import Layout, { Card, Empty, ErrorBox, Hero, NoDataGuide, Segmented, Stat } fro
 import MapWarmup from "@/components/MapWarmup";
 import { TableSkeleton } from "@/components/Skeleton";
 import { useApi } from "@/hooks/useApi";
-import { qs, type BankImpact, type BankImpactDetail, type BankImpactList, type CatchmentProps,
+import { isNoData, qs, type BankImpact, type BankImpactDetail, type BankImpactList, type CatchmentProps,
   type Feature, type Region } from "@/lib/api";
 import { BANK_REASON_SHORT, dist, dt, GRADE_BADGE, GRADE_LABEL, num, shortSido, walkMin } from "@/lib/format";
 import { useQueryState } from "@/lib/useQueryState";
@@ -59,7 +59,7 @@ export default function BanksPage() {
     setId(b.placeId);
     if (window.matchMedia("(max-width: 1023px)").matches) detailRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
-  const noData = !!err && /CALC_RUN_NOT_FOUND|BANK_IMPACT_NOT_FOUND|완료된 계산/.test(err);
+  const noData = isNoData(listQ.error);
   const sm = list?.summary;
   const pages = list ? Math.max(1, Math.ceil(list.total / SIZE)) : 1;
   // 등급 버튼 글자는 고정 — 개수를 붙이면 자료가 온 뒤 버튼이 넓어져 화면이 밀림(CLS). 개수는 위 통계 카드에

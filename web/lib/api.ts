@@ -129,6 +129,14 @@ export class ApiError extends Error {
   constructor(public status: number, public code: string, message: string) { super(message); }
 }
 
+// 자료가 아직 없음(수집·계산 전) — 오류 대신 준비 안내를 보일 경우. 메시지가 아니라 코드로 판정
+// (예전에는 메시지에 정규식을 대서, 메시지에 코드가 없는 은행 지점 영향평가 '결과 없음'을 오류로 보였음)
+const NO_DATA_CODES = new Set(["CALC_RUN_NOT_FOUND", "BANK_IMPACT_NOT_FOUND"]);
+
+export function isNoData(e: unknown): boolean {
+  return e instanceof ApiError && NO_DATA_CODES.has(e.code);
+}
+
 // 같은 출처 /api/v1 아래 경로만 — 주소창 값(?scenario= 등)이 섞여도 '..'·'//'·스킴으로 다른 경로를 부르지 못하게
 const SAFE_PATH = /^\/(?!.*\.\.)(?!\/)[A-Za-z0-9_\-./?=&%,:+ ]*$/;
 

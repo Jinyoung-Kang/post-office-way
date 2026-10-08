@@ -5,7 +5,7 @@ import Layout, { Card, ErrorBox, NoDataGuide, Segmented } from "@/components/Lay
 import MiniMap, { type MiniFeature } from "@/components/MiniMap";
 import { StatSkeletons, TableSkeleton } from "@/components/Skeleton";
 import { useApi } from "@/hooks/useApi";
-import { type RegionReport, type Region, type ReportMetric } from "@/lib/api";
+import { isNoData, type RegionReport, type Region, type ReportMetric } from "@/lib/api";
 import { BANK_REASON_SHORT, dt, GRADE_BADGE, GRADE_LABEL, num, VISIT_BADGE, withUnit } from "@/lib/format";
 import Sents from "@/components/Sents";
 
@@ -44,7 +44,7 @@ export default function ReportPage() {
   }), [r, view, v]);
   const emdRows = useMemo(() => [...(r?.emds || [])].sort((a, b) => (b.values[view] ?? -1) - (a.values[view] ?? -1)), [r, view]);
   const sido = regions.find((x) => x.admCd === admCd.slice(0, 2));
-  const noData = !!err && /CALC_RUN_NOT_FOUND|완료된 계산/.test(err);
+  const noData = isNoData(error);
   const title = r ? `${r.area.parentNm ? r.area.parentNm + " " : ""}${r.area.admNm}` : "지역 보고서";
 
   return (

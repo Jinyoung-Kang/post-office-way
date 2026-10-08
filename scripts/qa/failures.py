@@ -15,11 +15,13 @@ from playwright.async_api import async_playwright
 from _common import WEB, launch, report
 
 CASES = [
-    # (화면, 실패시킬 API 경로 조각, 상태, 화면에 보여야 할 글자)
+    # (화면, 실패시킬 API 경로 조각, 상태, 화면에 보여야 할 글자[, 오류 코드])
     ("/quality", "/api/v1/dq/summary", 500, "점검용 실패"),
     ("/banks?id=NO_SUCH_PLACE", "/api/v1/banks/impact/NO_SUCH_PLACE", 404, "점검용 실패"),
     ("/overview", "/api/v1/overview", 500, "점검용 실패"),
     ("/rankings", "/api/v1/areas?", 500, "점검용 실패"),
+    # 자료가 아직 없을 때(404 + 코드)는 오류가 아니라 준비 안내 — 판정은 메시지가 아니라 오류 코드로
+    ("/overview", "/api/v1/overview", 404, "아직 계산된 데이터가 없습니다", "CALC_RUN_NOT_FOUND"),
 ]
 
 
@@ -27,12 +29,12 @@ async def main() -> None:
     problems: list[str] = []
     async with async_playwright() as p:
         b = await launch(p)
-        for path, frag, status, expect in CASES:
+        for path, frag, status, expect, *code in CASES:
             ctx = await b.new_context(viewport={"width": 1440, "height": 900})
             pg = await ctx.new_page()
             errors: list[str] = []
             pg.on("pageerror", lambda e: errors.append(str(e)[:160]))
-            body = json.dumps({"code": "QA_FAIL", "message": "점검용 실패", "traceId": None})
+            body = json.dumps({"code": code[0] if code else "QA_FAIL", "message": "점검용 실패", "traceId": None})
 
             async def fail(route, _request, _status=status):
                 await route.fulfill(status=_status, content_type="application/json", body=body)

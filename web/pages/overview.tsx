@@ -4,7 +4,7 @@ import Layout, { Card, ErrorBox, Hero, NoDataGuide, Stat } from "@/components/La
 import { StatSkeletons } from "@/components/Skeleton";
 import { fmtPeriod } from "@/components/RegionCard";
 import { useApi } from "@/hooks/useApi";
-import { type Overview, type VisitConditions } from "@/lib/api";
+import { isNoData, type Overview, type VisitConditions } from "@/lib/api";
 import { dist, num, SEQ, shortSido } from "@/lib/format";
 
 export default function OverviewPage() {
@@ -12,7 +12,7 @@ export default function OverviewPage() {
   const err = error?.message ?? null;
   const visitQ = useApi<VisitConditions>("/visit/conditions");
   const visit = visitQ.loading ? undefined : visitQ.data;   // undefined = 불러오는 중, null = 예보를 안 받았으면 배너 없음
-  const noData = !!err && /CALC_RUN_NOT_FOUND|완료된 계산/.test(err);
+  const noData = isNoData(error);
   const far = `${d?.farKm ?? 2}km`;           // '먼 거리' 기준은 계산 설정(farKm)을 따름
 
   return (

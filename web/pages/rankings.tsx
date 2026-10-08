@@ -3,7 +3,7 @@ import { useRouter } from "next/router";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import Layout, { Card, Empty, ErrorBox, Hero, NoDataGuide, Segmented } from "@/components/Layout";
 import { useApi } from "@/hooks/useApi";
-import { qs, type MetricDef, type Region } from "@/lib/api";
+import { isNoData, qs, type MetricDef, type Region } from "@/lib/api";
 import { groupMetrics, num, shortSido, withUnit } from "@/lib/format";
 import { TableSkeleton } from "@/components/Skeleton";
 import { useQueryState } from "@/lib/useQueryState";
@@ -36,7 +36,7 @@ export default function Rankings() {
   const chartData = (data?.items || []).filter((r) => r.value !== null)
     .map((r) => ({ name: level === 3 ? r.admNm : `${r.parentNm ? shortSido(r.parentNm) + " " : ""}${r.admNm}`, value: r.value, admCd: r.admCd }));
   const go = (admCd: string) => router.push(`/?adm=${admCd}&metric=${metric}`);
-  const noData = !!err && /CALC_RUN_NOT_FOUND|완료된 계산/.test(err);
+  const noData = isNoData(error);
 
   return (
     <Layout title="지역 순위">

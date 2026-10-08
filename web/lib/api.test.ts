@@ -48,3 +48,14 @@ describe("cachedApi", () => {
     expect(await cachedApi("/overview")).toEqual({ ok: 1 });
   });
 });
+
+describe("자료 없음 판정", () => {
+  it("메시지가 아니라 오류 코드로 — 은행 지점 영향평가 결과 없음도 준비 안내 (메시지에 코드가 없어 놓쳤음)", async () => {
+    const { ApiError, isNoData } = await import("./api");
+    expect(isNoData(new ApiError(404, "BANK_IMPACT_NOT_FOUND", "은행 지점 영향평가 결과가 없습니다 — 은행 지점 수집 뒤 다시 계산하세요."))).toBe(true);
+    expect(isNoData(new ApiError(404, "CALC_RUN_NOT_FOUND", "아무 문구"))).toBe(true);
+    expect(isNoData(new ApiError(500, "INTERNAL", "완료된 계산 실행이 없습니다"))).toBe(false);   // 문구가 같아도 코드가 다르면 오류
+    expect(isNoData(new Error("CALC_RUN_NOT_FOUND"))).toBe(false);
+    expect(isNoData(null)).toBe(false);
+  });
+});

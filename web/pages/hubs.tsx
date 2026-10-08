@@ -2,7 +2,7 @@ import Link from "next/link";
 import Layout, { Card, Empty, ErrorBox, Hero, NoDataGuide, Segmented, Stat } from "@/components/Layout";
 import { StatSkeletons, TableSkeleton } from "@/components/Skeleton";
 import { useApi } from "@/hooks/useApi";
-import { qs, type HubFacility, type HubSummary, type Page, type Region } from "@/lib/api";
+import { isNoData, qs, type HubFacility, type HubSummary, type Page, type Region } from "@/lib/api";
 import { dist, dt, num, shortSido } from "@/lib/format";
 import { useQueryState } from "@/lib/useQueryState";
 import Sents from "@/components/Sents";
@@ -25,7 +25,7 @@ export default function HubsPage() {
   const list = listQ.data, loadingList = listQ.loading;
   const err = (sumQ.error ?? listQ.error)?.message ?? null;
 
-  const noData = !!err && /CALC_RUN_NOT_FOUND|완료된 계산/.test(err);
+  const noData = isNoData(sumQ.error ?? listQ.error);
   const t = sum?.totals;
   const pages = list ? Math.max(1, Math.ceil(list.total / SIZE)) : 1;
 

@@ -7,7 +7,7 @@ import MapWarmup from "@/components/MapWarmup";
 import RegionCard, { FacilityCard } from "@/components/RegionCard";
 import { BANK_LEGEND, CARE_LEGEND, FACILITY_LEGEND, type CareLayer, type FacilityLayer, type MapLabel } from "@/components/AtlasMap";
 import { useApi } from "@/hooks/useApi";
-import { cachedApi, qs, type AreaFC, type AreaProps, type Facility, type MetricDef, type Region } from "@/lib/api";
+import { cachedApi, isNoData, qs, type AreaFC, type AreaProps, type Facility, type MetricDef, type Region } from "@/lib/api";
 import { classOf, groupMetrics, NO_DATA, num, quantileBreaks, SEQ, withUnit } from "@/lib/format";
 import type { TipLines } from "@/lib/mapTip";
 
@@ -23,7 +23,8 @@ export default function MapPage() {
   const [parent, setParent] = useState<string>("");
   const [fc, setFc] = useState<AreaFC | null>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [failure, setFailure] = useState<Error | null>(null);
+  const error = failure?.message ?? null;
   const [selected, setSelected] = useState<string | null>(null);
   const [focusCd, setFocusCd] = useState<string | null>(null);
   const [facility, setFacility] = useState<Facility | null>(null);
@@ -69,11 +70,11 @@ export default function MapPage() {
   useEffect(() => {
     if (level === 3 && !parent) return;
     let alive = true;
-    setLoading(true); setError(null);
+    setLoading(true); setFailure(null);
     const t0 = performance.now();
     cachedApi<AreaFC>(`/areas/geojson${qs({ level, metric, parent: parent || undefined })}`)
       .then((r) => { if (alive) { setFc(r); setMs(Math.round(performance.now() - t0)); } })
-      .catch((e) => { if (alive) { setFc(null); setError(e.message); } })
+      .catch((e) => { if (alive) { setFc(null); setFailure(e instanceof Error ? e : new Error(String(e))); } })
       .finally(() => alive && setLoading(false));
     return () => { alive = false; };
   }, [level, parent, metric]);
@@ -113,7 +114,7 @@ export default function MapPage() {
 
   const sido = parent.slice(0, 2);
   const sigunguOptions = regions.find((r) => r.admCd === sido)?.sigungu || [];
-  const noData = !!error && /CALC_RUN_NOT_FOUND|완료된 계산/.test(error);
+  const noData = isNoData(failure);
   const vals = useMemo(() => (fc?.features || []).map((f) => f.properties.value).filter((v): v is number => v !== null), [fc]);
   const minV = vals.length ? Math.min(...vals) : null;
   // 첫 단계가 최솟값 하나뿐이면(예: 0명) '0명' 으로 표시
