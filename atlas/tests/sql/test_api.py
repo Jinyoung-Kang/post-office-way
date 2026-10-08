@@ -88,3 +88,23 @@ def test_geojson_free_inputs_are_bounded(client):
     assert simplify_step(123.4567) == simplify_step(120.0) == 120.0
     assert simplify_step(0) == 0.0 and simplify_step(None) is None and simplify_step(4.9) == 0.0
     assert client.get("/api/v1/visit/conditions", params={"sido": "%"}).status_code == 400   # 값마다 판정 300ms 방지
+
+
+@pytest.mark.skipif(not __import__("os").environ.get("TEST_REDIS_URL"), reason="캐시 동작은 Redis 필요 (make test 는 켬)")
+def test_cache_follows_data_version_without_invalidation(client, engine):
+    """지도·개요 캐시 키에 (계산 실행, 도보 완료 시각)이 들어가 — 도보 계산이 끝나면 캐시를 지우지 않아도 새 값 (R4).
+    예전에는 커밋 뒤 캐시 지우기에 의존해, 그 사이 읽은 요청이 낡은 값을 다시 쓰면 다음 계산까지(GeoJSON 은 만료 없이) 남았음."""
+    p = {"level": 2, "metric": "NEAREST_FIN_DIST_M"}
+    val = lambda fc: next(f["properties"]["value"] for f in fc["features"] if f["id"] == "99010")  # noqa: E731
+    before = val(client.get("/api/v1/areas/geojson", params=p).json())
+    assert client.get("/api/v1/overview").json()["walk"] is None
+    with engine.begin() as c:                      # 도보 계산이 끝난 것처럼 (캐시 지우기는 부르지 않음)
+        c.execute(text("""UPDATE mart.access_metric SET value = value + 1
+                           WHERE calc_run_id = :r AND metric_code = 'NEAREST_FIN_DIST_M' AND adm_cd = '99010'"""),
+                  {"r": client.rid})
+        c.execute(text("""INSERT INTO mart.access_metric (calc_run_id, adm_cd, metric_code, level, value)
+                          VALUES (:r, '99010', 'WALK30_NO_FIN_PPLTN', 2, 10)"""), {"r": client.rid})
+        c.execute(text("""INSERT INTO mart.walk_run (calc_run_id, status, speed_mps, limit_m, finished_at)
+                          VALUES (:r, 'DONE', 0.8, 3000, now())"""), {"r": client.rid})
+    assert val(client.get("/api/v1/areas/geojson", params=p).json()) == before + 1
+    assert client.get("/api/v1/overview").json()["walk"]["noFinPpltn"] == 10

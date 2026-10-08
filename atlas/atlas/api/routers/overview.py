@@ -7,7 +7,7 @@ from fastapi import APIRouter
 from sqlalchemy import text
 
 from atlas.api import cache
-from atlas.api.common import jsonable, meta_of, resolve_calc_run
+from atlas.api.common import data_version, jsonable, meta_of, resolve_calc_run
 from atlas.core.db import get_engine
 from atlas.domain.rules import POST_DIV_LABEL
 
@@ -21,7 +21,7 @@ BANDS = [(0, 1000, "1km 이내"), (1000, 2000, "1–2km"), (2000, 3000, "2–3km
 def overview(calcRunId: str | None = None):
     with get_engine().connect() as c:
         run = resolve_calc_run(c, calcRunId)
-        key = f"overview:{run['calc_run_id']}"
+        key = f"overview:{data_version(c, run)}"
         if hit := cache.get(key):
             return json.loads(hit)
         rid, y = run["calc_run_id"], run["stat_year"]

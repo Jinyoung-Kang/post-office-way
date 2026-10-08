@@ -11,7 +11,7 @@ from sqlalchemy import text
 from sqlalchemy.engine import Connection
 
 from atlas.api import cache
-from atlas.api.common import (FACILITY_COLS, bad_request, jsonable, meta_of, metric_row, not_found,
+from atlas.api.common import (FACILITY_COLS, bad_request, data_version, jsonable, meta_of, metric_row, not_found,
                               page_params, resolve_calc_run)
 
 DEFAULT_SIMPLIFY = {2: 200.0, 3: 50.0}
@@ -59,10 +59,10 @@ def geojson_payload(c: Connection, level: int, metric: str, parent: str | None, 
     if simplify is not None and not 0 <= simplify <= 5000:
         raise bad_request("simplify 는 0~5000(m) 입니다.")
     simplify = simplify_step(simplify)
-    key = f"geo:gz2:{run['calc_run_id']}:{level}:{parent or '-'}:{metric}:{simplify if simplify is not None else 'd'}"
+    key = f"geo:gz3:{data_version(c, run)}:{level}:{parent or '-'}:{metric}:{simplify if simplify is not None else 'd'}"
     if (tag := cache.get(key + ":etag")) and (etag_only or (body := cache.get(key))):
         return (None if etag_only else body), tag.decode()
-    raw = geojson(c, level, metric, parent, calc_run_id, simplify).encode()
+    raw = _geojson_text(c, run, level, metric, parent, simplify).encode()
     gz = gzip.compress(raw, compresslevel=6, mtime=0)          # mtime=0 → 같은 내용이면 같은 바이트
     tag = 'W/"' + hashlib.blake2b(gz, digest_size=12).hexdigest() + '"'
     cache.set(key, gz, ttl=GEO_TTL)
@@ -73,12 +73,18 @@ def geojson_payload(c: Connection, level: int, metric: str, parent: str | None, 
 def geojson(c: Connection, level: int, metric: str, parent: str | None, calc_run_id: str | None,
             simplify: float | None) -> str:
     _check_parent(parent)
-    simplify = simplify_step(simplify)
     run = resolve_calc_run(c, calc_run_id)
     _check_level(level, parent, run)
-    mdef = metric_row(c, metric)
     if simplify is not None and not 0 <= simplify <= 5000:
         raise bad_request("simplify 는 0~5000(m) 입니다.")
+    return _geojson_text(c, run, level, metric, parent, simplify_step(simplify))
+
+
+def _geojson_text(c: Connection, run: dict[str, Any], level: int, metric: str, parent: str | None,
+                  simplify: float | None) -> str:
+    """검증을 마친 뒤 — 캐시 키를 만든 그 계산 실행(run)으로 그림 (예전에는 안에서 다시 정해, 그 사이 새 계산이
+    끝나면 키는 이전 실행·본문은 새 실행인 캐시가 생겼음, R4)."""
+    mdef = metric_row(c, metric)
 
     if simplify is None or simplify == DEFAULT_SIMPLIFY[level]:
         geom = "coalesce(a.geom_simple, a.geom)"

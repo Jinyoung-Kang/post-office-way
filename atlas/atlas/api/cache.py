@@ -1,4 +1,5 @@
-"""Redis 캐시 — GeoJSON(calc_run 단위 무효화)·What-if(TTL 1h). Redis 가 없어도 API 는 동작합니다."""
+"""Redis 캐시 — 계산 결과(GeoJSON·개요·보고서)는 데이터 버전(계산 실행·도보 완료 시각) 키라 지우지 않고 만료만,
+What-if·배치 제안은 TTL 1h. Redis 가 없어도 API 는 동작합니다."""
 from __future__ import annotations
 
 import logging
@@ -52,15 +53,6 @@ def incr(key: str, ttl: int) -> int | None:
     except redis.RedisError:
         return None
 
-
-def delete_prefix(prefix: str) -> int:
-    n = 0
-    try:
-        for k in client().scan_iter(match=f"{prefix}*", count=500):
-            n += client().delete(k)
-    except redis.RedisError:
-        log.warning("cache delete failed", extra={"prefix": prefix})
-    return n
 
 
 def ping() -> bool:

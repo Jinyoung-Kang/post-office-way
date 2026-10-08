@@ -195,7 +195,7 @@ VISIT-1(09~18시 비·눈·더위·추위·바람·미세먼지 → 좋음/주�
                                     raw · stg · mart · ops        ├ short 차선: 예보·공휴일·약국/병의원·계산 + 스케줄러
                                          ▲                        └ long 차선: 집계구·은행 전수·도로 거리·좌표 검증
                                          │                            └ 자식 프로세스: OSM 도보 그래프 · k-최근접 도보 거리 ◀▶ osm-data 볼륨
-                                    Redis (캐시 · 속도 제한) ◀──── 캐시 무효화     (LISTEN · FOR UPDATE SKIP LOCKED · 생존 신호)
+                                    Redis (캐시 — 키에 데이터 버전 · 속도 제한)          (LISTEN · FOR UPDATE SKIP LOCKED · 생존 신호)
 ```
 
 - 다이어그램과 흐름: [docs/architecture.md](docs/architecture.md). 지도 표시 방식은 [ADR-016](docs/adr/ADR-016-map-display.md). 모든 포트는 `127.0.0.1` 에만 바인딩합니다.

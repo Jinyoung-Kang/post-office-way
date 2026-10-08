@@ -153,7 +153,6 @@ def run_walk(calc_run_id: str | None = None, graph=None) -> dict[str, Any]:
                               WHERE calc_run_id = :r"""),
                       {"r": rid, "s": json.dumps({**stats, "timingsMs": timings,
                                                   "elapsedMs": int((time.monotonic() - t0) * 1000)})})
-        _invalidate_cache()
         log.info("walk done", extra={"calcRunId": str(rid), **stats, "timingsMs": timings})
         return {"calcRunId": str(rid), **stats, "timingsMs": timings}
     except Exception as e:
@@ -227,12 +226,3 @@ def _bank_impact(c, rid: uuid.UUID, within: float) -> None:
     c.execute(text("UPDATE mart.bank_impact SET grade = mart.bank_impact_grade(lost_ppltn, reasons) WHERE calc_run_id = :r"),
               {"r": rid})
 
-
-def _invalidate_cache() -> None:
-    try:
-        from atlas.api.cache import delete_prefix
-
-        for p in ("geo:", "areas:", "overview:", "report:"):
-            delete_prefix(p)
-    except Exception:  # 캐시는 선택 요소
-        log.warning("cache invalidation skipped")

@@ -156,7 +156,6 @@ def execute_calc_run(calc_run_id: uuid.UUID, engine: Engine | None = None) -> di
             c.execute(text("""UPDATE mart.calc_run SET status = 'DONE', stats = CAST(:s AS jsonb), finished_at = clock_timestamp()
                               WHERE calc_run_id = :id"""), {"s": json.dumps(stats), "id": calc_run_id})
         log.info("calc done", extra={"calcRunId": str(calc_run_id), **{k: v for k, v in stats.items() if k != "dq"}})
-        _invalidate_cache()
         return stats
     except Exception as e:
         with eng.begin() as c:
@@ -172,13 +171,3 @@ def run_calc(stat_year: int | None = None, levels: list[int] | None = None,
     execute_calc_run(rid, engine=engine)
     return rid
 
-
-def _invalidate_cache() -> None:
-    """새 calc_run 이 '최신'이 되므로 지도 GeoJSON 캐시(geo:*)를 비웁니다."""
-    try:
-        from atlas.api.cache import delete_prefix
-
-        delete_prefix("geo:")
-        delete_prefix("areas:")
-    except Exception:  # 캐시는 선택 요소 — 실패해도 계산 결과는 유효
-        log.warning("cache invalidation skipped")

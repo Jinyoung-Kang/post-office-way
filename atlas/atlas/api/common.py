@@ -59,6 +59,15 @@ def resolve_calc_run(c: Connection, calc_run_id: str | None, require_done: bool 
     return dict(r)
 
 
+def data_version(c: Connection, run: dict[str, Any]) -> str:
+    """계산 결과 캐시의 버전 — (계산 실행, 도보 완료 시각). 도보 계산이 끝나면 지표 값·개요가 바뀌므로 키도 바뀜.
+    키가 데이터를 따라가니 계산·도보가 끝난 뒤 캐시를 지울 필요가 없음 — 지우던 방식은 커밋 직전에 읽은 요청이
+    지운 뒤에 낡은 값을 다시 써서 다음 계산까지 남을 수 있었음 (R4)."""
+    w = c.execute(text("SELECT finished_at FROM mart.walk_run WHERE calc_run_id = :r AND status = 'DONE'"),
+                  {"r": run["calc_run_id"]}).scalar()
+    return f"{run['calc_run_id']}:{int(w.timestamp()) if w else 0}"
+
+
 def meta_of(run: dict[str, Any], **extra: Any) -> dict[str, Any]:
     return jsonable({"calcRunId": run["calc_run_id"], "statYear": run["stat_year"],
                      "facilityAsOf": run["facility_as_of"], **extra})

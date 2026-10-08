@@ -40,7 +40,6 @@ flowchart LR
   C --> EXT
   QS -. "생존 신호 30초 (ops.worker)" .-> DB
   C -- "소유자 역할" --> DB
-  C -- "캐시 무효화" --> RD
   MIG -- "DDL · 역할 비밀번호" --> DB
 ```
 
