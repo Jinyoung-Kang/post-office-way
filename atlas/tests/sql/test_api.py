@@ -74,3 +74,17 @@ def test_out_of_range_inputs_are_400_not_500(client):
     # 안전망: 검사를 빠져나간 범위 초과도 DB DataError → 400
     r = client.post("/api/v1/whatif", json={"removeHistIds": [int(huge)], "level": 2})
     assert r.status_code in (400, 404) and r.json()["code"] != "INTERNAL"
+
+
+def test_geojson_free_inputs_are_bounded(client):
+    """parent 는 지역 코드 형식만 (LIKE 와일드카드로 레벨 제한 우회·캐시 키 폭증 방지), simplify 는 10m 단위로 묶음 (S3)."""
+    for bad in ("%", "9_", "abc", "99%", "1234567"):
+        r = client.get("/api/v1/areas/geojson", params={"level": 2, "metric": "NEAREST_FIN_DIST_M", "parent": bad})
+        assert r.status_code == 400, bad
+        assert client.get("/api/v1/areas", params={"level": 2, "parent": bad}).status_code == 400, bad
+    assert client.get("/api/v1/areas/geojson", params={"level": 2, "metric": "NEAREST_FIN_DIST_M", "parent": "99"}).status_code == 200
+    from atlas.api.services.areas import simplify_step
+
+    assert simplify_step(123.4567) == simplify_step(120.0) == 120.0
+    assert simplify_step(0) == 0.0 and simplify_step(None) is None and simplify_step(4.9) == 0.0
+    assert client.get("/api/v1/visit/conditions", params={"sido": "%"}).status_code == 400   # 값마다 판정 300ms 방지

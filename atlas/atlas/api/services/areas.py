@@ -4,6 +4,7 @@ from __future__ import annotations
 import gzip
 import hashlib
 import json
+import re
 from typing import Any
 
 from sqlalchemy import text
@@ -14,6 +15,21 @@ from atlas.api.common import (FACILITY_COLS, bad_request, jsonable, meta_of, met
                               page_params, resolve_calc_run)
 
 DEFAULT_SIMPLIFY = {2: 200.0, 3: 50.0}
+GEO_TTL = 24 * 3600          # 계산이 바뀌면 키(calc_run)가 바뀌지만, 쓰이지 않는 키가 남지 않게 만료도 둠
+_PARENT = re.compile(r"^\d{2}(\d{3})?$")
+
+
+def _check_parent(parent: str | None) -> None:
+    # 시도 2자리·시군구 5자리만 — 자유 문자열이면 LIKE 와일드카드('%')로 level=3 의 parent 필수 제한을 피해
+    # 전국 읍면동을 받거나, 값마다 만료 없는 캐시 키가 생겼음 (S3)
+    if parent is not None and not _PARENT.match(parent):
+        raise bad_request("parent 는 시도 2자리 또는 시군구 5자리 숫자입니다.")
+
+
+def simplify_step(v: float | None) -> float | None:
+    """단순화 허용 오차를 10m 단위로 묶음 — 임의 실수마다 전국 경계 단순화(최대 수 초)와 캐시 키가 새로 생기지 않게.
+    값을 거부하지 않으므로 기존 요청은 그대로 동작."""
+    return None if v is None else float(round(v / 10) * 10)
 
 # 지표 값 + 레벨 전체 기준 순위(1 = 값이 가장 큼)·백분위(값 오름차순 0~100)
 # 순위·백분위는 계산 때 미리 넣어 둔 열(V14, calc/10_ranks.sql)을 읽기만 함
@@ -37,23 +53,27 @@ def geojson_payload(c: Connection, level: int, metric: str, parent: str | None, 
                     simplify: float | None, etag_only: bool = False) -> tuple[bytes | None, str]:
     """(gzip 본문, ETag). 캐시에는 gzip 으로 저장해 요청마다 수백 KB 를 다시 압축하지 않고,
     ETag 는 따로 두어 If-None-Match 가 같으면 본문을 Redis 에서 꺼내지도 않습니다(etag_only)."""
+    _check_parent(parent)
     run = resolve_calc_run(c, calc_run_id)
     _check_level(level, parent, run)
     if simplify is not None and not 0 <= simplify <= 5000:
         raise bad_request("simplify 는 0~5000(m) 입니다.")
+    simplify = simplify_step(simplify)
     key = f"geo:gz2:{run['calc_run_id']}:{level}:{parent or '-'}:{metric}:{simplify if simplify is not None else 'd'}"
     if (tag := cache.get(key + ":etag")) and (etag_only or (body := cache.get(key))):
         return (None if etag_only else body), tag.decode()
     raw = geojson(c, level, metric, parent, calc_run_id, simplify).encode()
     gz = gzip.compress(raw, compresslevel=6, mtime=0)          # mtime=0 → 같은 내용이면 같은 바이트
     tag = 'W/"' + hashlib.blake2b(gz, digest_size=12).hexdigest() + '"'
-    cache.set(key, gz)
-    cache.set(key + ":etag", tag)
+    cache.set(key, gz, ttl=GEO_TTL)
+    cache.set(key + ":etag", tag, ttl=GEO_TTL)
     return gz, tag
 
 
 def geojson(c: Connection, level: int, metric: str, parent: str | None, calc_run_id: str | None,
             simplify: float | None) -> str:
+    _check_parent(parent)
+    simplify = simplify_step(simplify)
     run = resolve_calc_run(c, calc_run_id)
     _check_level(level, parent, run)
     mdef = metric_row(c, metric)
@@ -91,6 +111,7 @@ def geojson(c: Connection, level: int, metric: str, parent: str | None, calc_run
 
 def list_areas(c: Connection, level: int, metric: str, parent: str | None, calc_run_id: str | None,
                sort: str, page: int, size: int) -> dict[str, Any]:
+    _check_parent(parent)
     run = resolve_calc_run(c, calc_run_id)
     _check_level(level, None if level == 2 else parent or "x", run)
     mdef = metric_row(c, metric)
