@@ -8,7 +8,8 @@ import MapWarmup from "@/components/MapWarmup";
 import type { MapLabel, Marker } from "@/components/AtlasMap";
 import { useApi } from "@/hooks/useApi";
 import { api, qs, type AreaFC, type AreaProps, type PlanClose, type PlanOpen, type Region } from "@/lib/api";
-import { classOf, dist, NO_DATA, num, quantileBreaks, SEQ } from "@/lib/format";
+import { classOf, NO_DATA, quantileBreaks, SEQ } from "@/lib/choropleth";
+import { dist, num } from "@/lib/format";
 import Sents from "@/components/Sents";
 import type { TipLines } from "@/lib/mapTip";
 

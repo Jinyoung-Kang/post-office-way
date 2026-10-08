@@ -7,8 +7,10 @@ import MapWarmup from "@/components/MapWarmup";
 import RegionCard, { FacilityCard } from "@/components/RegionCard";
 import { BANK_LEGEND, CARE_LEGEND, FACILITY_LEGEND, type CareLayer, type FacilityLayer, type MapLabel } from "@/components/AtlasMap";
 import { useApi } from "@/hooks/useApi";
+import { worstFirst } from "@/lib/rules";
 import { cachedApi, isNoData, qs, type AreaFC, type AreaProps, type Facility, type MetricDef, type Region } from "@/lib/api";
-import { classOf, groupMetrics, NO_DATA, num, quantileBreaks, SEQ, withUnit } from "@/lib/format";
+import { classOf, legendRows, minOnlyValue, NO_DATA, quantileBreaks, SEQ } from "@/lib/choropleth";
+import { groupMetrics, num, withUnit } from "@/lib/format";
 import type { TipLines } from "@/lib/mapTip";
 
 const AtlasMap = dynamic(() => import("@/components/AtlasMap"), { ssr: false }) as typeof AtlasMapType;
@@ -116,21 +118,15 @@ export default function MapPage() {
   const sigunguOptions = regions.find((r) => r.admCd === sido)?.sigungu || [];
   const noData = isNoData(failure);
   const vals = useMemo(() => (fc?.features || []).map((f) => f.properties.value).filter((v): v is number => v !== null), [fc]);
-  const minV = vals.length ? Math.min(...vals) : null;
-  // 첫 단계가 최솟값 하나뿐이면(예: 0명) '0명' 으로 표시
-  const minOnly = minV !== null && breaks.length > 0 && vals.every((v) => v >= breaks[0] || v === minV);
   // 마우스를 올리지 않아도 보이게 — 취약한 쪽 상위 8곳을 순위·값과 함께 지도에 표시
   const topLabels: MapLabel[] = useMemo(() => {
     if (!showTop || !fc || fc.meta.unit === "0/1") return [];
-    const worse = fc.meta.higherIsWorse;
-    return fc.features.map((f) => f.properties)
-      .filter((p) => p.value !== null && p.lat != null && p.lon != null)
-      .sort((a, b) => (worse ? (b.value as number) - (a.value as number) : (a.value as number) - (b.value as number)))
-      .slice(0, 8)
+    return worstFirst(fc.features.map((f) => f.properties), fc.meta.higherIsWorse, 8)
       .map((p, i) => ({ key: p.admCd, lat: p.lat as number, lon: p.lon as number, title: `${i + 1} ${p.admNm}`,
         value: withUnit(p.value, p.unit), tone: "dark" as const }));
   }, [fc, showTop]);
-  const legend = legendRows(breaks, fc?.meta.unit || "", isBinary, minOnly ? minV : null);
+  // 첫 단계가 최솟값 하나뿐이면(예: 0명) 범례 첫 줄을 '0명' 으로
+  const legend = legendRows(breaks, fc?.meta.unit || "", isBinary, minOnlyValue(vals, breaks));
   const detailOpen = !!(selected || facility);
   const mdef = metrics.find((m) => m.code === metric);
 
@@ -286,16 +282,4 @@ function Toggle({ label, on, onChange, small }: { label: string; on: boolean; on
       </span>
     </label>
   );
-}
-
-function legendRows(breaks: number[], unit: string, binary: boolean, minOnly: number | null = null) {
-  if (binary) return [{ label: "없음", color: SEQ[0] }, { label: "있음", color: SEQ[3] }];
-  if (!breaks.length) return [{ label: "모든 지역 같은 값", color: SEQ[0] }];
-  const edges = [null, ...breaks, null];
-  return edges.slice(0, -1).map((lo, i) => {
-    const hi = edges[i + 1];
-    const cls = classOf(lo === null ? -Infinity : lo, breaks);
-    const label = lo === null ? (minOnly !== null ? withUnit(minOnly, unit) : `${withUnit(hi, unit)} 미만`) : hi === null ? `${withUnit(lo, unit)} 이상` : `${withUnit(lo, unit)} – ${withUnit(hi, unit)}`;
-    return { label, color: SEQ[Math.max(cls, 0)] };
-  });
 }

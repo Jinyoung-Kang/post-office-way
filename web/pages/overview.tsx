@@ -5,7 +5,8 @@ import { StatSkeletons } from "@/components/Skeleton";
 import { fmtPeriod } from "@/components/RegionCard";
 import { useApi } from "@/hooks/useApi";
 import { isNoData, type Overview, type VisitConditions } from "@/lib/api";
-import { dist, num, SEQ, shortSido } from "@/lib/format";
+import { SEQ } from "@/lib/choropleth";
+import { dist, num, shortSido } from "@/lib/format";
 
 export default function OverviewPage() {
   const { data: d, error } = useApi<Overview>("/overview", { cacheMs: 60_000 });

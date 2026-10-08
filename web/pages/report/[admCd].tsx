@@ -5,6 +5,8 @@ import Layout, { Card, ErrorBox, NoDataGuide, Segmented } from "@/components/Lay
 import MiniMap, { type MiniFeature } from "@/components/MiniMap";
 import { StatSkeletons, TableSkeleton } from "@/components/Skeleton";
 import { useApi } from "@/hooks/useApi";
+import { fixedClass } from "@/lib/choropleth";
+import { rankText as rankTextOf } from "@/lib/rules";
 import { isNoData, type RegionReport, type Region, type ReportMetric } from "@/lib/api";
 import { BANK_REASON_SHORT, dt, GRADE_BADGE, GRADE_LABEL, num, VISIT_BADGE, withUnit } from "@/lib/format";
 import Sents from "@/components/Sents";
@@ -20,10 +22,7 @@ type EmdCode = (typeof EMD_VIEWS)[number]["code"];
 const RAMP = ["#e1ecf8", "#b8d2ee", "#7fabdc", "#4479bf", "#1f4e8c"];   // 한 색조 밝기 순 (값이 클수록 진함)
 const NO_DATA = "#e5e5ea";
 
-function rankText(m: ReportMetric): string {
-  if (m.rank == null || m.rankOf == null) return "—";
-  return m.higherIsWorse ? `나쁜 쪽에서 ${num(m.rank)}번째` : `큰 쪽에서 ${num(m.rank)}번째`;
-}
+const rankText = (m: ReportMetric) => rankTextOf(m, (n) => num(n));
 
 export default function ReportPage() {
   const router = useRouter();
@@ -38,7 +37,7 @@ export default function ReportPage() {
   const v = EMD_VIEWS.find((x) => x.code === view)!;
   const emdFeatures: MiniFeature[] = useMemo(() => (r?.emds || []).map((e) => {
     const val = e.values[view];
-    const cls = val == null ? -1 : v.breaks.filter((b) => val >= b).length;
+    const cls = fixedClass(val, v.breaks);
     return { id: e.admCd, name: e.admNm, geometry: e.geometry, fill: cls < 0 ? NO_DATA : RAMP[cls],
       title: `${e.admNm} — ${v.label} ${val == null ? "자료 없음" : withUnit(val, v.unit)}` };
   }), [r, view, v]);

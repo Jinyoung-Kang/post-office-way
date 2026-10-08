@@ -33,44 +33,6 @@ export function dt(s: string | null | undefined): string {
 
 export const short = (id: string | null | undefined) => (id ? id.slice(0, 8) : DASH);
 
-// 순차(단일 색상, 밝음→어두움) 5단계 — 값이 클수록 진함
-export const SEQ = ["#cde2fb", "#86b6ef", "#3987e5", "#1c5cab", "#0d366b"];
-export const NO_DATA = "#e7e6e2";
-export const IMPACT = "#eb6834";
-
-/** 분위수 경계 (값이 같은 경계는 합쳐 단계 수가 줄어듦) */
-export function quantileBreaks(values: number[], k = SEQ.length): number[] {
-  const v = values.filter((x) => x !== null && Number.isFinite(x)).sort((a, b) => a - b);
-  if (!v.length) return [];
-  // 최솟값(대개 0)이 30% 넘게 몰린 지표(공백 인구 등)는 최솟값만 첫 단계로 두고 나머지 값으로 분위수 —
-  // 그냥 나누면 경계가 겹쳐 '미만/이상' 두 단계만 남음
-  const minCount = v.filter((x) => x === v[0]).length;
-  if (minCount / v.length > 0.3 && minCount < v.length) {
-    const rest = v.slice(minCount);
-    const out = [rest[0]];
-    for (let i = 1; i < k - 1; i++) {
-      const q = rest[Math.min(rest.length - 1, Math.floor((i * rest.length) / (k - 1)))];
-      if (q > out[out.length - 1]) out.push(q);
-    }
-    return out;
-  }
-  const out: number[] = [];
-  for (let i = 1; i < k; i++) {
-    const q = v[Math.min(v.length - 1, Math.floor((i * v.length) / k))];
-    // 최솟값과 같은 경계는 버림 — 0 이 많은 지표에서 '0명 미만' 같은 빈 구간이 생기지 않게
-    if (q > v[0] && (!out.length || q > out[out.length - 1])) out.push(q);
-  }
-  return out;
-}
-
-export function classOf(value: number | null, breaks: number[]): number {
-  if (value === null || value === undefined) return -1;
-  let i = 0;
-  while (i < breaks.length && value >= breaks[i]) i++;
-  // 경계가 줄어든 경우에도 가장 진한 색까지 쓰도록 비례 배치
-  return breaks.length + 1 >= SEQ.length ? i : Math.round((i / Math.max(breaks.length, 1)) * (SEQ.length - 1));
-}
-
 // 시도 이름 약칭 — "경상북도" → "경북", "강원특별자치도" → "강원"
 const SIDO_SHORT: Record<string, string> = {
   경상북도: "경북", 경상남도: "경남", 전라남도: "전남", 전라북도: "전북", 충청북도: "충북", 충청남도: "충남",

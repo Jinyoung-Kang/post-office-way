@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { api, qs, type Bank, type CarePlace, type Facility, type Feature, type Page } from "@/lib/api";
 import { loadKakao, toPaths } from "@/lib/kakao";
+import { bboxParam, declutter, labelSize } from "@/lib/mapGeom";
+import { careHoursText } from "@/lib/rules";
 import { esc, tipHtml, type TipLines } from "@/lib/mapTip";
 
 export type Style = { fill: string; opacity?: number; stroke?: string };
@@ -34,7 +36,6 @@ const FAC_TONE: Record<string, string> = { fin: "#ff9500", other: "#8e8e93", c36
 const MARKER_TONE: Record<Marker["tone"], string> = { removed: "#d70015", new: "#18782f", focus: "#1d1d1f" };
 const BANK_TONE = "#af52de";
 const CARE_TONE = { PHARMACY: "#30b0c7", CLINIC: "#ff2d55" } as const;
-const WEEK = ["", "월", "화", "수", "목", "금", "토", "일", "공휴일"];
 
 // 긴 작업을 나눌 때 브라우저에 차례를 넘김 (scheduler.yield 가 있으면 우선순위를 지킨 채로)
 function yieldToMain(): Promise<void> {
@@ -254,7 +255,7 @@ export default function AtlasMap<P extends { admCd: string; admNm: string }>(pro
       const sw = b.getSouthWest(), ne = b.getNorthEast();
       try {
         const res = await api<Page<Facility>>(`/facilities${qs({
-          bbox: [sw.getLng(), sw.getLat(), ne.getLng(), ne.getLat()].map((v: number) => v.toFixed(5)).join(","),
+          bbox: bboxParam(sw.getLng(), sw.getLat(), ne.getLng(), ne.getLat()),
           types: facilities.types.join(","), finOnly: facilities.finOnly || undefined, size: 3000 })}`);
         if (my !== seq) return;
         clear();
@@ -297,7 +298,7 @@ export default function AtlasMap<P extends { admCd: string; admNm: string }>(pro
       const b = map.current.getBounds();
       const sw = b.getSouthWest(), ne = b.getNorthEast();
       try {
-        const res = await api<{ items: Bank[] }>(`/banks${qs({ bbox: [sw.getLng(), sw.getLat(), ne.getLng(), ne.getLat()].map((v: number) => v.toFixed(5)).join(","), size: 3000 })}`);
+        const res = await api<{ items: Bank[] }>(`/banks${qs({ bbox: bboxParam(sw.getLng(), sw.getLat(), ne.getLng(), ne.getLat()), size: 3000 })}`);
         if (my !== seq) return;
         clear();
         for (const p of res.items) {
@@ -338,16 +339,14 @@ export default function AtlasMap<P extends { admCd: string; admNm: string }>(pro
       const b = map.current.getBounds();
       const sw = b.getSouthWest(), ne = b.getNorthEast();
       try {
-        const res = await api<{ items: CarePlace[] }>(`/care${qs({ bbox: [sw.getLng(), sw.getLat(), ne.getLng(), ne.getLat()]
-          .map((v: number) => v.toFixed(5)).join(","), holidayOnly: careHolidayOnly || undefined, size: 3000 })}`);
+        const res = await api<{ items: CarePlace[] }>(`/care${qs({ bbox: bboxParam(sw.getLng(), sw.getLat(), ne.getLng(), ne.getLat()), holidayOnly: careHolidayOnly || undefined, size: 3000 })}`);
         if (my !== seq) return;
         clear();
         for (const p of res.items) {
           const div = document.createElement("div");
           div.className = "care-dot";
           div.style.background = CARE_TONE[p.kind];
-          const hours = Object.entries(p.hours || {}).filter(([d]) => ["1", "6", "7", "8"].includes(d))
-            .map(([d, [a, z]]) => `${WEEK[Number(d)]} ${a.slice(0, 2)}:${a.slice(2)}~${z.slice(0, 2)}:${z.slice(2)}`).join(" · ");
+          const hours = careHoursText(p.hours);
           div.title = `${p.name} (${p.divName || ""})${hours ? ` — ${hours}` : ""}`;
           careOverlays.current.push(new kakao.maps.CustomOverlay({ map: map.current, position: new kakao.maps.LatLng(p.lat, p.lon),
             content: div, zIndex: 4 }));
@@ -368,26 +367,23 @@ export default function AtlasMap<P extends { admCd: string; admNm: string }>(pro
     labelOverlays.current.forEach((o) => o.setMap(null));
     const items = (labels || []).map((l) => ({
       pos: new kakao.maps.LatLng(l.lat, l.lon),
-      // 화면 폭 추정(글자 수 × 약 7px) — 겹침 판정용
-      w: ((l.title.length + (l.value?.length || 0)) * 7 + 28), h: 22,
+      ...labelSize(l.title, l.value),   // 화면 크기 추정 — 겹침 판정용
       ov: new kakao.maps.CustomOverlay({ position: new kakao.maps.LatLng(l.lat, l.lon), yAnchor: 0.5, zIndex: 7, clickable: false,
         content: `<div class="map-label ${l.tone ? `map-label-${l.tone}` : ""}"><b>${esc(l.title)}</b>${l.value ? `<span>${esc(l.value)}</span>` : ""}</div>` }),
     }));
     labelOverlays.current = items.map((x) => x.ov);
     // 겹치는 라벨은 우선순위(배열 순서)가 낮은 쪽을 숨김 — 확대하면 다시 나타남
-    const declutter = () => {
+    const place = () => {
       const proj = map.current.getProjection();
-      const kept: { x: number; y: number; w: number; h: number }[] = [];
-      for (const it of items) {
+      const show = declutter(items.map((it) => {
         const pt = proj.containerPointFromCoords(it.pos);
-        const box = { x: pt.x - it.w / 2, y: pt.y - it.h / 2, w: it.w, h: it.h };
-        const hit = kept.some((k) => box.x < k.x + k.w + 4 && k.x < box.x + box.w + 4 && box.y < k.y + k.h + 2 && k.y < box.y + box.h + 2);
-        if (hit) it.ov.setMap(null); else { kept.push(box); it.ov.setMap(map.current); }
-      }
+        return { x: pt.x - it.w / 2, y: pt.y - it.h / 2, w: it.w, h: it.h };
+      }));
+      items.forEach((it, i) => it.ov.setMap(show[i] ? map.current : null));
     };
-    declutter();
-    kakao.maps.event.addListener(map.current, "idle", declutter);
-    return () => { kakao.maps.event.removeListener(map.current, "idle", declutter); items.forEach((x) => x.ov.setMap(null)); };
+    place();
+    kakao.maps.event.addListener(map.current, "idle", place);
+    return () => { kakao.maps.event.removeListener(map.current, "idle", place); items.forEach((x) => x.ov.setMap(null)); };
   }, [ready, labels]);
 
   useEffect(() => {
