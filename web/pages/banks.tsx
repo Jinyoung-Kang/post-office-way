@@ -78,11 +78,9 @@ export default function BanksPage() {
   const noData = !!err && /CALC_RUN_NOT_FOUND|BANK_IMPACT_NOT_FOUND|완료된 계산/.test(err);
   const sm = list?.summary;
   const pages = list ? Math.max(1, Math.ceil(list.total / SIZE)) : 1;
+  // 등급 버튼 글자는 고정 — 개수를 붙이면 자료가 온 뒤 버튼이 넓어져 화면이 밀림(CLS). 개수는 위 통계 카드에
   const gradeOpts: { value: Grade; label: string }[] = [
-    { value: "", label: `전체${sm ? ` ${num(sm.branches)}` : ""}` },
-    { value: "HIGH", label: `높음${sm ? ` ${num(sm.high)}` : ""}` },
-    { value: "MID", label: `보통${sm ? ` ${num(sm.mid)}` : ""}` },
-    { value: "LOW", label: `낮음${sm ? ` ${num(sm.low)}` : ""}` },
+    { value: "", label: "전체" }, { value: "HIGH", label: "영향 높음" }, { value: "MID", label: "보통" }, { value: "LOW", label: "낮음" },
   ];
 
   return (
@@ -97,7 +95,7 @@ export default function BanksPage() {
         {!(err && !list) && (
           <div className="rise grid grid-cols-2 gap-3 md:grid-cols-4" aria-busy={!sm}>
             <Stat label={sido ? "평가한 은행 지점 (선택 지역)" : "평가한 은행 지점"} value={sm ? `${num(sm.branches)}곳` : "—"}
-              note={list?.banks.fullCrawlAt ? `전수 수집 ${dt(list.banks.fullCrawlAt)} · 새마을금고·저축은행 제외` : "전수 수집 기준 · 새마을금고·저축은행 제외"} />
+              note="전수 수집 기준 · 새마을금고·저축은행 제외" />   {/* 수집 시각은 상세 아래 '자료'에 — 글이 길어지면 모바일에서 줄이 늘어 아래가 밀림 */}
             <Stat label="영향 높음" value={sm ? `${num(sm.high)}곳` : "—"} tone={sm ? "bad" : undefined}
               note={sm ? `보통 ${num(sm.mid)} · 낮음 ${num(sm.low)}` : "보통 — · 낮음 —"} />
             <Stat label="새로 2km 안 대체 창구를 잃는 주민" value={sm ? `${num(sm.lostPpltn)}명` : "—"}
@@ -107,15 +105,16 @@ export default function BanksPage() {
           </div>
         )}
 
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_460px]">
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_460px]">
           <Card title="은행 지점" pad={false}
             right={<div className="flex flex-wrap items-center gap-2">
-              <select name="sido" className="field w-auto py-1.5 text-[13px]" value={sido} aria-label="시도"
+              {/* 너비 고정 — 시도 목록이 늦게 오면 선택 상자가 넓어지며 머리글이 줄바꿈돼 아래가 밀렸음(CLS) */}
+              <select name="sido" className="field w-34 py-1.5 text-[13px]" value={sido} aria-label="시도"
                 onChange={(e) => { setSido(e.target.value); setPageStr("1"); setId(""); }}>
                 <option value="">전국</option>
                 {regions.map((r) => <option key={r.admCd} value={r.admCd}>{r.admNm}</option>)}
               </select>
-              <select name="sort" className="field w-auto py-1.5 text-[13px]" value={sort} aria-label="정렬"
+              <select name="sort" className="field w-56 py-1.5 text-[13px]" value={sort} aria-label="정렬"
                 onChange={(e) => { setSort(e.target.value as Sort); setPageStr("1"); setId(""); }}>
                 {SORTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
               </select>

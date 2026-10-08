@@ -42,6 +42,9 @@
     값 형식을 믿지 않고 문자열로만 다룸(퍼징에서 숫자 값이 500 을 내 고침). 일부러 막아 둔 카카오 SDK 의 eval 과 확장 프로그램은 무시.
   - `report-to`(Reporting API)는 로컬 http 에서 Chrome 의 업로드가 재시도만 반복하고 도착하지 않았고, 함께 쓰면 `report-uri` 가
     무시돼 `report-uri` 만 쓴다(https 배포 때 추가 가능). 브라우저 실제 위반 → 서버 기록까지 끝에서 끝으로 확인.
+- **npm 취약점(10월 공개분)**: sharp 0.35.4·source-map-js 1.2.1(같은 메이저 수정판) · Next.js 15.5.26 → 15.5.27(자체 호스팅 SSG/ISR
+  캐시 오염) · Tailwind 3 빌드 도구 사슬(braces 등, 고친 판 없음) → Tailwind 4 전환([ADR-021](ADR-021-tailwind4.md)). 개발용 포함 0건.
+  pip-audit(도보 의존성 osmium·numpy·scipy 포함) 0건.
 
 ## 남는 위험
 - 로컬 전용 서비스라 TLS·HSTS 는 없다(공개 배포 시 리버스 프록시에서 종료).

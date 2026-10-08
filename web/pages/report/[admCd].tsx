@@ -105,7 +105,7 @@ export default function ReportPage() {
                         <td className={`num font-semibold ${worse ? "text-[#d70015]" : ""}`}>{withUnit(m.value, m.unit)}</td>
                         <td className="num text-ink-2">{withUnit(m.median, m.unit)}</td>
                         <td className="whitespace-nowrap text-[13px]">
-                          <span className="tnum inline-block w-[8.5rem]">{rankText(m)}</span>
+                          <span className="tnum inline-block w-34">{rankText(m)}</span>
                           {m.percentile != null && <span className="ml-2 inline-block h-1.5 w-20 rounded-full bg-surface align-middle" aria-hidden="true">
                             <span className="block h-1.5 rounded-full bg-[#4479bf]" style={{ width: `${m.percentile}%` }} /></span>}
                         </td>
@@ -118,9 +118,9 @@ export default function ReportPage() {
                 {r.walk ? " ‘걸어서’ 지표는 OSM 보행 도로망 · 고령자 0.8m/s." : " 도보 지표는 아직 계산 전입니다."}</p>
             </Card>
 
-            <Card title="읍면동" right={<div className="no-print"><Segmented ariaLabel="읍면동 지표" value={view} onChange={setView}
+            <Card title="읍면동" right={<div className="no-print min-w-0 max-w-full"><Segmented ariaLabel="읍면동 지표" value={view} onChange={setView}
               options={EMD_VIEWS.map((x) => ({ value: x.code, label: x.label }))} /></div>}>
-              <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+              <div className="grid grid-cols-1 gap-5 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
                 <div>
                   <MiniMap features={emdFeatures} label={`${r.area.admNm} 읍면동별 ${v.label}`} />
                   <div className="mt-2 flex flex-wrap items-center gap-2 text-[12px] text-ink-2" aria-label="범례">
@@ -189,7 +189,7 @@ export default function ReportPage() {
 
             {r.visit && r.visit.days.length > 0 && (
               <Card title="방문 여건 (오늘~모레, 09~18시)">
-                <div className="grid gap-3 sm:grid-cols-3">{r.visit.days.map((d) => (
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">{r.visit.days.map((d) => (
                   <div key={d.date} className="rounded-[14px] bg-surface p-4">
                     <div className="flex items-center justify-between text-[13px]"><span className="font-medium">{d.dayLabel} {d.date.slice(5).replace("-", ".")}</span>
                       {d.closed ? <span className="badge badge-warn">휴무 · {d.closedReason}</span>

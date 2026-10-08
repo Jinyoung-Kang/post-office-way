@@ -175,7 +175,16 @@ VISIT-1(09~18시 비·눈·더위·추위·바람·미세먼지 → 좋음/주�
 
 ---
 
-## 5. 아키텍처
+## 5. 기술 스택 · 아키텍처
+
+| 영역 | 사용 |
+|---|---|
+| 백엔드 | Python 3.11 · FastAPI 0.141 · SQLAlchemy 2.0 · psycopg 3 · Pydantic 2 · uvicorn |
+| 데이터 | PostgreSQL 16 + PostGIS 3.6(공간 조인·KNN·GiST) · Redis 7(캐시·속도 제한) · Postgres 작업 큐(`SKIP LOCKED`·`LISTEN/NOTIFY`) |
+| 분석 | SQL 지표 계산(calc_run 단위) · numpy · scipy(KD-tree) · pyosmium(OSM) · k-최근접 다중 출발 다익스트라(직접 구현) |
+| 프론트엔드 | Next.js 15.5(pages router) · React 18 · TypeScript 5.9 · Tailwind CSS 4.3 · Recharts · Kakao 지도 Web API · SVG(보고서 지도) |
+| 운영·보안 | Docker Compose(비루트·읽기 전용 FS·`cap_drop: ALL`) · Prometheus 지표 · GitHub Actions · CodeQL · Dependabot · gitleaks · pip-audit · npm audit |
+| 검증 | pytest(PostGIS 테스트 DB) · Vitest · Playwright · axe-core · Lighthouse (`make test` · `make qa`) |
 
 ```
 브라우저 ─▶ web (Next.js 15, CSP, 비루트) ─ /api/v1 ─▶ api (FastAPI, uvicorn×2, 읽기 전용 FS)
@@ -262,23 +271,15 @@ gzip 캐시 + ETag 304, 순위 사전 계산, `json`→`text` 전달, 입력 버
 | 테스트 | Python 188 (k-최근접 정답 비교·은행 지점 영향·도보·CSP 보고·워커 차선·DB 끊김 복구·최소 권한 포함) · 웹 12 |
 | API 퍼징 (경계값·비정상 입력 647건) | 5xx 4건(09-26) · 1건(10-08 CSP 보고) → **0건** |
 | 11개 화면 상호작용 크롤링 · 네트워크(22개 상태) | 콘솔·페이지·HTTP 오류 0 · 중복 요청·평문 외부 요청·CSP 위반 0 |
-| 접근성 (axe-core, WCAG 2.1 AA) · 모바일 가로 넘침 | 위반 0 · 0 (11개 화면) |
-| Lighthouse 모바일 (3회 중앙값) | 성능 100: 생활 거점·은행 지점·What-if·데이터·운영, 92~99: 한눈에·지역 순위·배치 제안·보고서·지표 정의, 지도 85·방문 여건 89. 접근성·SEO 모두 100, CLS 0~0.009 |
+| 접근성 (axe-core, WCAG 2.1 AA) · 모바일 가로 넘침 | 위반 0 · 0 (11개 화면, 375px 실제 폭 기준 — 이전 검사가 놓친 넘침 5곳 수정) |
+| Lighthouse 모바일 (3회 중앙값) | 성능 100: 한눈에·생활 거점·은행 지점·What-if·배치 제안·데이터·운영, 92~98: 지역 순위·보고서·지표 정의, 지도·방문 여건 88. 접근성·SEO 모두 100, CLS 0~0.009 |
 | 외부 변경 감지 | 카카오 SDK CDN 이동으로 지도가 막힌 일 → CSP 위반 보고가 오류 로그에 바로 남도록 |
-
----|---|
-| 테스트 | Python 167 (워커 차선·DB 끊김 복구·최소 권한·보안 헤더 포함) · 웹 11 |
-| API 퍼징 (경계값·비정상 입력 534건) | 처음 5xx 4건 → **0건** |
-| 9개 메뉴 상호작용 크롤링 · 중복 요청 | 콘솔·페이지·HTTP 오류 0 · 중복 요청 2건 → 0 |
-| 접근성 (axe-core, WCAG 2.1 AA) · 모바일 가로 넘침 | 위반 0 · 0 |
-| Lighthouse 모바일 (3회 중앙값) | 성능 100: 한눈에·생활 거점·지역 순위·What-if·배치 제안·데이터·운영 / 지도 91 · 방문 여건 92 · 지표 정의 94. 접근성·SEO 모두 100, CLS 0~0.004 |
-| 혼합 콘텐츠 | 카카오 SDK 평문 요청 24건 → 0 (CSP `upgrade-insecure-requests`) |
 
 ---
 
 ## 8. 한계
 
-- 거리는 직선거리이고 대표점 1개(지역) 또는 집계구 대표점으로 판정합니다. 산지·하천 우회는 도로 거리 지표에서만 반영됩니다.
+- 기본 거리는 직선거리이고 대표점 1개(지역) 또는 집계구 대표점으로 판정합니다. 산지·하천 우회는 도로 거리·도보 지표에서만 반영됩니다.
 - 시설은 수집 시점, 인구는 SGIS 통계 연도·KOSIS 기준월(기본 2024-12)이라 시점 차이가 있습니다.
 - `AGED65_FAR_PPLTN`·`POST_ONLY_PPLTN`·`FIN_DESERT_PPLTN` 은 읍면동 전체를 한 점으로 판정한 추정치입니다.
 - 은행 지점은 카카오 장소 전수 수집 기준이라 공식 점포 목록이 아닙니다(출장소 포함, 폐점 반영 시차). 은행대리업 대상 은행은 보도 기준 가정.

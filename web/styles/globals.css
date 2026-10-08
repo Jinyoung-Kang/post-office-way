@@ -1,6 +1,24 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+/* Tailwind 4 — v3 의 tailwind.config.js 테마를 CSS 로. 콘텐츠 경로는 v4 가 자동으로 찾음(.gitignore 제외) */
+@theme {
+  /* 2·3 단계 회색은 흰 바탕·회색 바탕 모두 WCAG AA(4.5:1) 이상 — axe 검사로 확인 (#86868b 는 3.6:1 이라 미달) */
+  --color-ink: #1d1d1f;
+  --color-ink-2: #515154;
+  --color-ink-3: #6e6e73;
+  --color-surface: #f5f5f7;
+  --color-accent: #0071e3;
+  --color-line: rgba(0, 0, 0, 0.08);
+  --container-page: 1024px;   /* max-w-page */
+  --container-wide: 1200px;   /* max-w-wide */
+}
+
+/* v4 에서 바뀐 기본값을 v3 와 같게 — 테두리 색(currentColor → gray-200), 버튼 커서(default → pointer), 입력 안내 글자 색 */
+@layer base {
+  *, ::after, ::before, ::backdrop, ::file-selector-button { border-color: var(--color-gray-200, currentcolor); }
+  button:not(:disabled), [role="button"]:not(:disabled) { cursor: pointer; }
+  input::placeholder, textarea::placeholder { color: var(--color-gray-400); }
+}
 
 /* ---------------------------------------------------------------------------
    디자인 토큰 — apple.com 톤: 밝은 회색 바탕(#f5f5f7), 흰 카드, #1d1d1f 본문, #0071e3 강조
@@ -22,14 +40,18 @@
   --glass: rgba(255, 255, 255, 0.72);
 }
 
-html, body { background: var(--bg); color: var(--text); }
-body {
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Apple SD Gothic Neo",
-    "Pretendard", "Noto Sans KR", "Helvetica Neue", sans-serif;
-  -webkit-font-smoothing: antialiased; font-size: 15px; letter-spacing: -0.01em; line-height: 1.47;
+/* 요소 기본 스타일은 base 레이어에 — v4 는 브라우저 기본 cascade layer 를 써서, 레이어 밖에 두면 명시도와 상관없이
+   components·utilities(.gnav a.item, text-ink 등)를 이김 (전환 직후 메뉴 글자가 링크 색으로 바뀌었던 원인) */
+@layer base {
+  html, body { background: var(--bg); color: var(--text); }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Apple SD Gothic Neo",
+      "Pretendard", "Noto Sans KR", "Helvetica Neue", sans-serif;
+    -webkit-font-smoothing: antialiased; font-size: 15px; letter-spacing: -0.01em; line-height: 1.47;
+  }
+  ::selection { background: rgba(0, 113, 227, 0.2); }
+  a { color: var(--link); }
 }
-::selection { background: rgba(0, 113, 227, 0.2); }
-a { color: var(--link); }
 
 /* 컴포넌트 클래스는 components 레이어에 둬서 w-auto 같은 유틸리티가 덮어쓸 수 있게 (밖에 두면 .field 의 width:100% 가 이김) */
 @layer components {
@@ -80,7 +102,10 @@ a { color: var(--link); }
 p .link, li .link, p > a:not(.btn):not(.btn-ghost):not(.badge) { text-decoration: underline; text-underline-offset: 2px; }
 
 /* 세그먼트 컨트롤 */
-.seg { display: inline-flex; background: var(--fill); border-radius: 9px; padding: 2px; gap: 2px; }
+/* 화면보다 길면 줄을 넘기지 않고 가로로 밀어 봄 — 방문 여건 날짜 탭(4개)이 375px 화면 밖으로 나가 페이지 전체가 축소됐음 */
+.seg { display: inline-flex; background: var(--fill); border-radius: 9px; padding: 2px; gap: 2px;
+  max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+.seg::-webkit-scrollbar { display: none; }
 .seg button { border-radius: 7px; padding: 5px 12px; font-size: 13px; font-weight: 500; color: var(--text); white-space: nowrap; }
 .seg button.on { background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 0 0 0.5px rgba(0, 0, 0, 0.04); }
 
@@ -92,7 +117,8 @@ select.field { appearance: none; padding-right: 32px;
   background-repeat: no-repeat; background-position: right 12px center; }
 
 /* 표 */
-.tbl { width: 100%; font-size: 14px; border-collapse: collapse; }
+/* relative — 표 안의 화면 낭독용 글자(sr-only, absolute)가 가로 스크롤 상자 밖으로 새어 페이지 폭을 늘리지 않게 */
+.tbl { position: relative; width: 100%; font-size: 14px; border-collapse: collapse; }
 .tbl th { text-align: left; font-weight: 500; color: var(--text-3); font-size: 12px; padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
 .tbl td { padding: 11px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
 .tbl tr:last-child td { border-bottom: 0; }

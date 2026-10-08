@@ -38,7 +38,9 @@ async def main() -> None:
         pg = await mob.new_page()
         for u in PAGES:
             await pg.goto(WEB + u, wait_until="networkidle"); await pg.wait_for_timeout(1500)
-            over = await pg.evaluate("document.documentElement.scrollWidth - window.innerWidth")
+            # 모바일 에뮬레이션에서는 내용이 넓으면 브라우저가 화면을 축소해 innerWidth 도 함께 커짐 → 넘침이 0 으로 보였음.
+            # 실제 화면 폭(375)과 비교
+            over = await pg.evaluate("Math.max(document.documentElement.scrollWidth, window.innerWidth) - 375")
             if over > 0:
                 problems.append(f"{u} 모바일 375px 가로 넘침 {over}px")
         await b.close()

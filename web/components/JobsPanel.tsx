@@ -64,7 +64,7 @@ export default function JobsPanel() {
         관리 API·스케줄이 넣은 작업을 워커가 실행합니다(Postgres 작업 큐). 오래 걸리는 도로 거리·영업점 수집과 예보 같은 짧은 작업은
         차선을 나눠 서로 막지 않고, 수집이 끝나면 지표 재계산이 자동으로 이어집니다.
       </p>
-      <div className="grid gap-5 px-3 pb-3 lg:grid-cols-[1fr_320px]">
+      <div className="grid grid-cols-1 gap-5 px-3 pb-3 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="overflow-x-auto">
           {!jobs ? <TableSkeleton rows={5} /> : jobs.length ? (
             <table className="tbl">

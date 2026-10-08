@@ -123,7 +123,7 @@ export default function HubsPage() {
           ) : <div className="px-6 pb-6"><Empty>조건에 맞는 우체국이 없습니다.</Empty></div>}
         </Card>
 
-        <div className="grid gap-5 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
           <Card title="마지막 거점 인구가 많은 시군구"
             right={<Link href="/rankings?metric=POST_SOLE_HUB_PPLTN" className="link">전체 순위 ›</Link>}>
             {sum?.topAreas.length ? (

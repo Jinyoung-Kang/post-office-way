@@ -64,8 +64,8 @@ export default function ErrorLog({ clientErrors = [] }: { clientErrors?: string[
               className={`badge shrink-0 ${src === s ? "badge-error" : "badge-info"}`}>{s} {counts[s] || 0}</button>
           ))}
         </div>
-        {!items ? <Skeleton className="h-[240px] w-full !rounded-[12px]" /> : (
-          <ol className="h-[240px] overflow-auto rounded-[12px] bg-[#1d1d1f] p-2 font-mono text-[12px] leading-relaxed text-[#f5f5f7]">
+        {!items ? <Skeleton className="h-[240px] w-full rounded-[12px]!" /> : (
+          <ol className="h-[240px] overflow-auto rounded-[12px] bg-ink p-2 font-mono text-[12px] leading-relaxed text-surface">
             {all.length === 0 && <li className="px-2 py-1 text-[#7ee29a]">최근 14일 동안 기록된 오류가 없습니다.</li>}
             {shown.map((e, i) => (
               <li key={`${e.line}-${i}`} className="group/log flex items-start gap-2 rounded-[6px] px-2 py-1 hover:bg-white/10">

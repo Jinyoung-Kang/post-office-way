@@ -83,7 +83,7 @@ export default function PlanPage() {
     <Layout title="배치 제안">
       <MapWarmup />
       <Hero title="어디를, 어떻게." sub="범위를 고르면 ‘닫아도 영향이 가장 작은 우체국 조합’과 ‘새로 열면 효과가 가장 큰 자리’를 계산합니다. 탐욕법 근사이며 결정 근거가 아닌 검토용입니다." />
-      <div className="mx-auto grid max-w-wide gap-5 px-4 pb-20 lg:grid-cols-[360px_1fr]">
+      <div className="mx-auto grid max-w-wide grid-cols-1 gap-5 px-4 pb-20 lg:grid-cols-[360px_minmax(0,1fr)]">
         <div className="space-y-5">
           <Card title="조건">
             <div className="space-y-4">
@@ -100,7 +100,7 @@ export default function PlanPage() {
               </div>
               <div>
                 <p className="group-label">{mode === "close" ? "닫을" : "열"} 곳 수 · {k}곳</p>
-                <input name="k" type="range" min={1} max={7} value={k} onChange={(e) => setK(Number(e.target.value))} className="w-full accent-[#0071e3]" aria-label="개수" />
+                <input name="k" type="range" min={1} max={7} value={k} onChange={(e) => setK(Number(e.target.value))} className="w-full accent-accent" aria-label="개수" />
               </div>
               <div>
                 <p className="group-label">누구를 기준으로</p>

@@ -69,7 +69,7 @@ export default function Quality() {
           </div>
         )}
 
-        <div className="grid items-start gap-5 md:grid-cols-2">
+        <div className="grid grid-cols-1 items-start gap-5 md:grid-cols-2">
           {[...(sum?.runs || [])].sort((a, b) => KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind)).map((b) => (
             <Card key={b.runId} title={KIND_LABEL[b.kind] || b.kind}
               right={<span className="flex items-center gap-2 text-[12px] text-ink-3"><span className={`badge ${STATUS[b.status] || "badge-info"}`}>{b.status}</span>{dt(b.checkedAt)}</span>}>
@@ -133,9 +133,9 @@ export default function Quality() {
           ) : <div className="px-6 pb-6"><Empty>조건에 맞는 이슈가 없습니다.</Empty></div>}
         </Card>
 
-        <div className="grid gap-5 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
           <Card title="최근 수집" pad={false}>
-            <div className="px-3 pb-3">
+            <div className="overflow-x-auto px-3 pb-3">
               <table className="tbl">
                 <thead><tr><th>종류</th><th>상태</th><th className="num">행</th><th className="num">호출</th><th>시작</th></tr></thead>
                 <tbody>
@@ -153,7 +153,7 @@ export default function Quality() {
             </div>
           </Card>
           <Card title="최근 계산" pad={false}>
-            <div className="px-3 pb-3">
+            <div className="overflow-x-auto px-3 pb-3">
               <table className="tbl">
                 <thead><tr><th>calcRun</th><th>상태</th><th className="num">지역</th><th className="num">시설</th><th className="num">소요</th></tr></thead>
                 <tbody>

@@ -29,7 +29,7 @@ export default function MetricsAbout() {
             {groupMetrics(d.items).map((g) => (
             <section key={g.label} id={`g-${g.label}`} className="scroll-mt-16 space-y-3">
             <h2 className="px-1 text-[21px] font-semibold tracking-tight">{g.label}</h2>
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               {g.items.map((m) => (
                 <section key={m.code} className="card p-6">
                   <div className="flex items-start justify-between gap-3">
@@ -55,7 +55,7 @@ export default function MetricsAbout() {
               </ol>
               <p className="mt-3 text-[13px] text-ink-2">해석이 바뀌면 규칙 버전을 올리고 새 calc_run 으로 다시 계산합니다(이전 결과 보존).</p>
             </Card>
-            <div className="grid gap-5 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
               <Card title="VISIT-1 · 방문 여건" right={<a href="/today" className="link text-[13px]">화면 ›</a>}>
                 <p className="text-[14px] text-ink-2">시군구 대표점의 기상청 5km 격자 · 09~18시 시간 예보 + 에어코리아 권역 예보. 가장 나쁜 항목이 그날 등급입니다.</p>
                 <ul className="mt-3 space-y-1 text-[14px]">
@@ -75,7 +75,7 @@ export default function MetricsAbout() {
                 </ul>
               </Card>
             </div>
-            <div className="grid gap-5 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
               <Card title="BANK-IMPACT-1 · 은행 지점 영향" right={<a href="/banks" className="link text-[13px]">화면 ›</a>}>
                 <ul className="space-y-2 text-[14px] text-ink-2">
                   <li><b className="text-ink">이용 주민</b> — 그 은행 지점이 가장 가까운 은행 지점인 집계구 인구(새마을금고·저축은행 제외).</li>

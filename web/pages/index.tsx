@@ -285,7 +285,7 @@ function Toggle({ label, on, onChange, small }: { label: string; on: boolean; on
       <span className="relative inline-flex">
         <input type="checkbox" name={label} className="peer sr-only" checked={on} onChange={(e) => onChange(e.target.checked)} />
         <span className={`h-[22px] w-[38px] rounded-full transition-colors ${on ? "bg-[#34c759]" : "bg-[rgba(120,120,128,.24)]"}`} />
-        <span className={`absolute top-[2px] h-[18px] w-[18px] rounded-full bg-white shadow transition-transform ${on ? "translate-x-[18px]" : "translate-x-[2px]"}`} />
+        <span className={`absolute top-[2px] h-[18px] w-[18px] rounded-full bg-white shadow-sm transition-transform ${on ? "translate-x-[18px]" : "translate-x-[2px]"}`} />
       </span>
     </label>
   );

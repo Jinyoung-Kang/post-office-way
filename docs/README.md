@@ -28,6 +28,7 @@
 | [ADR-018](adr/ADR-018-bank-closure-impact.md) | 은행 지점 폐쇄 영향평가 — 전수 수집(사분할 격자)·이용 주민·대체 창구(은행대리업 우체국)·등급 규칙 |
 | [ADR-019](adr/ADR-019-walking-access.md) | 걸어서 가는 거리 — OSM 보행 그래프·k-최근접 다중 출발 탐색·워커 자식 프로세스 |
 | [ADR-020](adr/ADR-020-region-report.md) | 지역 한 장 보고서 — 서버에서 묶기·계산 버전 캐시·SVG 작은 지도·인쇄 |
+| [ADR-021](adr/ADR-021-tailwind4.md) | Tailwind CSS 4 전환 — 빌드 도구 취약점 해소, 전후 픽셀 비교, cascade layer 함정, 모바일 가로 넘침 |
 
 ## API (`http://localhost:8100/api/v1`, 자동 문서 `/docs`)
 

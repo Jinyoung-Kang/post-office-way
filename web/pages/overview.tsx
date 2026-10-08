@@ -72,7 +72,7 @@ export default function OverviewPage() {
             )}
 
             {(d.walk || d.banks) && (
-              <div className="rise grid gap-3 md:grid-cols-2">
+              <div className="rise grid grid-cols-1 gap-3 md:grid-cols-2">
                 {d.walk && (
                   <Link href="/rankings?metric=WALK30_NO_FIN_SHARE" className="card grid grid-cols-2 gap-4 p-5 text-ink no-underline hover:bg-white/90">
                     <div className="col-span-2 flex items-center justify-between">
@@ -122,7 +122,7 @@ export default function OverviewPage() {
               </div>
             </Card>
 
-            <div className="grid gap-5 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
               <TopList title="접근성 취약 점수 상위 시군구" unit="점" items={d.topGap} metric="ACCESS_GAP_SCORE" digits={1} />
               {d.topAgedFar.length > 0
                 ? <TopList title="2km 밖 고령인구가 많은 시군구" unit="명" items={d.topAgedFar} metric="AGED65_FAR_PPLTN" />
@@ -130,7 +130,7 @@ export default function OverviewPage() {
             </div>
 
             {(d.topPostOnly.length > 0 || d.topSoleHub.length > 0) && (
-              <div className="grid gap-5 md:grid-cols-2">
+              <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
                 {d.topPostOnly.length > 0 && <TopList title="우체국이 유일한 금융 창구인 인구가 많은 시군구" unit="명" items={d.topPostOnly} metric="POST_ONLY_PPLTN" />}
                 {d.topSoleHub.length > 0 && <TopList title="우체국이 마지막 생활 거점인 인구가 많은 시군구" unit="명" items={d.topSoleHub} metric="POST_SOLE_HUB_PPLTN" />}
               </div>

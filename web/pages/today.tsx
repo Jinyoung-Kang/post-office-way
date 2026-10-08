@@ -153,7 +153,7 @@ export default function TodayPage() {
             </Card>
 
             <Card title="이렇게 판정합니다">
-              <div className="grid gap-x-8 gap-y-2 text-[14px] text-ink-2 md:grid-cols-2">
+              <div className="grid grid-cols-1 gap-x-8 gap-y-2 text-[14px] text-ink-2 md:grid-cols-2">
                 <p><b className="text-ink">비</b> — 운영 시간에 비가 오면 주의, 합계 30mm 이상이거나 한 시간에 10mm 이상이면 나쁨</p>
                 <p><b className="text-ink">눈</b> — 눈·진눈깨비가 오면 주의, 쌓이는 눈이 1cm 이상이면 나쁨(빙판·낙상)</p>
                 <p><b className="text-ink">더위</b> — 최고 31℃ 이상 주의, 33℃ 이상 나쁨 (폭염특보 기준 참고)</p>

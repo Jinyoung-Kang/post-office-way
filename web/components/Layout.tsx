@@ -52,7 +52,7 @@ export default function Layout({ children, full, title }: { children: ReactNode;
   const today = useToday();
 
   return (
-    <div className={`flex flex-col ${full ? "h-[100dvh]" : "min-h-screen"}`}>
+    <div className={`flex flex-col ${full ? "h-dvh" : "min-h-screen"}`}>
       <Head><title>{title ? `${title} — 우체국 가는 길` : "우체국 가는 길"}</title></Head>
       <a href="#main" className="skip-link">본문으로 건너뛰기</a>
       <header className="gnav">
