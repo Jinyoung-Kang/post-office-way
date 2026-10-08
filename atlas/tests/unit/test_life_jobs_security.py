@@ -8,7 +8,7 @@ import pytest
 
 from atlas.api.etag import ETagMiddleware, _matches
 from atlas.api.security import ip_from_scope, rule_for
-from atlas.api.services.calendar import business_status
+from atlas.domain.calendar import business_status
 from atlas.collector.datago.client import items_of
 from atlas.collector.datago.holiday import parse_items as parse_holidays
 from atlas.domain.calendar import day_status, holiday_run

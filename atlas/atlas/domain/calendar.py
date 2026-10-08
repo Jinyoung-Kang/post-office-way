@@ -4,8 +4,10 @@
 """
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from typing import Any
+
+from atlas.domain.timeparse import parse_range
 
 WEEKDAY_KO = "월화수목금토일"
 
@@ -31,3 +33,19 @@ def holiday_run(d: date, holidays: dict[date, str]) -> list[date]:
     while day_status(hi + timedelta(days=1), holidays)["closed"]:
         hi += timedelta(days=1)
     return [lo + timedelta(days=i) for i in range((hi - lo).days + 1)]
+
+
+def business_status(finance_time: str | None, now: datetime, hol: dict[date, str]) -> dict[str, Any]:
+    """금융 창구 기준 지금 상태 — open / before / after / closed(휴무일) / unknown."""
+    st = day_status(now.date(), hol)
+    if st["closed"]:
+        return {"state": "closed", "label": f"오늘 휴무 · {st['reason']}", "reason": st["reason"]}
+    tr = parse_range(finance_time)
+    if tr is None or tr.is_zero:
+        return {"state": "unknown", "label": "금융 창구 시간 정보 없음", "reason": None}
+    t = now.hour * 60 + now.minute
+    if t < tr.start_min:
+        return {"state": "before", "label": f"영업 전 · {tr.start_str} 시작", "reason": None}
+    if t >= tr.end_min:
+        return {"state": "after", "label": f"오늘 영업 종료 · {tr.end_str}까지", "reason": None}
+    return {"state": "open", "label": f"영업 중 · {tr.end_str}까지", "reason": None}

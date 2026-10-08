@@ -13,6 +13,7 @@ from atlas.api.services import calendar as cal_svc
 from atlas.api.services import hubs as hub_svc
 from atlas.core.clock import now_kst
 from atlas.core.db import get_engine
+from atlas.domain.calendar import business_status
 
 router = APIRouter(prefix="/facilities", tags=["facilities"])
 BBOX_MAX_SIZE = 5000  # 지도 레이어용(bbox 지정 시)만 크게 허용
@@ -77,7 +78,7 @@ def facility_detail(hist_id: int):
         hol = cal_svc.holidays(c, now.date(), now.date())
     out = facility_json(dict(r))
     out["hub"] = hub
-    out["status"] = cal_svc.business_status(r["finance_time"], now, hol) if r["fin_available"] else None
+    out["status"] = business_status(r["finance_time"], now, hol) if r["fin_available"] else None
     out["validTo"] = jsonable(r["valid_to"])
     out["coordSource"] = r["coord_source"]
     out["geocheck"] = jsonable({"status": geo["status"], "distM": geo["dist_m"], "addrLat": geo["addr_lat"],
