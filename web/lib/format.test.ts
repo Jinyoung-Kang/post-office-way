@@ -74,3 +74,16 @@ describe("sentences", () => {
     expect(sentences("자료 2026. 09. 25. 오후 02:41 기준")).toHaveLength(1);
   });
 });
+
+describe("유한하지 않은 값", () => {
+  it("NaN·Infinity 는 '—' — 0 으로 나눈 비율 등이 '∞'·'— m'·'없음' 으로 보이지 않게", () => {
+    expect(num(Infinity)).toBe("—");
+    expect(num(-Infinity, 1)).toBe("—");
+    expect(dist(NaN)).toBe("—");
+    expect(dist(Infinity)).toBe("—");
+    expect(withUnit(NaN, "0/1")).toBe("—");
+    expect(withUnit(Infinity, "명")).toBe("—");
+    expect(withUnit(NaN, "%")).toBe("—");
+  });
+});
+

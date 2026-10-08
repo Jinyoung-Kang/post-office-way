@@ -1,18 +1,21 @@
 // 표기 규칙 — 없는 값은 '—' (NFR-07), 추정·가정이 들어간 값은 ⚠ 표시
 export const DASH = "—";
 
+// 없는 값·NaN·Infinity(0 으로 나눈 비율 등)는 모두 '—'
+const finite = (v: number | null | undefined): v is number => typeof v === "number" && Number.isFinite(v);
+
 export function num(v: number | null | undefined, digits = 0): string {
-  if (v === null || v === undefined || Number.isNaN(v)) return DASH;
+  if (!finite(v)) return DASH;
   return v.toLocaleString("ko-KR", { maximumFractionDigits: digits, minimumFractionDigits: 0 });
 }
 
 export function dist(m: number | null | undefined): string {
-  if (m === null || m === undefined) return DASH;
+  if (!finite(m)) return DASH;
   return m >= 1000 ? `${num(m / 1000, 2)} km` : `${num(m, 0)} m`;
 }
 
 export function withUnit(v: number | null | undefined, unit: string): string {
-  if (v === null || v === undefined) return DASH;
+  if (!finite(v)) return DASH;
   if (unit === "m") return dist(v);
   if (unit === "0/1") return v >= 1 ? "있음" : "없음";
   if (unit === "%") return `${num(v, 1)}%`;
