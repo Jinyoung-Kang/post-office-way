@@ -37,8 +37,15 @@ export default function JobsPanel() {
       const busy = j?.items.some((x) => x.status === "QUEUED" || x.status === "RUNNING");
       if (busy && document.visibilityState === "visible") timer = setTimeout(load, 10_000);
     };
+    // 탭이 숨겨지면 새로 고침을 멈추고, 다시 보이면 바로 한 번 받아 이어감 (예전에는 멈춘 채로 있었음)
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      if (timer) clearTimeout(timer);
+      load();
+    };
     load();
-    return () => { alive = false; if (timer) clearTimeout(timer); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => { alive = false; if (timer) clearTimeout(timer); document.removeEventListener("visibilitychange", onVisible); };
   }, []);
 
   const stale = (health?.queue?.oldestQueuedS ?? 0) > 600;
