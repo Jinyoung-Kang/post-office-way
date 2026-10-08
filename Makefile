@@ -224,7 +224,8 @@ $(QA_PY): scripts/qa/requirements.txt
 
 qa: $(QA_PY)
 	@test -f web/node_modules/axe-core/axe.min.js || (cd web && npm ci --silent)
-	@status=0; for s in fuzz crawl requests_check a11y sentences failures; do $(QA_PY) scripts/qa/$$s.py || status=1; done; exit $$status
+	@# 퍼징은 요청이 많아 같은 컴퓨터의 다른 점검과 속도 제한 버킷을 나눠 쓰므로 마지막에 (429 는 기다렸다 다시 보냄)
+	@status=0; for s in crawl requests_check a11y sentences failures fuzz; do $(QA_PY) scripts/qa/$$s.py || status=1; done; exit $$status
 
 qa-lh: $(QA_PY)
 	$(QA_PY) scripts/qa/lighthouse.py $(or $(N),3)

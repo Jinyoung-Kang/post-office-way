@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import json
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -14,16 +15,27 @@ from _common import API, report
 BAD = ["", "-1", "0", "abc", "99999999999999999999", "1.5", "'; DROP TABLE x;--", "%00", "../../etc", "가나다", "null", "[]", "3e9"]
 
 
+RETRIED = {"n": 0}
+
+
 def req(method: str, path: str, body=None) -> tuple[int, bytes]:
+    """한 건 요청. 속도 제한(429)에 걸리면 안내된 시간만큼 기다렸다 다시 보냄 — 막힌 요청은 처리 경로를 시험하지 못하므로
+    (예전에는 429 를 그대로 넘겨, 분당 한도를 넘는 뒤쪽 요청이 시험되지 않았을 수 있음)."""
     data = json.dumps(body).encode() if body is not None else None
-    r = urllib.request.Request(API + path, data=data, method=method, headers={"Content-Type": "application/json"})
-    try:
-        with urllib.request.urlopen(r, timeout=30) as x:
-            return x.status, x.read()[:200]
-    except urllib.error.HTTPError as e:
-        return e.code, e.read()[:200]
-    except Exception as e:  # 연결 실패도 문제로 보고
-        return 999, str(e).encode()
+    for _ in range(4):
+        r = urllib.request.Request(API + path, data=data, method=method, headers={"Content-Type": "application/json"})
+        try:
+            with urllib.request.urlopen(r, timeout=30) as x:
+                return x.status, x.read()[:200]
+        except urllib.error.HTTPError as e:
+            if e.code == 429:
+                RETRIED["n"] += 1
+                time.sleep(min(int(e.headers.get("retry-after") or 5), 61))
+                continue
+            return e.code, e.read()[:200]
+        except Exception as e:  # 연결 실패도 문제로 보고
+            return 999, str(e).encode()
+    return 429, b"rate limited after retries"
 
 
 def q(**k) -> str:
@@ -88,6 +100,8 @@ def main() -> None:
         st, body = req(*c)
         if st >= 500:
             bad.append(f"{st} {c[0]} {c[1]} {c[2] if len(c) > 2 else ''} → {body[:120]!r}")
+    if RETRIED["n"]:
+        print(f"  (속도 제한으로 {RETRIED['n']}번 기다렸다 다시 보냄)")
     report("fuzz", bad, f"{len(cs)}건 요청, 5xx 0건")
 
 
