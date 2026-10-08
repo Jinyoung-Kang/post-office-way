@@ -41,7 +41,8 @@ export default function Quality() {
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    cachedApi<Summary>("/dq/summary", 5_000).then(setSum)   // 머리글 배지와 같은 요청을 하나로 (운영 화면이라 짧게).catch((e) => setErr(e.message));
+    // 머리글 배지와 같은 요청을 하나로 (운영 화면이라 짧게). 예전에는 .catch 가 이 주석 안에 들어가 실패가 처리되지 않았음
+    cachedApi<Summary>("/dq/summary", 5_000).then(setSum).catch((e) => setErr(e.message));
     api<Page<CollectRun>>("/meta/collect-runs?size=12").then((r) => setRuns(r.items)).catch(() => null);
     api<Page<CalcRun>>("/meta/calc-runs?size=5").then((r) => setCalcs(r.items)).catch(() => null);
   }, []);

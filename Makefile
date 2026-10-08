@@ -224,7 +224,7 @@ $(QA_PY): scripts/qa/requirements.txt
 
 qa: $(QA_PY)
 	@test -f web/node_modules/axe-core/axe.min.js || (cd web && npm ci --silent)
-	@status=0; for s in fuzz crawl requests_check a11y sentences; do $(QA_PY) scripts/qa/$$s.py || status=1; done; exit $$status
+	@status=0; for s in fuzz crawl requests_check a11y sentences failures; do $(QA_PY) scripts/qa/$$s.py || status=1; done; exit $$status
 
 qa-lh: $(QA_PY)
 	$(QA_PY) scripts/qa/lighthouse.py $(or $(N),3)

@@ -40,6 +40,7 @@ export default function BanksPage() {
   const page = Math.max(1, Number(pageStr) || 1);
   const [list, setList] = useState<BankImpactList | null>(null);
   const [detail, setDetail] = useState<BankImpactDetail | null>(null);
+  const [detailErr, setDetailErr] = useState<string | null>(null);   // 목록 오류와 따로 — 목록이 성공해도 지워지지 않게
   const [geo, setGeo] = useState<Feature<CatchmentProps>[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -62,13 +63,14 @@ export default function BanksPage() {
   // 지점을 고르지 않았으면 목록 1위를 보여 줌(주소에는 남기지 않음)
   const selected = id || list?.items[0]?.placeId || "";
   useEffect(() => {
-    if (!selected) { setDetail(null); setGeo([]); return; }
+    if (!selected) { setDetail(null); setGeo([]); setDetailErr(null); return; }
     let alive = true;
+    setDetailErr(null);
     Promise.all([
       api<BankImpactDetail>(`/banks/impact/${encodeURIComponent(selected)}`),
       api<{ features: Feature<CatchmentProps>[] }>(`/banks/impact/${encodeURIComponent(selected)}/geojson`),
     ]).then(([d, g]) => { if (alive) { setDetail(d); setGeo(g.features); } })
-      .catch((e) => { if (alive) { setDetail(null); setGeo([]); setErr(e.message); } });
+      .catch((e) => { if (alive) { setDetail(null); setGeo([]); setDetailErr(e.message); } });
     return () => { alive = false; };
   }, [selected]);
 
@@ -160,7 +162,9 @@ export default function BanksPage() {
           </Card>
 
           <div ref={detailRef} className="space-y-5 lg:sticky lg:top-[64px] lg:self-start">
-            {detail ? <Detail d={detail} geo={geo} /> : <div className="card p-6"><TableSkeleton rows={6} /></div>}
+            {detail ? <Detail d={detail} geo={geo} />
+              : detailErr ? <ErrorBox error={detailErr} />
+              : <div className="card p-6"><TableSkeleton rows={6} /></div>}
           </div>
         </div>
 
