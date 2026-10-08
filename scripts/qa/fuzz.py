@@ -74,6 +74,8 @@ def cases() -> list[tuple]:
     for b in [None, {}, [], {"csp-report": None}, {"csp-report": {"blocked-uri": 1, "line-number": "x"}}, [{"type": "csp-violation"}],
               [{"type": "csp-violation", "body": {"blockedURL": "x" * 5000}}], "문자열", 12345]:
         out.append(("POST", "/csp-report", b))
+    for b in [None, {}, {"ids": []}, {"ids": ["api:1"]}, {"ids": ["api:1'--"]}, {"ids": [1]}, {"ids": "api:1"}]:   # 토큰 없음 → 400·401
+        out.append(("POST", "/admin/errors/ack", b))
     return out
 
 

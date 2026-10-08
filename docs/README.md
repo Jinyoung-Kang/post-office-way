@@ -51,9 +51,10 @@
 | `GET /calendar` | 영업일 달력 — 주말·공휴일 창구 휴무, 3일 이상 연휴 (`start`, `days`) |
 | `GET /dq/summary` · `GET /dq/issues` | 데이터 품질 요약 · 이슈 목록 |
 | `GET /meta/collect-runs` · `/meta/calc-runs` · `/meta/regions` | 수집·계산 실행 기록 · 시도/시군구 목록 |
-| `GET /meta/errors` | 오류 로그 — API 예외·작업·수집·계산 실패·품질 ERROR 를 시간순, 복사용 한 줄(`line`) 포함, 키 마스킹 |
+| `GET /meta/errors` | 오류 로그 — API 예외·작업·수집·계산 실패·품질 ERROR 를 시간순, 항목 `id`·복사용 한 줄(`line`) 포함, 키 마스킹, 지운 항목 제외 |
 | `GET /meta/jobs` · `GET /meta/schedule` | 작업 큐 최근 기록(요청 IP 제외) · 워커 스케줄과 다음 실행 시각 |
 | `POST /admin/jobs` · `GET /admin/jobs` · `POST /admin/jobs/{id}/cancel` | 작업 요청(202, 워커가 실행) · 관리자용 목록 · 대기 작업 취소 (`X-Admin-Token`) |
+| `POST /admin/errors/ack` | 오류 로그에서 지우기 `{"ids": ["api:12", "job:34"]}` — 확인 표시만, 원본 이력은 보존 (`X-Admin-Token`) |
 | `POST /admin/collect/{kind}` · `POST /admin/calc` | 이전 경로 호환 — 작업 큐로 넣음 |
 | `GET /metrics` (8100 직접) | Prometheus 지표 — 경로별 응답 시간·속도 제한·캐시 적중·304 |
 
@@ -80,6 +81,7 @@
 | V18 | 은행 지점 영향평가(`bank_impact`)·등급 함수, 도보 결과(`oa_walk`)·실행 기록(`walk_run`), 도보 지표 4개 |
 | V19 | 집계구별 가장 가까운 은행 지점·대체 창구 거리(`oa_bank`) |
 | V20 | 오류 로그 출처에 `csp`(CSP 위반 보고) |
+| V21 | `ops.error_ack` — 오류 로그 지우기(확인 표시, API 역할은 INSERT 만) |
 
 - 지표 계산 SQL: `atlas/atlas/sql/calc/00_snapshot.sql` ~ `11_bank_impact.sql` (계산 실행 `calc_run` 단위로 결과 보존)
 - 판정 규칙: 금융 가능 `R-FIN-01` (`domain/rules.py`), 방문 여건 `VISIT-1` (`domain/visit.py`), 영업일 (`domain/calendar.py`),

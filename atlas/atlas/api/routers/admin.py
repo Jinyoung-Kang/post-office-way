@@ -7,15 +7,18 @@ from __future__ import annotations
 
 import hmac
 import logging
+from typing import Annotated
 
 from fastapi import APIRouter, Header, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StringConstraints
+from sqlalchemy import text
 
 from atlas.api.common import jsonable
 from atlas.api.errors import ApiError
 from atlas.api.security import client_ip
 from atlas.core.config import get_settings
+from atlas.core.db import get_engine
 from atlas.jobs import queue, registry
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -28,6 +31,14 @@ def _auth(token: str | None) -> None:
         raise ApiError(503, "ADMIN_DISABLED", ".env 에 ADMIN_TOKEN 이 없어 관리 API 가 꺼져 있습니다.")
     if not token or not hmac.compare_digest(token.encode(), expected.encode()):
         raise ApiError(401, "UNAUTHORIZED", "X-Admin-Token 이 일치하지 않습니다.")
+
+
+# 오류 로그 항목 id — GET /meta/errors 의 items[].id 와 같은 형식 (V21 의 CHECK 와 같음)
+ErrorId = Annotated[str, StringConstraints(pattern=r"^(api|job|collect|calc|dq):[0-9a-f-]{1,40}$")]
+
+
+class ErrorAckRequest(BaseModel):
+    ids: list[ErrorId] = Field(min_length=1, max_length=500)
 
 
 class JobRequest(BaseModel):
@@ -82,3 +93,16 @@ def cancel_job(job_id: int, x_admin_token: str | None = Header(None)):
 def admin_jobs(limit: int = 50, x_admin_token: str | None = Header(None)):
     _auth(x_admin_token)
     return {"items": jsonable(queue.recent(min(max(limit, 1), 200), with_requester=True))}
+
+
+@router.post("/errors/ack", summary="오류 로그에서 지우기 — 확인 표시만 남기고 원본(작업·수집·품질 이력)은 보존")
+def ack_errors(req: ErrorAckRequest, request: Request, x_admin_token: str | None = Header(None)):
+    _auth(x_admin_token)
+    ip = client_ip(request)
+    with get_engine().begin() as c:
+        n = c.execute(text("""
+            INSERT INTO ops.error_ack (entry_id, acked_by)
+            SELECT DISTINCT unnest(CAST(:ids AS text[])), :ip
+            ON CONFLICT (entry_id) DO NOTHING"""), {"ids": req.ids, "ip": ip[:64]}).rowcount
+    log.info("admin error ack", extra={"count": n, "ip": ip})
+    return {"acked": n, "requested": len(req.ids)}

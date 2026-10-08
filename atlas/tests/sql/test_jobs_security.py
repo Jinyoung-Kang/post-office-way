@@ -171,7 +171,9 @@ def test_api_role_least_privilege(engine):
 
     assert as_api("SELECT count(*) FROM mart.admin_area")
     as_api("INSERT INTO ops.job (kind) VALUES ('calc')")
+    as_api("INSERT INTO ops.error_ack (entry_id) VALUES ('api:1') ON CONFLICT (entry_id) DO NOTHING")   # 오류 로그 지우기
     for bad in ("SELECT * FROM raw.api_response LIMIT 1", "DELETE FROM mart.access_metric",
+                "DELETE FROM ops.app_error", "DELETE FROM ops.error_ack",
                 "UPDATE ops.job SET kind = 'x'", "CREATE TABLE mart.x (a int)", "DROP TABLE mart.metric_def",
                 "SELECT * FROM stg.post_facility LIMIT 1"):
         with pytest.raises(DBAPIError, match="permission denied|must be owner"):
@@ -193,6 +195,35 @@ def test_error_log_collects_all_sources(client, fake_jobs):
     assert "serviceKey=***" in by["API"]["message"] and "SECRET123" not in by["API"]["line"]      # 키 마스킹
     assert by["작업"]["line"].split(" [작업] ")[1].startswith("#") and "수집 실패" in by["작업"]["line"]
     assert r["items"][0]["at"] >= r["items"][-1]["at"]                                           # 최신순
+
+
+def test_error_log_ack_hides_entry_but_keeps_source(client, fake_jobs, engine):
+    """지우기 = 확인 표시 — 관리 토큰 필요, 로그에서만 빠지고 원본(작업 이력)은 남음, 같은 항목 두 번은 1건."""
+    from atlas.api import errors as api_errors
+
+    queue.enqueue("boom")
+    worker.execute(queue.claim("w1"))
+    api_errors.record("trace456", "GET", "/api/v1/y", RuntimeError("boom"))
+    items = client.get("/api/v1/meta/errors").json()["items"]
+    ids = {i["source"]: i["id"] for i in items}
+    assert ids["작업"].startswith("job:") and ids["API"].startswith("api:")
+
+    body = {"ids": [ids["작업"]]}
+    assert client.post("/api/v1/admin/errors/ack", json=body).status_code == 401
+    assert client.post("/api/v1/admin/errors/ack", json=body, headers={"X-Admin-Token": "x" * 32}).status_code == 401
+    h = {"X-Admin-Token": "t" * 32}
+    for bad in ({"ids": []}, {"ids": ["job:1; DROP"]}, {"ids": ["x:1"]}, {"ids": ["api:1"] * 501}, {}):
+        r = client.post("/api/v1/admin/errors/ack", json=bad, headers=h)
+        assert r.status_code == 400 and r.json()["code"] == "VALIDATION_ERROR", bad
+    r = client.post("/api/v1/admin/errors/ack", json={"ids": [ids["작업"], ids["작업"]]}, headers=h).json()
+    assert r == {"acked": 1, "requested": 2}
+    assert client.post("/api/v1/admin/errors/ack", json=body, headers=h).json()["acked"] == 0      # 다시 지워도 그대로
+
+    left = {i["source"] for i in client.get("/api/v1/meta/errors").json()["items"]}
+    assert "작업" not in left and "API" in left
+    with engine.connect() as c:
+        assert c.execute(text("SELECT count(*) FROM ops.job WHERE status = 'FAILED'")).scalar() == 1   # 원본 이력은 그대로
+        assert c.execute(text("SELECT acked_by FROM ops.error_ack")).scalar()                        # 누가 지웠는지
 
 
 def test_long_job_does_not_block_short_lane(fake_jobs, monkeypatch, engine):
