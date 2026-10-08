@@ -380,9 +380,9 @@ def _csp(origin: str) -> dict:
 @pytest.mark.skipif(not os.environ.get("TEST_REDIS_URL"), reason="시간당 카운터는 Redis 가 필요 (make test 는 켬)")
 def test_csp_report_flood_is_capped_per_hour(client, engine, monkeypatch):
     """출처를 바꿔 가며 보내도(중복 억제가 안 통함) 시간당 상한까지만 오류 로그에 남김 (S7)."""
-    from atlas.api.routers import reports
+    from atlas.features import csp_reports
 
-    monkeypatch.setattr(reports, "HOURLY_MAX", 5)
+    monkeypatch.setattr(csp_reports, "HOURLY_MAX", 5)
     for i in range(20):
         client.post("/api/v1/csp-report", json=_csp(f"spam{i}.example"), headers={"Content-Type": "application/csp-report"})
     with engine.connect() as c:
