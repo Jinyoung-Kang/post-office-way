@@ -38,7 +38,7 @@
 | 메서드 · 경로 | 내용 |
 |---|---|
 | `GET /health` · `GET /health/live` | 준비 상태(DB·Redis·스키마·작업 큐·워커 차선별 생존 신호) · 프로세스 생존만 |
-| `GET /overview` | 전국 개요 — 시설·거리 분포·고령인구·금융 공백·취약 지역 |
+| `GET /overview` | 전국 개요 — 시설·거리 분포·고령인구·금융 공백·취약 지역 ('먼 거리' 기준은 응답의 `farKm`, 계산 설정을 따름) |
 | `GET /areas` · `/areas/geojson` · `/areas/{admCd}` | 지역 목록·순위 / 단계구분도 GeoJSON(캐시) / 지역 상세(최근접 3·은행·지표·인구) |
 | `GET /facilities` · `/facilities/{histId}` | 시설 목록(bbox·유형·검색) / 시설 상세 |
 | `GET /banks` | 은행·금고 지점 레이어 (bbox 필수, 대면 지점은 마지막 전수 수집 기준) |
