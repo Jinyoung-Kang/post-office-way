@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { api, qs, type Bank, type CarePlace, type Facility, type Feature, type Page } from "@/lib/api";
-import { loadKakao, toPaths } from "@/lib/kakao";
-import { bboxParam, declutter, labelSize } from "@/lib/mapGeom";
-import { careHoursText } from "@/lib/rules";
+import { qs, type Bank, type CarePlace, type Facility, type Feature, type Page } from "@/lib/api";
+import { useBboxLayer } from "@/hooks/useBboxLayer";
+import { useKakaoMap } from "@/hooks/useKakaoMap";
+import { toPaths } from "@/lib/kakao";
+import { declutter, labelSize } from "@/lib/mapGeom";
+import { careHoursText, isBankEvaluable } from "@/lib/rules";
 import { esc, tipHtml, type TipLines } from "@/lib/mapTip";
 
 export type Style = { fill: string; opacity?: number; stroke?: string };
@@ -49,41 +51,34 @@ export default function AtlasMap<P extends { admCd: string; admNm: string }>(pro
   const el = useRef<HTMLDivElement>(null);
   const map = useRef<any>(null);
   const kakaoRef = useRef<any>(null);
+  const { ready, err } = useKakaoMap(el, kakaoRef, map);
+  const km = { kakao: kakaoRef, map, ready };
   const polys = useRef<Map<string, { shapes: any[]; props: P }>>(new Map());
   const builtKey = useRef<string | null>(null);
   const focusedCd = useRef<string | null>(null);
   const tip = useRef<any>(null);
-  const facOverlays = useRef<any[]>([]);
   const markerOverlays = useRef<any[]>([]);
-  const bankOverlays = useRef<any[]>([]);
-  const careOverlays = useRef<any[]>([]);
   const labelOverlays = useRef<any[]>([]);
   const pinned = useRef<string | null>(null);
   const shapeClickAt = useRef(0);   // 도형 클릭 뒤 같은 클릭으로 지도 click 이 또 오면 무시(카카오는 둘 다 보냄)
   const cb = useRef({ styleOf, tooltipOf, onSelect, selected, onFacility, onBank, padding, pin: pinOnClick ?? !onSelect });
   cb.current = { styleOf, tooltipOf, onSelect, selected, onFacility, onBank, padding, pin: pinOnClick ?? !onSelect };
-  const [err, setErr] = useState<string | null>(null);
-  const [ready, setReady] = useState(false);
   const [facNote, setFacNote] = useState<string | null>(null);
   const [built, setBuilt] = useState(0);   // 폴리곤을 다 만든 횟수 — 나눠 만들기가 끝난 뒤 확대 등이 다시 돌게
 
+  // 말풍선 하나를 돌려 씀. 빈 곳을 누르면 고정한 말풍선 닫기 (아래 effect 들보다 먼저 — 같은 커밋에서 선언 순서대로 실행)
   useEffect(() => {
-    let cancelled = false;
-    loadKakao().then((kakao) => {
-      if (cancelled || !el.current) return;
-      kakaoRef.current = kakao;
-      map.current = new kakao.maps.Map(el.current, { center: new kakao.maps.LatLng(36.3, 127.8), level: 12 });
-      map.current.addControl(new kakao.maps.ZoomControl(), kakao.maps.ControlPosition.RIGHTBOTTOM);
-      tip.current = new kakao.maps.CustomOverlay({ yAnchor: 1.35, zIndex: 10 });
-      // 빈 곳을 누르면 고정한 말풍선 닫기
-      kakao.maps.event.addListener(map.current, "click", () => {
-        if (performance.now() - shapeClickAt.current < 300) return;
-        pinned.current = null; tip.current?.setMap(null);
-      });
-      setReady(true);
-    }).catch((e) => setErr(e.message));
-    return () => { cancelled = true; };
-  }, []);
+    const kakao = kakaoRef.current;
+    if (!ready || !kakao) return;
+    const m = map.current;
+    tip.current = new kakao.maps.CustomOverlay({ yAnchor: 1.35, zIndex: 10 });
+    const onClick = () => {
+      if (performance.now() - shapeClickAt.current < 300) return;
+      pinned.current = null; tip.current?.setMap(null);
+    };
+    kakao.maps.event.addListener(m, "click", onClick);
+    return () => { kakao.maps.event.removeListener(m, "click", onClick); tip.current?.setMap(null); };
+  }, [ready]);
 
   function boundsOf(shapes: any[]) {
     const b = new kakaoRef.current.maps.LatLngBounds();
@@ -116,6 +111,7 @@ export default function AtlasMap<P extends { admCd: string; admNm: string }>(pro
   useEffect(() => {
     const kakao = kakaoRef.current;
     if (!ready || !kakao) return;
+    const m = map.current;
     const key = geomKey ?? "";
     const same = builtKey.current === key && features.length === polys.current.size
       && features.every((f) => polys.current.has(f.properties.admCd));
@@ -185,7 +181,7 @@ export default function AtlasMap<P extends { admCd: string; admNm: string }>(pro
     return () => {
       cancelled = true;
       clearTimeout(timer);
-      kakao.maps.event.removeListener(map.current, "idle", attach);
+      kakao.maps.event.removeListener(m, "idle", attach);
       if (built && !attached) attach();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -241,124 +237,39 @@ export default function AtlasMap<P extends { admCd: string; admNm: string }>(pro
     }
   }
 
-  // 시설 레이어 — 확대 수준 10(도 단위) 이하에서 화면 범위만 조회 (최대 3,000개)
-  useEffect(() => {
-    const kakao = kakaoRef.current;
-    if (!ready || !kakao) return;
-    let seq = 0;
-    const clear = () => { facOverlays.current.forEach((o) => o.setMap(null)); facOverlays.current = []; };
-    if (!facilities) { clear(); setFacNote(null); return; }
-    const load = async () => {
-      const my = ++seq;
-      if (map.current.getLevel() > 10) { clear(); setFacNote("확대하면 시설이 보입니다"); return; }
-      const b = map.current.getBounds();
-      const sw = b.getSouthWest(), ne = b.getNorthEast();
-      try {
-        const res = await api<Page<Facility>>(`/facilities${qs({
-          bbox: bboxParam(sw.getLng(), sw.getLat(), ne.getLng(), ne.getLat()),
-          types: facilities.types.join(","), finOnly: facilities.finOnly || undefined, size: 3000 })}`);
-        if (my !== seq) return;
-        clear();
-        for (const f of res.items) {
-          const tone = f.finAvailable ? "fin" : f.postDiv === 3 ? "c365" : "other";
-          const div = document.createElement("div");
-          div.className = "fac-dot";
-          div.style.background = FAC_TONE[tone];
-          div.title = `${f.name} (${f.divLabel})`;
-          div.setAttribute("role", "button");
-          div.setAttribute("aria-label", `${f.name} ${f.divLabel}`);
-          div.tabIndex = 0;                      // role=button 이면 키보드로도 — 초점과 Enter·Space
-          div.addEventListener("click", (e) => { e.stopPropagation(); cb.current.onFacility?.(f); });
-          div.addEventListener("keydown", (e) => {
-            if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); cb.current.onFacility?.(f); }
-          });
-          facOverlays.current.push(new kakao.maps.CustomOverlay({ map: map.current, position: new kakao.maps.LatLng(f.lat, f.lon),
-            content: div, zIndex: 6, clickable: true }));
-        }
-        setFacNote(res.total > res.items.length ? `시설 ${res.items.length.toLocaleString()} / ${res.total.toLocaleString()}` : `시설 ${res.total.toLocaleString()}곳`);
-      } catch (e: any) { setFacNote(`시설 조회 실패: ${e.message}`); }
-    };
-    load();
-    const h = () => load();
-    kakao.maps.event.addListener(map.current, "idle", h);
-    return () => { kakao.maps.event.removeListener(map.current, "idle", h); seq++; clear(); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, facilities?.finOnly, facilities?.types.join(",")]);
+  // 화면 범위 레이어 — 지도를 옮길 때마다 범위 안만 받아, 나간 점만 지우고 들어온 점만 만듦 (hooks/useBboxLayer)
+  // 시설 — 확대 수준 10(도 단위) 이하에서 (최대 3,000개)
+  useBboxLayer<Facility, Page<Facility>>(km, {
+    enabled: !!facilities, maxLevel: 10, zIndex: 6, clickable: true,
+    path: (bbox) => `/facilities${qs({ bbox, types: facilities?.types.join(","), finOnly: facilities?.finOnly || undefined, size: 3000 })}`,
+    items: (r) => r.items, keyOf: (f) => String(f.histId),
+    draw: (f) => facilityDot(f, (x) => cb.current.onFacility?.(x)),
+    onLoaded: (r) => setFacNote(r.total > r.items.length ? `시설 ${r.items.length.toLocaleString()} / ${r.total.toLocaleString()}` : `시설 ${r.total.toLocaleString()}곳`),
+    onTooFar: () => setFacNote("확대하면 시설이 보입니다"),
+    onError: (e) => setFacNote(`시설 조회 실패: ${e.message}`),
+    onDisabled: () => setFacNote(null),
+  }, `${facilities?.finOnly}|${facilities?.types.join(",")}`);
 
-  // 은행·금고 지점 레이어 — 확대 수준 9 이하에서 화면 범위만 (보라 사각 점)
-  useEffect(() => {
-    const kakao = kakaoRef.current;
-    if (!ready || !kakao) return;
-    let seq = 0;
-    const clear = () => { bankOverlays.current.forEach((o) => o.setMap(null)); bankOverlays.current = []; };
-    if (!banks) { clear(); return; }
-    const load = async () => {
-      const my = ++seq;
-      if (map.current.getLevel() > 9) { clear(); return; }
-      const b = map.current.getBounds();
-      const sw = b.getSouthWest(), ne = b.getNorthEast();
-      try {
-        const res = await api<{ items: Bank[] }>(`/banks${qs({ bbox: bboxParam(sw.getLng(), sw.getLat(), ne.getLng(), ne.getLat()), size: 3000 })}`);
-        if (my !== seq) return;
-        clear();
-        for (const p of res.items) {
-          const div = document.createElement("div");
-          div.className = "fac-dot";
-          div.style.background = BANK_TONE;
-          div.style.borderRadius = "3px";
-          // 은행(새마을금고·저축은행 제외)만 영향평가 대상 — 누를 수 있다는 것을 제목으로 알림
-          const evaluable = p.kind === "BRANCH" && !!p.brand && p.brand !== "새마을금고" && p.brand !== "저축은행";
-          div.title = `${p.name} · ${p.brand || (p.category || "").split(" > ").pop()}${evaluable && cb.current.onBank ? " — 눌러서 문을 닫으면 영향 보기" : ""}`;
-          if (evaluable) {
-            div.style.cursor = "pointer";
-            div.addEventListener("click", (e) => { e.stopPropagation(); cb.current.onBank?.(p); });
-          }
-          bankOverlays.current.push(new kakao.maps.CustomOverlay({ map: map.current, position: new kakao.maps.LatLng(p.lat, p.lon),
-            content: div, zIndex: 5 }));
-        }
-      } catch { /* 레이어는 보조 정보 — 실패해도 지도는 유지 */ }
-    };
-    load();
-    const h = () => load();
-    kakao.maps.event.addListener(map.current, "idle", h);
-    return () => { kakao.maps.event.removeListener(map.current, "idle", h); seq++; clear(); };
-  }, [ready, banks]);
+  // 은행·금고 지점 — 확대 수준 9 이하에서 (보라 사각 점). 레이어는 보조 정보 — 실패해도 지도는 유지
+  useBboxLayer<Bank, { items: Bank[] }>(km, {
+    enabled: !!banks, maxLevel: 9, zIndex: 5,
+    path: (bbox) => `/banks${qs({ bbox, size: 3000 })}`,
+    items: (r) => r.items, keyOf: (p) => p.placeId,
+    draw: (p) => bankDot(p, cb.current.onBank ? (x) => cb.current.onBank?.(x) : undefined),
+  }, "");
 
-  // 약국·의원 레이어 — 확대 수준 7 이하(시군구 안)에서 화면 범위만. 마름모 점, 누르면 진료시간
+  // 약국·의원 — 확대 수준 7 이하(시군구 안)에서. 마름모 점, 제목에 진료시간
   // 부르는 쪽이 매번 새 객체를 넘겨도 다시 받지 않도록 켜짐·공휴일 진료 여부만 의존
-  const careOn = !!care, careHolidayOnly = !!care?.holidayOnly;
-  useEffect(() => {
-    const kakao = kakaoRef.current;
-    if (!ready || !kakao) return;
-    let seq = 0;
-    const clear = () => { careOverlays.current.forEach((o) => o.setMap(null)); careOverlays.current = []; };
-    if (!careOn) { clear(); return; }
-    const load = async () => {
-      const my = ++seq;
-      if (map.current.getLevel() > 7) { clear(); setFacNote("확대하면 약국·의원이 보입니다"); return; }
-      const b = map.current.getBounds();
-      const sw = b.getSouthWest(), ne = b.getNorthEast();
-      try {
-        const res = await api<{ items: CarePlace[] }>(`/care${qs({ bbox: bboxParam(sw.getLng(), sw.getLat(), ne.getLng(), ne.getLat()), holidayOnly: careHolidayOnly || undefined, size: 3000 })}`);
-        if (my !== seq) return;
-        clear();
-        for (const p of res.items) {
-          const div = document.createElement("div");
-          div.className = "care-dot";
-          div.style.background = CARE_TONE[p.kind];
-          const hours = careHoursText(p.hours);
-          div.title = `${p.name} (${p.divName || ""})${hours ? ` — ${hours}` : ""}`;
-          careOverlays.current.push(new kakao.maps.CustomOverlay({ map: map.current, position: new kakao.maps.LatLng(p.lat, p.lon),
-            content: div, zIndex: 4 }));
-        }
-        setFacNote(`약국·의원 ${res.items.length.toLocaleString()}곳${careHolidayOnly ? " (공휴일 진료)" : ""}`);
-      } catch (e: any) { setFacNote(e.message); }
-    };
-    load();
-    const h = () => load();
-    kakao.maps.event.addListener(map.current, "idle", h);
-    return () => { kakao.maps.event.removeListener(map.current, "idle", h); seq++; clear(); setFacNote(null); };
-  }, [ready, careOn, careHolidayOnly]);
+  const careHolidayOnly = !!care?.holidayOnly;
+  useBboxLayer<CarePlace, { items: CarePlace[] }>(km, {
+    enabled: !!care, maxLevel: 7, zIndex: 4,
+    path: (bbox) => `/care${qs({ bbox, holidayOnly: careHolidayOnly || undefined, size: 3000 })}`,
+    items: (r) => r.items, keyOf: (p) => p.id, draw: careDot,
+    onLoaded: (r) => setFacNote(`약국·의원 ${r.items.length.toLocaleString()}곳${careHolidayOnly ? " (공휴일 진료)" : ""}`),
+    onTooFar: () => setFacNote("확대하면 약국·의원이 보입니다"),
+    onError: (e) => setFacNote(e.message),
+    onCleanup: () => setFacNote(null),
+  }, String(careHolidayOnly));
 
   // 늘 보이는 라벨 — 순위 상위 지역 등 핵심 값만 (많으면 지도가 가려져 10여 개로 제한하는 건 부르는 쪽 몫)
   useEffect(() => {
@@ -381,9 +292,10 @@ export default function AtlasMap<P extends { admCd: string; admNm: string }>(pro
       }));
       items.forEach((it, i) => it.ov.setMap(show[i] ? map.current : null));
     };
+    const m = map.current;
     place();
-    kakao.maps.event.addListener(map.current, "idle", place);
-    return () => { kakao.maps.event.removeListener(map.current, "idle", place); items.forEach((x) => x.ov.setMap(null)); };
+    kakao.maps.event.addListener(m, "idle", place);
+    return () => { kakao.maps.event.removeListener(m, "idle", place); items.forEach((x) => x.ov.setMap(null)); };
   }, [ready, labels]);
 
   useEffect(() => {
@@ -419,3 +331,44 @@ export const FACILITY_LEGEND = [
   { label: "365코너", color: FAC_TONE.c365 },
   { label: "기타 시설", color: FAC_TONE.other },
 ];
+
+// 레이어 점 — 지도 SDK 오버레이에 넣을 DOM. 누를 수 있는 점은 키보드로도(초점·Enter·Space)
+function facilityDot(f: Facility, onPick: (f: Facility) => void): HTMLElement {
+  const tone = f.finAvailable ? "fin" : f.postDiv === 3 ? "c365" : "other";
+  const div = document.createElement("div");
+  div.className = "fac-dot";
+  div.style.background = FAC_TONE[tone];
+  div.title = `${f.name} (${f.divLabel})`;
+  div.setAttribute("role", "button");
+  div.setAttribute("aria-label", `${f.name} ${f.divLabel}`);
+  div.tabIndex = 0;
+  div.addEventListener("click", (e) => { e.stopPropagation(); onPick(f); });
+  div.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); onPick(f); }
+  });
+  return div;
+}
+
+function bankDot(p: Bank, onPick?: (b: Bank) => void): HTMLElement {
+  const div = document.createElement("div");
+  div.className = "fac-dot";
+  div.style.background = BANK_TONE;
+  div.style.borderRadius = "3px";
+  // 은행(새마을금고·저축은행 제외)만 영향평가 대상 — 누를 수 있다는 것을 제목으로 알림
+  const evaluable = isBankEvaluable(p);
+  div.title = `${p.name} · ${p.brand || (p.category || "").split(" > ").pop()}${evaluable && onPick ? " — 눌러서 문을 닫으면 영향 보기" : ""}`;
+  if (evaluable) {
+    div.style.cursor = "pointer";
+    div.addEventListener("click", (e) => { e.stopPropagation(); onPick?.(p); });
+  }
+  return div;
+}
+
+function careDot(p: CarePlace): HTMLElement {
+  const div = document.createElement("div");
+  div.className = "care-dot";
+  div.style.background = CARE_TONE[p.kind];
+  const hours = careHoursText(p.hours);
+  div.title = `${p.name} (${p.divName || ""})${hours ? ` — ${hours}` : ""}`;
+  return div;
+}

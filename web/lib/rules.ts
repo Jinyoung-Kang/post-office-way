@@ -23,3 +23,8 @@ export function careHoursText(hours: Record<string, [string, string]> | null | u
   return Object.entries(hours || {}).filter(([d]) => HOUR_DAYS.includes(d))
     .map(([d, [a, z]]) => `${WEEK[Number(d)]} ${a.slice(0, 2)}:${a.slice(2)}~${z.slice(0, 2)}:${z.slice(2)}`).join(" · ");
 }
+
+/** 은행 지점 영향평가 대상 — 대면 지점이면서 은행(새마을금고·저축은행 제외, BANK-IMPACT-1) */
+export function isBankEvaluable(p: { kind: string; brand?: string | null }): boolean {
+  return p.kind === "BRANCH" && !!p.brand && p.brand !== "새마을금고" && p.brand !== "저축은행";
+}

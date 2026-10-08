@@ -20,3 +20,4 @@ export function declutter(boxes: Box[], gapX = 4, gapY = 2): boolean[] {
     return !hit;
   });
 }
+

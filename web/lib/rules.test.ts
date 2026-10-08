@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { careHoursText, rankText, worstFirst } from "./rules";
+import { careHoursText, isBankEvaluable, rankText, worstFirst } from "./rules";
 import { bboxParam, declutter, labelSize } from "./mapGeom";
 
 describe("화면 규칙", () => {
@@ -13,6 +13,13 @@ describe("화면 규칙", () => {
     expect(rankText({ rank: 3, rankOf: 250, higherIsWorse: true }, String)).toBe("나쁜 쪽에서 3번째");
     expect(rankText({ rank: 3, rankOf: 250, higherIsWorse: false }, String)).toBe("큰 쪽에서 3번째");
     expect(rankText({ rank: null, rankOf: 250, higherIsWorse: true }, String)).toBe("—");
+  });
+  it("은행 지점 영향평가 대상", () => {
+    expect(isBankEvaluable({ kind: "BRANCH", brand: "KB국민은행" })).toBe(true);
+    expect(isBankEvaluable({ kind: "BRANCH", brand: "새마을금고" })).toBe(false);
+    expect(isBankEvaluable({ kind: "BRANCH", brand: "저축은행" })).toBe(false);
+    expect(isBankEvaluable({ kind: "ATM", brand: "KB국민은행" })).toBe(false);
+    expect(isBankEvaluable({ kind: "BRANCH", brand: null })).toBe(false);
   });
   it("진료시간 — 월·토·일·공휴일만", () => {
     expect(careHoursText({ "1": ["0900", "1800"], "2": ["0900", "1800"], "6": ["0900", "1300"], "8": ["1000", "1500"] }))
