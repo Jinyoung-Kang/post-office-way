@@ -62,17 +62,12 @@ def nearest_k(g, snapper: Snapper, oa_lon, oa_lat, fac_lon, fac_lat, k: int, lim
     return s, d
 
 
-def _copy_rows(eng, rows: list[tuple]) -> None:
-    raw = eng.raw_connection()
-    try:
-        conn = raw.driver_connection
-        with conn.cursor() as cur, cur.copy(
-                "COPY mart.oa_walk (calc_run_id, kind, oa_cd, rank, target, walk_m) FROM STDIN") as cp:
-            for r in rows:
-                cp.write_row(r)
-        conn.commit()
-    finally:
-        raw.close()
+def _copy_rows(c, rows: list[tuple]) -> None:
+    """열린 트랜잭션(c) 안에서 COPY — 커밋은 호출한 쪽에서 (지우기·적재·지표를 한 번에)."""
+    with c.connection.driver_connection.cursor() as cur, cur.copy(
+            "COPY mart.oa_walk (calc_run_id, kind, oa_cd, rank, target, walk_m) FROM STDIN") as cp:
+        for r in rows:
+            cp.write_row(r)
 
 
 def run_walk(calc_run_id: str | None = None, graph=None) -> dict[str, Any]:
@@ -138,12 +133,15 @@ def run_walk(calc_run_id: str | None = None, graph=None) -> dict[str, Any]:
                     if src[i, j] >= 0:
                         rows.append((rid, kind, oa_cd, j + 1, ids[src[i, j]], round(float(dist[i, j]), 1)))
             stats[f"{kind.lower()}Reached"] = int((src[:, 0] >= 0).sum())
-        with eng.begin() as c:
-            c.execute(text("DELETE FROM mart.oa_walk WHERE calc_run_id = :r"), {"r": rid})
-        _copy_rows(eng, rows)
         stats["rows"] = len(rows)
+        # 지우기·적재·지표 갱신을 한 트랜잭션으로 — 중간에 실패해도 화면은 이전 도보 결과를 그대로 씀.
+        # 같은 계산 실행을 두 곳(make calc 의 walk·워커 연쇄)에서 동시에 돌리면 뒤의 것이 앞의 것을 기다림
         with eng.begin() as c:
+            c.execute(text("SELECT pg_advisory_xact_lock(hashtextextended('walk:' || CAST(:r AS text), 0))"), {"r": rid})
+            c.execute(text("DELETE FROM mart.oa_walk WHERE calc_run_id = :r"), {"r": rid})
+            _copy_rows(c, rows)
             # 방금 COPY 한 40만 행·계산이 넣은 지점 행이 통계에 없으면 아래 집계·UPDATE 가 나쁜 계획을 고름
+            # (같은 트랜잭션 안에서 넣은 행도 ANALYZE 가 표본으로 셈)
             c.execute(text("ANALYZE mart.oa_walk"))
             c.execute(text("ANALYZE mart.bank_impact"))
             _metrics(c, rid, levels, limit, within)

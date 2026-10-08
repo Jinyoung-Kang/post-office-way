@@ -90,3 +90,29 @@ def test_walk_is_idempotent_and_skips_without_graph(terrain, engine, monkeypatch
     with engine.connect() as c:
         assert c.execute(text("SELECT count(*) FROM mart.oa_walk WHERE calc_run_id = :r AND kind = 'POST'"),
                          {"r": rid}).scalar() == 1              # 3km 안 우체국은 F1 하나 (F2·F3 는 격자로 16km·13km)
+
+
+def test_walk_failure_keeps_previous_results(terrain, engine, monkeypatch):
+    """다시 계산하다 중간(적재 단계)에 실패하면 이전 도보 결과가 그대로 남아야 함 — 지우기·적재·지표가 한 트랜잭션."""
+    from atlas.walk import compute
+
+    with engine.begin() as c:
+        add_oa(c, "99010010000001", 5_000, 3_000, 100)
+    rid = run_calc(stat_year=2024, levels=[2])
+    g = grid_graph(engine)
+    compute.run_walk(str(rid), graph=g)
+    count = lambda: c2.execute(text("SELECT count(*) FROM mart.oa_walk WHERE calc_run_id = :r"),  # noqa: E731
+                               {"r": rid}).scalar()
+    with engine.connect() as c2:
+        before = count()
+    assert before > 0
+
+    def boom(*a, **k):
+        raise RuntimeError("적재 단계 실패")
+
+    monkeypatch.setattr(compute, "_copy_rows", boom)
+    with pytest.raises(RuntimeError):
+        compute.run_walk(str(rid), graph=g)
+    with engine.connect() as c2:
+        assert count() == before
+        assert c2.execute(text("SELECT status FROM mart.walk_run WHERE calc_run_id = :r"), {"r": rid}).scalar() == "FAILED"
