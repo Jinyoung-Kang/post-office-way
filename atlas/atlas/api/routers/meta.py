@@ -4,6 +4,7 @@ from fastapi import APIRouter, Query
 from sqlalchemy import text
 
 from atlas.api.common import jsonable, page_params
+from atlas.core.clock import KST
 from atlas.core.config import get_settings
 from atlas.core.db import get_engine
 from atlas.core.masking import safe_error
@@ -128,7 +129,7 @@ def errors(days: int = Query(14, ge=1, le=90), limit: int = Query(200, ge=1, le=
     items = []
     for r in rows:
         msg = mask_secrets_in(mask_text(r["message"] or ""), secrets)
-        at = r["at"].astimezone().strftime("%Y-%m-%d %H:%M:%S") if r["at"] else "-"
+        at = r["at"].astimezone(KST).strftime("%Y-%m-%d %H:%M:%S") if r["at"] else "-"   # 서비스 기준 시각(프로세스 TZ 아님)
         items.append({"id": r["id"], "at": jsonable(r["at"]), "source": r["source"], "ref": r["ref"], "title": r["title"],
                       "message": msg, "line": f"{at} [{r['source']}] {r['ref']} {r['title']} — {brief_error(msg)}"})
     return {"days": days, "items": items, "total": len(items)}
