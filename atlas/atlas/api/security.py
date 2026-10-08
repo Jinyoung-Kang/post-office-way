@@ -45,17 +45,26 @@ def _is_trusted(host: str | None) -> bool:
     return any(ip in net for net in _trusted())
 
 
+def _ip(v: str) -> str | None:
+    try:
+        return str(ipaddress.ip_address(v.strip()))
+    except ValueError:
+        return None
+
+
 def ip_from_scope(scope: Scope) -> str:
+    """요청한 클라이언트 주소. 신뢰 프록시(web 컨테이너 등)를 거쳤을 때만 X-Forwarded-For 를 보며,
+    오른쪽(가장 가까운 프록시가 덧붙인 값)부터 신뢰 대역을 건너뛴 첫 주소를 씀 — 맨 왼쪽은 클라이언트가 마음대로
+    쓸 수 있는 값이라 그대로 믿으면 속도 제한·감사 IP 를 위조할 수 있음 (S1). 모두 신뢰 대역이면 가장 왼쪽."""
     peer = (scope.get("client") or ("", 0))[0]
-    if _is_trusted(peer):
-        for k, v in scope.get("headers") or []:
-            if k == b"x-forwarded-for":
-                first = v.decode("latin-1").split(",")[0].strip()
-                try:
-                    return str(ipaddress.ip_address(first))
-                except ValueError:
-                    break
-    return peer or "unknown"
+    if not _is_trusted(peer):
+        return peer or "unknown"
+    hops = [ip for k, v in scope.get("headers") or [] if k == b"x-forwarded-for"
+            for ip in (_ip(x) for x in v.decode("latin-1").split(",")) if ip]
+    for ip in reversed(hops):
+        if not _is_trusted(ip):
+            return ip
+    return hops[0] if hops else (peer or "unknown")
 
 
 def client_ip(request: Request) -> str:

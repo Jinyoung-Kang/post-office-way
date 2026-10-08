@@ -1,6 +1,6 @@
-// 브라우저는 같은 출처(/api/v1/*)로 부르고, Next 서버가 FastAPI 로 넘깁니다(CORS·포트 노출 최소화).
-// rewrites 는 빌드 시점에 고정되므로 도커 빌드 인자 API_INTERNAL_BASE 로 주소를 넣습니다.
-const API = process.env.API_INTERNAL_BASE || "http://localhost:8100";
+// 브라우저는 같은 출처(/api/v1/*)로 부르고, Next 서버의 프록시(pages/api/v1/[...path].ts)가 FastAPI 로 넘깁니다
+// (CORS·포트 노출 최소화). rewrites 대신 프록시 라우트를 쓰는 이유는 X-Forwarded-For 를 실제 접속 주소로 덮어쓰기 위해서
+// — rewrites 는 클라이언트가 보낸 값을 그대로 넘겨 속도 제한을 우회할 수 있었음 (lib/proxy.ts).
 const dev = process.env.NODE_ENV !== "production";
 
 // 콘텐츠 보안 정책 — 스크립트는 자기 출처 + 카카오 지도 SDK 만. 로더(dapi.kakao.com)가 본체를 받는 호스트를
@@ -46,9 +46,6 @@ export default {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
   async rewrites() {
-    return [
-      { source: "/api/v1/:path*", destination: `${API}/api/v1/:path*` },
-      { source: "/favicon.ico", destination: "/favicon.svg" },
-    ];
+    return [{ source: "/favicon.ico", destination: "/favicon.svg" }];
   },
 };

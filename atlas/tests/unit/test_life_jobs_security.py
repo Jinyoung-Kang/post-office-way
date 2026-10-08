@@ -106,6 +106,14 @@ def test_client_ip_trusts_only_private_proxies():
     assert ip_from_scope(_scope("172.18.0.5", "not-an-ip")) == "172.18.0.5"
 
 
+def test_client_ip_ignores_spoofed_leftmost_value():
+    """클라이언트가 보낸 XFF 앞에 프록시가 실제 주소를 덧붙이므로, 오른쪽부터 신뢰 프록시를 건너뛴 첫 주소가 진짜 (S1)."""
+    assert ip_from_scope(_scope("172.18.0.5", "9.9.9.9, 203.0.113.7")) == "203.0.113.7"
+    assert ip_from_scope(_scope("172.18.0.5", "9.9.9.9, 203.0.113.7, 172.18.0.9")) == "203.0.113.7"
+    assert ip_from_scope(_scope("172.18.0.5", "172.19.0.1")) == "172.19.0.1"        # 모두 신뢰 대역이면 가장 왼쪽
+    assert ip_from_scope(_scope("172.18.0.5", "garbage, 203.0.113.7")) == "203.0.113.7"
+
+
 def test_rate_limit_rules():
     assert rule_for("POST", "/api/v1/whatif") == ("heavy", 30)
     assert rule_for("POST", "/api/v1/plan/close") == ("heavy", 30)

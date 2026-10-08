@@ -218,7 +218,7 @@ VISIT-1(09~18시 비·눈·더위·추위·바람·미세먼지 → 좋음/주�
 ## 6. 보안 (ADR-013)
 
 - **최소 권한**: API 는 `atlas_api` 역할 — raw(원본 응답)·stg 접근 없음, DDL 없음, 역할 단위 `statement_timeout`. 마이그레이션은 별도 단계.
-- **API**: 속도 제한(관리 10/분 · 계산 30/분 · 조회 600/분, 신뢰 프록시에서만 `X-Forwarded-For`), 보안 헤더, 관리 토큰 상수 시간 비교·감사 로그.
+- **API**: 속도 제한(관리 10/분 · 계산 30/분 · 조회 600/분 — 웹 프록시가 `X-Forwarded-For` 를 실제 접속 주소로 덮어쓰고, API 는 신뢰 프록시를 오른쪽부터 건너뛴 주소를 씀), 보안 헤더, 관리 토큰 상수 시간 비교·감사 로그.
 - **웹**: CSP(스크립트는 자기 출처 + 카카오 SDK 호스트 2곳만, 외부 출처는 https 만 + `upgrade-insecure-requests` — http 로 띄워도 제3자 스크립트는 암호화 연결로),
   `eval` 불허, `frame-ancestors 'none'`, Permissions-Policy. **CSP 위반 보고**(`report-uri`)를 받아 오류 로그 '보안 정책'에 —
   카카오가 SDK 호스트를 `daumcdn.net` → `kakaocdn.net` 으로 옮겨 지도가 막혔던 일을 계기로(16KB·분당 30회·1시간 중복 억제·쿼리 제거).

@@ -6,7 +6,7 @@
 | 영역 | 적용 |
 |---|---|
 | 속도 제한 | Redis 고정 1분 창(`INCR`+`EXPIRE`, 파이프라인). 관리 10/분(토큰 대입 방지), What-if·배치 제안 30/분(계산 비용), 나머지 600/분. 429 + `Retry-After`·`X-RateLimit-*`. Redis 가 없으면 통과(fail-open, 캐시와 같은 선택 요소) |
-| 클라이언트 IP | 브라우저 → web(Next 프록시) → api 구조라 api 가 보는 주소는 web 컨테이너. **신뢰 프록시 대역(`TRUSTED_PROXIES`)에서 온 요청만** `X-Forwarded-For` 첫 값을 믿음 → 외부에서 헤더를 위조해 제한을 피하지 못함. uvicorn `--no-proxy-headers` 로 이중 해석 방지 |
+| 클라이언트 IP | 브라우저 → web(Next 프록시) → api 구조라 api 가 보는 주소는 web 컨테이너. **신뢰 프록시 대역(`TRUSTED_PROXIES`)에서 온 요청만** `X-Forwarded-For` 를 보고, **오른쪽부터 신뢰 대역을 건너뛴 첫 주소**를 씀. web 의 프록시 라우트(`pages/api/v1/[...path].ts`)는 받은 XFF 를 버리고 실제 접속 주소로 덮어씀. uvicorn `--no-proxy-headers` 로 이중 해석 방지 (2026-10-08 보완 — 아래) |
 | 보안 헤더 (API) | `nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, `CORP: same-origin`, JSON 응답 CSP `default-src 'none'`, 관리 API·POST 는 `Cache-Control: no-store` |
 | 보안 헤더 (웹) | CSP — 스크립트는 자기 출처 + 카카오 지도 SDK(`dapi.kakao.com`, `*.daumcdn.net`)만, `object-src 'none'`, `frame-ancestors 'none'`, `base-uri 'self'`. 스타일은 SSR style 속성·SDK 때문에 `'unsafe-inline'` 만 허용(스크립트는 인라인 불허). `Permissions-Policy`, COOP |
 | 관리 API | 토큰 상수 시간 비교, 작업 `kind` 정규식 검증 후 허용 목록 확인, 요청 IP 를 작업 행(`requested_by`)과 감사 로그(`atlas.audit`)에 기록 — 공개 작업 목록에는 IP 를 내보내지 않음 |
@@ -49,6 +49,13 @@
   `POST /admin/errors/ack` 로만. 토큰은 사용자가 화면에 입력하고 그 화면의 메모리에만 둔다(저장소·주소에 남기지 않음, 틀리면 바로 비움).
   지우기는 **삭제가 아니라 확인 표시**(`ops.error_ack`) — 작업·수집·품질 항목은 원래 이력이라 지우면 작업 큐·품질 화면이 깨지고,
   API 역할에 DELETE 권한을 주지 않아도 된다(INSERT 만). 지운 IP·시각이 남고, 항목 id 는 정규식으로 검사(DB CHECK 도 같음), 한 번에 500건까지.
+
+- **XFF 위조로 속도 제한 우회 (2026-10-08, 리뷰 S1)**: 위 표의 처음 설계는 'XFF 첫 값'을 믿었는데, Next 의 rewrites
+  프록시가 클라이언트가 보낸 XFF 를 그대로 넘기고 실제 접속 주소는 덧붙이지 않았다. 그래서 XFF 를 바꿀 때마다 새 버킷이
+  생겼고(재현: 남은 횟수가 매번 29), XFF 가 없으면 모든 사용자가 web 컨테이너 주소 하나를 나눠 썼다.
+  → rewrites 대신 Next API 프록시 라우트에서 XFF 를 접속 주소로 덮어쓰고(본문·압축·ETag 는 그대로 흘려보냄),
+  API 는 오른쪽부터 신뢰 대역을 건너뛴 첫 주소를 쓴다. 수정 뒤 위조 값을 바꿔도 남은 횟수가 29→28→27 로 한 버킷에서 줄어듦.
+  새 인프라(앞단 리버스 프록시)는 두지 않았다.
 
 ## 남는 위험
 - 로컬 전용 서비스라 TLS·HSTS 는 없다(공개 배포 시 리버스 프록시에서 종료).
