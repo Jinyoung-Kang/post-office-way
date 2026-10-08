@@ -6,10 +6,12 @@ import logging
 from functools import lru_cache
 
 import redis
+from prometheus_client import Counter
 
 from atlas.core.config import get_settings
 
 log = logging.getLogger(__name__)
+CACHE = Counter("atlas_cache_requests_total", "Redis 캐시 조회", ["result"])   # API 의 /metrics 로 노출
 
 
 @lru_cache
@@ -18,8 +20,6 @@ def client() -> redis.Redis:
 
 
 def get(key: str) -> bytes | None:
-    from atlas.api.metrics import CACHE
-
     try:
         v = client().get(key)
     except redis.RedisError:
@@ -52,7 +52,6 @@ def incr(key: str, ttl: int) -> int | None:
         return int(n)
     except redis.RedisError:
         return None
-
 
 
 def ping() -> bool:

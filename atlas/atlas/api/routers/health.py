@@ -4,7 +4,7 @@ from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
-from atlas.api import cache
+from atlas.core import cache
 from atlas.core.db import get_engine
 from atlas.core.migrate import pending
 

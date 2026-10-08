@@ -6,7 +6,7 @@ import json
 from fastapi import APIRouter
 from sqlalchemy import text
 
-from atlas.api import cache
+from atlas.core import cache
 from atlas.calc.runs import data_version, meta_of, resolve_calc_run
 from atlas.core.serial import jsonable
 from atlas.core.db import get_engine

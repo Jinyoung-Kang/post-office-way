@@ -94,7 +94,7 @@ def test_concurrent_same_scenario_returns_existing(terrain, engine, monkeypatch)
     """같은 What-if 요청이 동시에 오면(더블클릭) 두 번째가 고유 제약 위반(500)이 아니라 먼저 저장된 시나리오를 받음 (R3)."""
     import threading
 
-    from atlas.api import cache
+    from atlas.core import cache
 
     monkeypatch.setattr(cache, "get", lambda k: None)          # 캐시를 거치지 않고 DB 경쟁만
 
@@ -130,7 +130,7 @@ def test_concurrent_same_scenario_returns_existing(terrain, engine, monkeypatch)
 @pytest.mark.skipif(not __import__("os").environ.get("TEST_REDIS_URL"), reason="캐시 동작은 Redis 필요 (make test 는 켬)")
 def test_whatif_cached_only_after_commit(terrain, engine):
     """저장 트랜잭션이 롤백되면 캐시에 남지 않아야 함 — 남으면 없는 시나리오 id 를 1시간 동안 돌려줌."""
-    from atlas.api import cache
+    from atlas.core import cache
     from atlas.api.services.whatif import _key
 
     rid = run_calc(stat_year=2024, levels=[2])

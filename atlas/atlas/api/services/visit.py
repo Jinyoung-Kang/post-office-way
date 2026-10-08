@@ -13,7 +13,7 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
 
-from atlas.api import cache
+from atlas.core import cache
 from atlas.calc.runs import LATEST_DONE_ID, latest_done
 from atlas.core.serial import jsonable
 from atlas.domain.errors import Invalid, NotFound

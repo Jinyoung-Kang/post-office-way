@@ -16,7 +16,7 @@ from fastapi.responses import Response
 from sqlalchemy import text
 from starlette.concurrency import run_in_threadpool
 
-from atlas.api import cache
+from atlas.core import cache
 from atlas.core.db import get_engine
 
 log = logging.getLogger(__name__)

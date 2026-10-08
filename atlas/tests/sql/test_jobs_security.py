@@ -142,6 +142,7 @@ def test_security_headers_etag_and_health(client):
     assert h["schema"]["upToDate"] and h["queue"]["queued"] >= 0
     prom = client.get("/metrics").text
     assert "atlas_http_request_duration_seconds" in prom and "atlas_http_not_modified_total" in prom
+    assert "atlas_cache_requests_total" in prom    # 캐시 지표는 core/cache.py 에 있어도 /metrics 로 노출
 
 
 def test_rate_limit_returns_429(client, monkeypatch):
@@ -317,7 +318,7 @@ def test_isolated_job_runs_in_child_process_and_propagates_errors(clean, monkeyp
 
 def test_csp_report_recorded_once_filtered_and_scrubbed(client, engine, monkeypatch):
     """CSP 위반 보고 → 오류 로그 '보안 정책'. 쿼리 문자열 제거, 같은 위반 1시간에 한 번, 카카오 eval·확장 프로그램은 무시."""
-    from atlas.api import cache
+    from atlas.core import cache
 
     seen: set[str] = set()
     monkeypatch.setattr(cache, "set_nx", lambda k, v, ttl: not (k in seen or seen.add(k)))
@@ -393,7 +394,7 @@ def test_csp_report_not_recorded_without_redis(client, engine, monkeypatch):
     """Redis 가 없으면 중복 억제·상한을 지킬 수 없으므로 기록하지 않음(로그에만) — 공개 쓰기 경로라 닫힌 쪽으로."""
     import redis as redis_mod
 
-    from atlas.api import cache
+    from atlas.core import cache
 
     class Down:
         def __getattr__(self, name):

@@ -11,7 +11,7 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
 
-from atlas.api import cache
+from atlas.core import cache
 from atlas.calc.runs import meta_of, resolve_calc_run
 from atlas.core.serial import jsonable
 from atlas.domain.errors import DomainError, Invalid, NotFound

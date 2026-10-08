@@ -14,7 +14,6 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 REQUEST_S = Histogram("atlas_http_request_duration_seconds", "API 응답 시간", ["method", "route", "status"],
                       buckets=(0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10))
 RATE_LIMITED = Counter("atlas_rate_limited_total", "속도 제한으로 거절한 요청", ["bucket"])
-CACHE = Counter("atlas_cache_requests_total", "Redis 캐시 조회", ["result"])
 NOT_MODIFIED = Counter("atlas_http_not_modified_total", "ETag 일치로 본문 없이 돌려준 응답(304)")
 
 

@@ -35,7 +35,7 @@ def engine():
     os.environ["DATABASE_URL"] = TEST_URL
     # make test 는 compose 의 redis 15번 DB 로 캐시·속도 제한까지 시험, TEST_REDIS_URL 이 없으면 캐시 없이(Redis 실패 경로)
     os.environ["REDIS_URL"] = os.environ.get("TEST_REDIS_URL", "redis://127.0.0.1:1/0")
-    from atlas.api import cache
+    from atlas.core import cache
     from atlas.core import config, db
     from atlas.core.migrate import migrate
 
@@ -54,7 +54,7 @@ def engine():
 @pytest.fixture()
 def clean(engine):
     if os.environ.get("TEST_REDIS_URL"):            # 캐시를 켠 테스트 — 테스트마다 비움 (운영 캐시와 다른 DB 번호)
-        from atlas.api import cache
+        from atlas.core import cache
 
         cache.client().flushdb()
     with engine.begin() as c:
