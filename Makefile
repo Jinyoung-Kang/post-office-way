@@ -214,7 +214,8 @@ test: env
 	@$(COMPOSE) exec -T db psql -U atlas -d atlas -tc "SELECT 1 FROM pg_database WHERE datname='atlas_test'" | grep -q 1 \
 	  || $(COMPOSE) exec -T db psql -U atlas -d atlas -c "CREATE DATABASE atlas_test"
 	$(COMPOSE) --profile batch run --rm --build --entrypoint pytest \
-	  -e TEST_DATABASE_URL=postgresql+psycopg://atlas:atlas@db:5432/atlas_test collector -q -p no:cacheprovider
+	  -e TEST_DATABASE_URL=postgresql+psycopg://atlas:atlas@db:5432/atlas_test -e TEST_REDIS_URL=redis://redis:6379/15 \
+	  collector -q -p no:cacheprovider
 
 # 서비스 점검 (scripts/qa) — 결과는 .qa/*.json. 설치된 Google Chrome 사용(브라우저 내려받기 없음)
 QA_PY := .qa-venv/bin/python

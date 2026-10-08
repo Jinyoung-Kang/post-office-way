@@ -19,8 +19,15 @@ jobs:
         ports: ["5432:5432"]
         options: >-
           --health-cmd "pg_isready -U atlas -d atlas_test" --health-interval 5s --health-timeout 5s --health-retries 20
+      # 캐시·속도 제한 경로도 시험 (테스트는 15번 DB 를 테스트마다 비움)
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 5s --health-retries 20
     env:
       TEST_DATABASE_URL: postgresql+psycopg://atlas:atlas@localhost:5432/atlas_test
+      TEST_REDIS_URL: redis://localhost:6379/15
       ATLAS_MIGRATIONS_DIR: ${{ github.workspace }}/db/migrations
     steps:
       - uses: actions/checkout@v7
