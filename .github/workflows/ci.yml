@@ -32,7 +32,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
-        with: { python-version: "3.11" }
+        with: { python-version: "3.13" }
       # 러너 기본 파이썬의 pip·setuptools 도 감사 대상이라 함께 올림
       - run: pip install --upgrade pip setuptools && pip install "./atlas[dev,walk]" pip-audit ruff
       - name: 정적 검사 (pyflakes · 문법)
@@ -49,7 +49,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
-        with: { node-version: "22", cache: npm, cache-dependency-path: web/package-lock.json }
+        with: { node-version: "24", cache: npm, cache-dependency-path: web/package-lock.json }
       - run: npm ci
       - name: 의존성 취약점 (npm audit, high 이상 실패)
         run: npm audit --audit-level=high

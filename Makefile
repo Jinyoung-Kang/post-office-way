@@ -231,7 +231,7 @@ qa-lh: $(QA_PY)
 	$(QA_PY) scripts/qa/lighthouse.py $(or $(N),3)
 
 test-unit:
-	cd atlas && python3.11 -m pytest -q tests/unit tests/contract
+	cd atlas && python3.13 -m pytest -q tests/unit tests/contract
 
 psql:
 	$(COMPOSE) exec db psql -U atlas -d atlas
@@ -239,7 +239,7 @@ psql:
 # 호스트에서 직접 개발 (db·redis 는 compose 로)
 api-dev:
 	$(COMPOSE) up -d db redis
-	cd atlas && MIGRATE_ON_START=true python3.11 -m uvicorn atlas.api.main:app --port 8100 --reload
+	cd atlas && MIGRATE_ON_START=true python3.13 -m uvicorn atlas.api.main:app --port 8100 --reload
 
 web-dev:
 	cd web && npm install && npm run dev

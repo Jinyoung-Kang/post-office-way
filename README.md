@@ -180,11 +180,11 @@ VISIT-1(09~18시 비·눈·더위·추위·바람·미세먼지 → 좋음/주�
 
 | 영역 | 사용 |
 |---|---|
-| 백엔드 | Python 3.11 · FastAPI 0.141 · SQLAlchemy 2.0 · psycopg 3 · Pydantic 2 · uvicorn |
+| 백엔드 | Python 3.13 · FastAPI 0.141 · SQLAlchemy 2.1 · psycopg 3 · Pydantic 2 · uvicorn |
 | 데이터 | PostgreSQL 16 + PostGIS 3.6(공간 조인·KNN·GiST) · Redis 7(캐시·속도 제한) · Postgres 작업 큐(`SKIP LOCKED`·`LISTEN/NOTIFY`) |
 | 분석 | SQL 지표 계산(calc_run 단위) · numpy · scipy(KD-tree) · pyosmium(OSM) · k-최근접 다중 출발 다익스트라(직접 구현) |
 | 프론트엔드 | Next.js 16.4(pages router, webpack 빌드 — [ADR-022](docs/adr/ADR-022-next16.md)) · React 19 · TypeScript 5.9 · Tailwind CSS 4.3 · Recharts · Kakao 지도 Web API · SVG(보고서 지도) |
-| 운영·보안 | Docker Compose(비루트·읽기 전용 FS·`cap_drop: ALL`) · Prometheus 지표 · GitHub Actions · CodeQL · Dependabot · gitleaks · pip-audit · npm audit |
+| 운영·보안 | Docker Compose(Debian 13 기반 이미지·비루트·읽기 전용 FS·`cap_drop: ALL`) · Prometheus 지표 · GitHub Actions · CodeQL · Dependabot · gitleaks · pip-audit · npm audit |
 | 검증 | pytest(PostGIS 테스트 DB) · Vitest · Playwright · axe-core · Lighthouse (`make test` · `make qa`) |
 
 ```
