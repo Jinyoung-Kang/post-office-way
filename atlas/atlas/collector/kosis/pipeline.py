@@ -141,7 +141,14 @@ def collect_kosis(year: int | None = None) -> uuid.UUID | None:
             sgis = [SgisArea(*r) for r in c.execute(text("""SELECT adm_cd, adm_nm, level, parent_cd FROM mart.admin_area
                                                            WHERE stat_year = :y AND level IN (2, 3)"""), {"y": year})]
             pairs = match(tree, sido_names, sgis, kosis_sidos, available=set(values))
-            c.execute(text("DELETE FROM mart.area_resident_pop WHERE stat_year = :y"), {"y": year})
+            if stats["failedCodes"]:
+                # 일부 시도가 실패했으면 이번에 다시 맞춘 지역과 하위 합(CHILD_SUM)만 바꾸고, 실패한 시도의 기존 값은 남김
+                # (전부 지우고 성공분만 넣으면 실패한 시도의 고령인구가 사라져 고령 지표·What-if 에 빈 곳이 생김)
+                c.execute(text("""DELETE FROM mart.area_resident_pop WHERE stat_year = :y
+                                    AND (adm_cd = ANY(CAST(:cds AS text[])) OR match_method = 'CHILD_SUM')"""),
+                          {"y": year, "cds": list(pairs)})
+            else:
+                c.execute(text("DELETE FROM mart.area_resident_pop WHERE stat_year = :y"), {"y": year})
             for adm_cd, (kcd, method) in pairs.items():
                 v = values[kcd]
                 ratio = round(100.0 * v["aged65"] / v["tot"], 2) if v["tot"] and v["aged65"] is not None else None

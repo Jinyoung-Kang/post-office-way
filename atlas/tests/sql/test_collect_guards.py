@@ -72,3 +72,56 @@ def test_care_normal_closure_removes_unseen(clean, engine, monkeypatch):
     items = [_item(i) for i in range(100)]
     status, stats = _run_care(monkeypatch, {"items": {"item": items}, "totalCount": 100})
     assert _pharmacies(engine) == 100 and stats["pharmacy"]["removed"] == 2 and status == "DONE"
+
+
+# ---- D4: KOSIS 일부 시도 실패 — 실패한 시도의 기존 고령인구를 지우지 않음 ----
+
+def _kosis_area(c, cd, nm, level, parent):
+    c.execute(text("""INSERT INTO mart.admin_area (adm_cd, stat_year, adm_nm, level, parent_cd, geom, geom_5179,
+                                                  geom_simple, rep_point, rep_point_5179, src_crs)
+                      SELECT :cd, 2024, :nm, :lvl, :p, g, ST_Transform(g, 5179), g, ST_Centroid(g),
+                             ST_Transform(ST_Centroid(g), 5179), 'EPSG:4326'
+                        FROM (SELECT ST_Multi(ST_MakeEnvelope(127, 37, 127.1, 37.1, 4326)) AS g) s"""),
+              {"cd": cd, "nm": nm, "lvl": level, "p": parent})
+
+
+def _run_kosis(monkeypatch, fail: set[str]):
+    from atlas.collector.kosis import pipeline
+    from atlas.core import config
+
+    monkeypatch.setenv("KOSIS_API_KEY", "TESTKEY")
+    config.get_settings.cache_clear()
+    meta = [{"OBJ_ID": "A", "ITM_ID": "11", "ITM_NM": "서울특별시"}, {"OBJ_ID": "A", "ITM_ID": "11110", "ITM_NM": "종로구"},
+            {"OBJ_ID": "A", "ITM_ID": "26", "ITM_NM": "부산광역시"}, {"OBJ_ID": "A", "ITM_ID": "26110", "ITM_NM": "중구"},
+            {"OBJ_ID": "B", "ITM_ID": "0", "ITM_NM": "계"}, {"OBJ_ID": "B", "ITM_ID": "70", "ITM_NM": "65 - 69세"}]
+
+    def fetch_sido(_f, sido, _codes, _period):
+        if sido in fail:
+            raise pipeline.KosisError("31", "일시 오류")
+        sgg = sido + "110"
+        return [{"C1": sgg, "C1_NM": meta[[m["ITM_ID"] for m in meta].index(sgg)]["ITM_NM"], "C2": "0", "DT": "1000",
+                 "PRD_DE": "202412"},
+                {"C1": sgg, "C2": "70", "DT": "200", "PRD_DE": "202412"}]
+
+    monkeypatch.setattr(pipeline, "fetch_meta", lambda f: meta)
+    monkeypatch.setattr(pipeline, "fetch_sido", fetch_sido)
+    monkeypatch.setattr(pipeline.time, "sleep", lambda s: None)
+    rid = pipeline.collect_kosis(year=2024)
+    config.get_settings.cache_clear()
+    return rid
+
+
+def test_kosis_partial_failure_keeps_failed_sido(clean, engine, monkeypatch):
+    with engine.begin() as c:
+        _kosis_area(c, "11010", "종로구", 2, "11")
+        _kosis_area(c, "21010", "중구", 2, "21")
+        c.execute(text("""INSERT INTO mart.area_population (adm_cd, stat_year, adm_nm, tot_ppltn)
+                          VALUES ('11', 2024, '서울특별시', 1), ('21', 2024, '부산광역시', 1)"""))
+    _run_kosis(monkeypatch, fail=set())
+    resident = lambda: dict(c2.execute(text("SELECT adm_cd, aged65_ppltn FROM mart.area_resident_pop "   # noqa: E731
+                                            "WHERE stat_year = 2024")).all())
+    with engine.connect() as c2:
+        assert resident() == {"11010": 200, "21010": 200}
+    _run_kosis(monkeypatch, fail={"26"})                    # 부산만 일시 오류
+    with engine.connect() as c2:
+        assert resident() == {"11010": 200, "21010": 200}   # 부산(21010)의 기존 값 유지
