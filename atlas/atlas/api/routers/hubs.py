@@ -1,13 +1,9 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Query
-from sqlalchemy import text
 
-from atlas.core.serial import jsonable
-from atlas.domain.errors import Invalid
-from atlas.domain.params import parse_bbox
-from atlas.features import hubs as svc
 from atlas.core.db import get_engine
+from atlas.features import hubs as svc
 
 router = APIRouter(tags=["hubs"])
 
@@ -30,20 +26,5 @@ def hubs_facilities(sido: str | None = Query(None, pattern=r"^\d{2}$"),
 def care_layer(bbox: str = Query(..., description="minLon,minLat,maxLon,maxLat"),
                kind: str = Query("all", pattern="^(all|PHARMACY|CLINIC)$"),
                holidayOnly: bool = False, size: int = 3000):
-    x1, y1, x2, y2 = parse_bbox(bbox)
-    if not 1 <= size <= 5000:
-        raise Invalid("size 는 1~5000 입니다.")
-    if (x2 - x1) * (y2 - y1) > 4:   # 약 200km × 200km 넘는 범위는 너무 많음 — 확대해서 보도록
-        raise Invalid("범위가 너무 넓습니다. 지도를 더 확대하세요.")
     with get_engine().connect() as c:
-        rows = c.execute(text("""
-            SELECT hpid, kind, div_name, name, addr, open_holiday, open_sunday, hours, ST_Y(geom) AS lat, ST_X(geom) AS lon
-              FROM mart.care_place
-             WHERE geom && ST_MakeEnvelope(:x1, :y1, :x2, :y2, 4326)
-               AND (CAST(:k AS text) = 'all' OR kind = CAST(:k AS text)) AND (NOT :h OR open_holiday)
-             ORDER BY hpid LIMIT :n"""), {"x1": x1, "y1": y1, "x2": x2, "y2": y2, "k": kind, "h": holidayOnly,
-                                          "n": size}).mappings().all()
-    return {"items": [jsonable({"id": r["hpid"], "kind": r["kind"], "divName": r["div_name"], "name": r["name"],
-                                "addr": r["addr"], "openHoliday": r["open_holiday"], "openSunday": r["open_sunday"],
-                                "hours": r["hours"], "lat": r["lat"], "lon": r["lon"]}) for r in rows],
-            "total": len(rows)}
+        return svc.care_places(c, bbox, kind, holidayOnly, size)

@@ -11,10 +11,9 @@ from sqlalchemy import text
 from sqlalchemy.engine import Connection
 
 from atlas.calc.runs import LATEST_DONE_ID, meta_of, resolve_calc_run
-
 from atlas.core.serial import jsonable
-
-from atlas.domain.params import page_params
+from atlas.domain.errors import Invalid
+from atlas.domain.params import page_params, parse_bbox
 
 LIFE_METRICS = ("POST_SOLE_HUB_PPLTN", "LIFE_DESERT_PPLTN", "CARE_DESERT_PPLTN", "HOLIDAY_CARE_GAP_PPLTN",
                 "POPW_PHARMACY_DIST_M", "POPW_CLINIC_DIST_M")
@@ -127,3 +126,23 @@ def facility_hub(c: Connection, hist_id: int) -> dict[str, Any] | None:
         "nearby": [{"kind": n["kind"], "name": n["name"], "divName": n["div_name"], "openHoliday": n["open_holiday"],
                     "distM": n["dist_m"]} for n in near],
     })
+
+
+def care_places(c: Connection, bbox: str, kind: str, holiday_only: bool, size: int) -> dict[str, Any]:
+    """⑦ 약국·의원 지도 레이어 — 화면 범위 안 (kind: all·PHARMACY·CLINIC)."""
+    x1, y1, x2, y2 = parse_bbox(bbox)
+    if not 1 <= size <= 5000:
+        raise Invalid("size 는 1~5000 입니다.")
+    if (x2 - x1) * (y2 - y1) > 4:   # 약 200km × 200km 넘는 범위는 너무 많음 — 확대해서 보도록
+        raise Invalid("범위가 너무 넓습니다. 지도를 더 확대하세요.")
+    rows = c.execute(text("""
+        SELECT hpid, kind, div_name, name, addr, open_holiday, open_sunday, hours, ST_Y(geom) AS lat, ST_X(geom) AS lon
+          FROM mart.care_place
+         WHERE geom && ST_MakeEnvelope(:x1, :y1, :x2, :y2, 4326)
+           AND (CAST(:k AS text) = 'all' OR kind = CAST(:k AS text)) AND (NOT :h OR open_holiday)
+         ORDER BY hpid LIMIT :n"""), {"x1": x1, "y1": y1, "x2": x2, "y2": y2, "k": kind, "h": holiday_only,
+                                  "n": size}).mappings().all()
+    return {"items": [jsonable({"id": r["hpid"], "kind": r["kind"], "divName": r["div_name"], "name": r["name"],
+                                "addr": r["addr"], "openHoliday": r["open_holiday"], "openSunday": r["open_sunday"],
+                                "hours": r["hours"], "lat": r["lat"], "lon": r["lon"]}) for r in rows],
+            "total": len(rows)}
