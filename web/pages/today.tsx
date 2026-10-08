@@ -1,13 +1,14 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type AtlasMapType from "@/components/AtlasMap";
 import type { MapLabel } from "@/components/AtlasMap";
 import Layout, { Card, ErrorBox, Hero, Segmented, Stat } from "@/components/Layout";
 import MapWarmup from "@/components/MapWarmup";
 import VisitBadge from "@/components/VisitBadge";
-import { api, cachedApi, qs, type AreaFC, type AreaProps, type VisitConditions, type VisitItem } from "@/lib/api";
+import { useApi } from "@/hooks/useApi";
+import { qs, type ApiError, type AreaFC, type AreaProps, type VisitConditions, type VisitItem } from "@/lib/api";
 import { dist, dt, num, NO_DATA, REASON_LABEL, shortSido, VISIT_FILL, VISIT_LABEL } from "@/lib/format";
 import { StatSkeletons } from "@/components/Skeleton";
 import { useQueryState } from "@/lib/useQueryState";
@@ -20,22 +21,11 @@ type P = AreaProps & { visit?: VisitItem };
 export default function TodayPage() {
   const router = useRouter();
   const [date, setDate] = useQueryState<string>("date", "");   // 비우면 서버가 오늘(운영 끝났으면 내일)을 고름
-  const [d, setD] = useState<VisitConditions | null>(null);
-  const [fc, setFc] = useState<AreaFC | null>(null);
-  const [err, setErr] = useState<{ code?: string; message: string } | null>(null);
   const [all, setAll] = useState(false);
 
-  useEffect(() => {
-    cachedApi<AreaFC>(`/areas/geojson${qs({ level: 2, metric: "AGED65_FAR_PPLTN" })}`).then(setFc).catch(() => setFc(null));
-  }, []);
-  useEffect(() => {
-    let alive = true;
-    setErr(null);
-    api<VisitConditions>(`/visit/conditions${qs({ date: date || undefined })}`)
-      .then((r) => { if (alive) setD(r); })
-      .catch((e) => { if (alive) { setD(null); setErr({ code: e.code, message: e.message }); } });
-    return () => { alive = false; };
-  }, [date]);
+  const fc = useApi<AreaFC>(`/areas/geojson${qs({ level: 2, metric: "AGED65_FAR_PPLTN" })}`, { cacheMs: 60_000 }).data;
+  const { data: d, error } = useApi<VisitConditions>(`/visit/conditions${qs({ date: date || undefined })}`);
+  const err = error ? { code: (error as ApiError).code as string | undefined, message: error.message } : null;
 
   const byCd = useMemo(() => new Map((d?.items || []).map((x) => [x.admCd, x])), [d]);
   const features = useMemo(() => (fc?.features || []).map((f) => ({ ...f, properties: { ...f.properties, visit: byCd.get(f.properties.admCd) } as P })), [fc, byCd]);

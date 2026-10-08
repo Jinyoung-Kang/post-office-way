@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { api, qs, type AreaDetail, type Facility, type VisitOutlook } from "@/lib/api";
+import { useApi } from "@/hooks/useApi";
+import { qs, type AreaDetail, type Facility, type VisitOutlook } from "@/lib/api";
 import { dist, dt, num, short, withUnit } from "@/lib/format";
 import { ErrorBox } from "@/components/Layout";
 import VisitBadge from "@/components/VisitBadge";
@@ -9,16 +9,9 @@ import VisitBadge from "@/components/VisitBadge";
 export default function RegionCard({ admCd, calcRunId, highlight, onDrill, onClose }: {
   admCd: string; calcRunId?: string; highlight?: string; onDrill?: (admCd: string) => void; onClose?: () => void;
 }) {
-  const [d, setD] = useState<AreaDetail | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-
-  useEffect(() => {
-    setD(null); setErr(null);
-    let alive = true;   // 지역을 연달아 누르면 마지막 지역의 응답만 표시
-    api<AreaDetail>(`/areas/${encodeURIComponent(admCd)}${qs({ calcRunId })}`)
-      .then((r) => { if (alive) setD(r); }).catch((e) => { if (alive) setErr(e.message); });
-    return () => { alive = false; };
-  }, [admCd, calcRunId]);
+  // 지역을 연달아 누르면 이전 요청을 취소하고 마지막 지역의 응답만 표시
+  const { data: d, error } = useApi<AreaDetail>(`/areas/${encodeURIComponent(admCd)}${qs({ calcRunId })}`, { keep: false });
+  const err = error?.message ?? null;
 
   if (err) return <ErrorBox error={err} />;
   if (!d) return <p className="p-2 text-[14px] text-ink-3">불러오는 중…</p>;
@@ -121,13 +114,7 @@ export default function RegionCard({ admCd, calcRunId, highlight, onDrill, onClo
 
 export function FacilityCard({ f: base, onClose }: { f: Facility; onClose?: () => void }) {
   // 지도 레이어 항목에는 좌표 검증 결과가 없어 상세를 한 번 더 조회
-  const [detail, setDetail] = useState<Facility | null>(null);
-  useEffect(() => {
-    setDetail(null);
-    let alive = true;
-    api<Facility>(`/facilities/${encodeURIComponent(base.histId)}`).then((r) => { if (alive) setDetail(r); }).catch(() => null);
-    return () => { alive = false; };
-  }, [base.histId]);
+  const detail = useApi<Facility>(`/facilities/${encodeURIComponent(base.histId)}`, { keep: false }).data;
   const f = detail || base;
   return (
     <div className="space-y-5 text-[14px]">
@@ -220,13 +207,7 @@ export function fmtPeriod(p?: string | null) {
 
 // ⑥ 방문 여건 — 시군구(읍면동이면 상위 시군구)의 오늘~모레. 예보를 아직 안 받았으면 표시하지 않음
 function VisitRows({ admCd }: { admCd: string }) {
-  const [o, setO] = useState<VisitOutlook | null>(null);
-  useEffect(() => {
-    setO(null);
-    let alive = true;
-    api<VisitOutlook>(`/visit/conditions/${encodeURIComponent(admCd)}`).then((r) => { if (alive) setO(r); }).catch(() => null);
-    return () => { alive = false; };
-  }, [admCd]);
+  const o = useApi<VisitOutlook>(`/visit/conditions/${encodeURIComponent(admCd)}`, { keep: false }).data;
   if (!o || !o.days.length) return null;
   return (
     <Group label={`방문 여건 · ${o.admNm} 09~18시 예보`}>

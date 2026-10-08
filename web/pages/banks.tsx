@@ -1,12 +1,13 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef } from "react";
 import type AtlasMapType from "@/components/AtlasMap";
 import type { Marker } from "@/components/AtlasMap";
 import Layout, { Card, Empty, ErrorBox, Hero, NoDataGuide, Segmented, Stat } from "@/components/Layout";
 import MapWarmup from "@/components/MapWarmup";
 import { TableSkeleton } from "@/components/Skeleton";
-import { api, cachedApi, qs, type BankImpact, type BankImpactDetail, type BankImpactList, type CatchmentProps,
+import { useApi } from "@/hooks/useApi";
+import { qs, type BankImpact, type BankImpactDetail, type BankImpactList, type CatchmentProps,
   type Feature, type Region } from "@/lib/api";
 import { BANK_REASON_SHORT, dist, dt, GRADE_BADGE, GRADE_LABEL, num, shortSido, walkMin } from "@/lib/format";
 import { useQueryState } from "@/lib/useQueryState";
@@ -31,48 +32,28 @@ const ALT_BANDS = [
 ];
 
 export default function BanksPage() {
-  const [regions, setRegions] = useState<Region[]>([]);
+  const regions = useApi<{ items: Region[] }>("/meta/regions", { cacheMs: 600_000 }).data?.items ?? [];
   const [sido, setSido] = useQueryState<string>("sido", "");
   const [grade, setGrade] = useQueryState<Grade>("grade", "", ["", "HIGH", "MID", "LOW"]);
   const [sort, setSort] = useQueryState<Sort>("sort", "lost", ["lost", "catch", "aged", "walk", "far"]);
   const [pageStr, setPageStr] = useQueryState<string>("page", "1");
   const [id, setId] = useQueryState<string>("id", "");
   const page = Math.max(1, Number(pageStr) || 1);
-  const [list, setList] = useState<BankImpactList | null>(null);
-  const [detail, setDetail] = useState<BankImpactDetail | null>(null);
-  const [detailErr, setDetailErr] = useState<string | null>(null);   // 목록 오류와 따로 — 목록이 성공해도 지워지지 않게
-  const [geo, setGeo] = useState<Feature<CatchmentProps>[]>([]);
-  const [err, setErr] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
   const detailRef = useRef<HTMLDivElement>(null);
+  // 조건을 빠르게 바꿀 때 이전 응답이 덮어쓰지 않게 (useApi 가 이전 요청을 취소)
+  const listQ = useApi<BankImpactList>(`/banks/impact${qs({ sido: sido || undefined, grade: grade || undefined, sort, page, size: SIZE })}`);
+  const list = listQ.data, loading = listQ.loading;
+  const err = listQ.error?.message ?? null;
 
-  useEffect(() => {
-    cachedApi<{ items: Region[] }>("/meta/regions", 600_000).then((r) => setRegions(r.items)).catch(() => null);
-  }, []);
-
-  useEffect(() => {
-    let alive = true;   // 조건을 빠르게 바꿀 때 이전 응답이 덮어쓰지 않게
-    setLoading(true);
-    api<BankImpactList>(`/banks/impact${qs({ sido: sido || undefined, grade: grade || undefined, sort, page, size: SIZE })}`)
-      .then((r) => { if (alive) { setList(r); setErr(null); } })
-      .catch((e) => { if (alive) { setList(null); setErr(e.message); } })
-      .finally(() => { if (alive) setLoading(false); });
-    return () => { alive = false; };
-  }, [sido, grade, sort, page]);
-
-  // 지점을 고르지 않았으면 목록 1위를 보여 줌(주소에는 남기지 않음)
+  // 지점을 고르지 않았으면 목록 1위를 보여 줌(주소에는 남기지 않음). 상세와 이용 주민 지도는 둘 다 와야 표시
   const selected = id || list?.items[0]?.placeId || "";
-  useEffect(() => {
-    if (!selected) { setDetail(null); setGeo([]); setDetailErr(null); return; }
-    let alive = true;
-    setDetailErr(null);
-    Promise.all([
-      api<BankImpactDetail>(`/banks/impact/${encodeURIComponent(selected)}`),
-      api<{ features: Feature<CatchmentProps>[] }>(`/banks/impact/${encodeURIComponent(selected)}/geojson`),
-    ]).then(([d, g]) => { if (alive) { setDetail(d); setGeo(g.features); } })
-      .catch((e) => { if (alive) { setDetail(null); setGeo([]); setDetailErr(e.message); } });
-    return () => { alive = false; };
-  }, [selected]);
+  const base = selected ? `/banks/impact/${encodeURIComponent(selected)}` : null;
+  const detailQ = useApi<BankImpactDetail>(base, { keep: false });
+  const geoQ = useApi<{ features: Feature<CatchmentProps>[] }>(base && `${base}/geojson`, { keep: false });
+  const both = detailQ.data && geoQ.data ? { d: detailQ.data, g: geoQ.data.features } : null;
+  const detail = both?.d ?? null;
+  const geo = useMemo(() => both?.g ?? [], [both?.g]);
+  const detailErr = (detailQ.error ?? geoQ.error)?.message ?? null;   // 목록 오류와 따로 — 목록이 성공해도 지워지지 않게
 
   const pick = (b: BankImpact) => {
     setId(b.placeId);

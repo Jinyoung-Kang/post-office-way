@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { useEffect, useState } from "react";
 import Layout, { Card, Empty, ErrorBox, Hero, NoDataGuide, Segmented, Stat } from "@/components/Layout";
 import { StatSkeletons, TableSkeleton } from "@/components/Skeleton";
-import { api, cachedApi, qs, type HubFacility, type HubSummary, type Page, type Region } from "@/lib/api";
+import { useApi } from "@/hooks/useApi";
+import { qs, type HubFacility, type HubSummary, type Page, type Region } from "@/lib/api";
 import { dist, dt, num, shortSido } from "@/lib/format";
 import { useQueryState } from "@/lib/useQueryState";
 import Sents from "@/components/Sents";
@@ -14,28 +14,16 @@ const SORTS: { value: Sort; label: string }[] = [
 const SIZE = 20;
 
 export default function HubsPage() {
-  const [sum, setSum] = useState<HubSummary | null>(null);
-  const [regions, setRegions] = useState<Region[]>([]);
-  const [err, setErr] = useState<string | null>(null);
+  const sumQ = useApi<HubSummary>("/hubs/summary", { cacheMs: 60_000 });
+  const sum = sumQ.data;
+  const regions = useApi<{ items: Region[] }>("/meta/regions", { cacheMs: 600_000 }).data?.items ?? [];
   const [sido, setSido] = useQueryState<string>("sido", "");
   const [sort, setSort] = useQueryState<Sort>("sort", "soleHub", ["soleHub", "soleFin", "served"]);
   const [pageStr, setPageStr] = useQueryState<string>("page", "1");
   const page = Math.max(1, Number(pageStr) || 1);
-  const [list, setList] = useState<Page<HubFacility> | null>(null);
-  const [loadingList, setLoadingList] = useState(true);
-
-  useEffect(() => {
-    cachedApi<HubSummary>("/hubs/summary").then(setSum).catch((e) => setErr(e.message));
-    cachedApi<{ items: Region[] }>("/meta/regions", 600_000).then((r) => setRegions(r.items)).catch(() => null);
-  }, []);
-  useEffect(() => {
-    let alive = true;
-    setLoadingList(true);
-    api<Page<HubFacility>>(`/hubs/facilities${qs({ sido: sido || undefined, sort, page, size: SIZE })}`)
-      .then((r) => { if (alive) setList(r); }).catch((e) => { if (alive) { setList(null); setErr(e.message); } })
-      .finally(() => { if (alive) setLoadingList(false); });
-    return () => { alive = false; };
-  }, [sido, sort, page]);
+  const listQ = useApi<Page<HubFacility>>(`/hubs/facilities${qs({ sido: sido || undefined, sort, page, size: SIZE })}`);
+  const list = listQ.data, loadingList = listQ.loading;
+  const err = (sumQ.error ?? listQ.error)?.message ?? null;
 
   const noData = !!err && /CALC_RUN_NOT_FOUND|완료된 계산/.test(err);
   const t = sum?.totals;

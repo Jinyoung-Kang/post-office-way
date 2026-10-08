@@ -6,6 +6,7 @@ import Layout, { basisText, ErrorBox, NoDataGuide, Segmented, useDataBasis } fro
 import MapWarmup from "@/components/MapWarmup";
 import RegionCard, { FacilityCard } from "@/components/RegionCard";
 import { BANK_LEGEND, CARE_LEGEND, FACILITY_LEGEND, type CareLayer, type FacilityLayer, type MapLabel } from "@/components/AtlasMap";
+import { useApi } from "@/hooks/useApi";
 import { cachedApi, qs, type AreaFC, type AreaProps, type Facility, type MetricDef, type Region } from "@/lib/api";
 import { classOf, groupMetrics, NO_DATA, num, quantileBreaks, SEQ, withUnit } from "@/lib/format";
 import type { TipLines } from "@/lib/mapTip";
@@ -15,8 +16,8 @@ const AtlasMap = dynamic(() => import("@/components/AtlasMap"), { ssr: false }) 
 export default function MapPage() {
   const router = useRouter();
   const { calc } = useDataBasis();
-  const [metrics, setMetrics] = useState<MetricDef[]>([]);
-  const [regions, setRegions] = useState<Region[]>([]);
+  const metrics = (useApi<{ items: MetricDef[] }>("/metrics", { cacheMs: 600_000 }).data?.items ?? []).filter((m) => m.available);
+  const regions = useApi<{ items: Region[] }>("/meta/regions", { cacheMs: 600_000 }).data?.items ?? [];
   const [metric, setMetric] = useState("ACCESS_GAP_SCORE");
   const [level, setLevel] = useState<2 | 3>(2);
   const [parent, setParent] = useState<string>("");
@@ -45,11 +46,6 @@ export default function MapPage() {
     if (mq.matches) setPanelOpen(false);
     mq.addEventListener("change", apply);
     return () => mq.removeEventListener("change", apply);
-  }, []);
-
-  useEffect(() => {
-    cachedApi<{ items: MetricDef[] }>("/metrics", 600_000).then((r) => setMetrics(r.items.filter((m) => m.available))).catch(() => null);
-    cachedApi<{ items: Region[] }>("/meta/regions", 600_000).then((r) => setRegions(r.items)).catch(() => null);
   }, []);
 
   // ?adm=11010&metric=… (순위·개요 화면에서 이동) → 레벨·상위 전환, 선택, 확대

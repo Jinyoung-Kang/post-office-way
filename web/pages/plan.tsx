@@ -1,12 +1,13 @@
 import dynamic from "next/dynamic";
 import type AtlasMapType from "@/components/AtlasMap";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useQueryState } from "@/lib/useQueryState";
 import Layout, { Card, Empty, ErrorBox, Hero, Segmented, Stat } from "@/components/Layout";
 import MapWarmup from "@/components/MapWarmup";
 import type { MapLabel, Marker } from "@/components/AtlasMap";
-import { api, cachedApi, qs, type AreaFC, type AreaProps, type PlanClose, type PlanOpen, type Region } from "@/lib/api";
+import { useApi } from "@/hooks/useApi";
+import { api, qs, type AreaFC, type AreaProps, type PlanClose, type PlanOpen, type Region } from "@/lib/api";
 import { classOf, dist, NO_DATA, num, quantileBreaks, SEQ } from "@/lib/format";
 import Sents from "@/components/Sents";
 import type { TipLines } from "@/lib/mapTip";
@@ -17,7 +18,7 @@ type Mode = "close" | "open";
 
 // ⑤ 배치 제안 — What-if 를 뒤집어, 범위 안에서 '닫아도 영향이 가장 작은 조합' / '열면 효과가 가장 큰 곳'
 export default function PlanPage() {
-  const [regions, setRegions] = useState<Region[]>([]);
+  const regions = useApi<{ items: Region[] }>("/meta/regions", { cacheMs: 600_000 }).data?.items ?? [];
   // 조건은 주소에 (?mode=open&scope=37520&k=4&weight=pop) — 결과 화면을 그대로 공유
   const [mode, setMode] = useQueryState<Mode>("mode", "close", ["close", "open"]);
   const [scopeQ, setScopeQ] = useQueryState<string>("scope", "");
@@ -26,13 +27,9 @@ export default function PlanPage() {
   const setK = (n: number) => setKStr(String(n));
   const [weight, setWeight] = useQueryState<"aged65" | "pop">("weight", "aged65", ["aged65", "pop"]);
   const [res, setRes] = useState<PlanClose | PlanOpen | null>(null);
-  const [fc, setFc] = useState<AreaFC | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  useEffect(() => {
-    cachedApi<{ items: Region[] }>("/meta/regions", 600_000).then((r) => setRegions(r.items)).catch(() => null);
-  }, []);
   const first = regions.find((x) => x.emdCount > 0);
   const scope = scopeQ || (first ? first.sigungu[0]?.admCd || first.admCd : "");
   const sido = scope.slice(0, 2);
@@ -43,14 +40,9 @@ export default function PlanPage() {
   latest.current = { scope, mode };
 
   // 범위의 읍면동 지도 (현재 최근접 거리) — 결과 위치를 보는 바탕
-  // 시도·시군구를 빠르게 바꾸면 느린 이전 응답이 나중에 도착할 수 있어, 현재 범위의 응답만 반영
-  useEffect(() => {
-    if (!scope) return;
-    let alive = true;
-    cachedApi<AreaFC>(`/areas/geojson${qs({ level: 3, metric: "NEAREST_FIN_DIST_M", parent: scope })}`)
-      .then((r) => { if (alive) setFc(r); }).catch(() => { if (alive) setFc(null); });
-    return () => { alive = false; };
-  }, [scope]);
+  // 시도·시군구를 빠르게 바꾸면 느린 이전 응답이 나중에 도착할 수 있어, 현재 범위의 응답만 반영 (useApi)
+  const fc = useApi<AreaFC>(scope ? `/areas/geojson${qs({ level: 3, metric: "NEAREST_FIN_DIST_M", parent: scope })}` : null,
+    { cacheMs: 60_000 }).data;
 
   async function run() {
     setBusy(true); setErr(null); setRes(null);

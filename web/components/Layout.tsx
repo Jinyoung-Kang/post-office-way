@@ -1,8 +1,9 @@
 import Head from "next/head";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { useEffect, useState, type ReactNode } from "react";
-import { cachedApi, type CalendarDay } from "@/lib/api";
+import { type ReactNode } from "react";
+import { useApi } from "@/hooks/useApi";
+import { type CalendarDay } from "@/lib/api";
 import { dt, sentences, short } from "@/lib/format";
 import Sents from "@/components/Sents";
 
@@ -23,12 +24,9 @@ type CalcRun = { calcRunId: string; statYear: number; facilityAsOf: string; stat
   stats: { kosisRefPeriod?: string | null } };
 
 export function useDataBasis() {
-  const [calc, setCalc] = useState<CalcRun | null>(null);
-  const [dqErrors, setDqErrors] = useState(0);
-  useEffect(() => {
-    cachedApi<{ items: CalcRun[] }>("/meta/calc-runs?size=10").then((r) => setCalc(r.items.find((x) => x.status === "DONE") || null)).catch(() => null);
-    cachedApi<{ errorCount: number }>("/dq/summary").then((r) => setDqErrors(r.errorCount)).catch(() => null);
-  }, []);
+  const runs = useApi<{ items: CalcRun[] }>("/meta/calc-runs?size=10", { cacheMs: 60_000 }).data;
+  const calc = runs?.items.find((x) => x.status === "DONE") || null;
+  const dqErrors = useApi<{ errorCount: number }>("/dq/summary", { cacheMs: 60_000 }).data?.errorCount ?? 0;
   return { calc, dqErrors };
 }
 
@@ -40,11 +38,7 @@ export function basisText(calc: CalcRun | null): string {
 
 // 오늘이 창구 휴무일(주말·공휴일)이면 머리글에 알림 — 특일 정보가 있을 때만 공휴일 이름까지
 function useToday() {
-  const [day, setDay] = useState<CalendarDay | null>(null);
-  useEffect(() => {
-    cachedApi<{ items: CalendarDay[] }>("/calendar?days=1", 600_000).then((r) => setDay(r.items[0] || null)).catch(() => null);
-  }, []);
-  return day;
+  return useApi<{ items: CalendarDay[] }>("/calendar?days=1", { cacheMs: 600_000 }).data?.items[0] || null;
 }
 
 export default function Layout({ children, full, title }: { children: ReactNode; full?: boolean; title?: string }) {

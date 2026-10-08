@@ -1,20 +1,17 @@
 import Link from "next/link";
-import { useEffect, useState } from "react";
 import { Bar, BarChart, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import Layout, { Card, ErrorBox, Hero, NoDataGuide, Stat } from "@/components/Layout";
 import { StatSkeletons } from "@/components/Skeleton";
 import { fmtPeriod } from "@/components/RegionCard";
-import { api, cachedApi, type Overview, type VisitConditions } from "@/lib/api";
+import { useApi } from "@/hooks/useApi";
+import { type Overview, type VisitConditions } from "@/lib/api";
 import { dist, num, SEQ, shortSido } from "@/lib/format";
 
 export default function OverviewPage() {
-  const [d, setD] = useState<Overview | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-  const [visit, setVisit] = useState<VisitConditions | null | undefined>(undefined);   // undefined = 불러오는 중
-  useEffect(() => {
-    cachedApi<Overview>("/overview").then(setD).catch((e) => setErr(e.message));
-    api<VisitConditions>("/visit/conditions").then(setVisit).catch(() => setVisit(null));   // 예보를 안 받았으면 배너 없음
-  }, []);
+  const { data: d, error } = useApi<Overview>("/overview", { cacheMs: 60_000 });
+  const err = error?.message ?? null;
+  const visitQ = useApi<VisitConditions>("/visit/conditions");
+  const visit = visitQ.loading ? undefined : visitQ.data;   // undefined = 불러오는 중, null = 예보를 안 받았으면 배너 없음
   const noData = !!err && /CALC_RUN_NOT_FOUND|완료된 계산/.test(err);
   const far = `${d?.farKm ?? 2}km`;           // '먼 거리' 기준은 계산 설정(farKm)을 따름
 

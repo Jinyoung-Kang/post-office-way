@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import Layout, { Card, ErrorBox, NoDataGuide, Segmented } from "@/components/Layout";
 import MiniMap, { type MiniFeature } from "@/components/MiniMap";
 import { StatSkeletons, TableSkeleton } from "@/components/Skeleton";
-import { api, cachedApi, type RegionReport, type Region, type ReportMetric } from "@/lib/api";
+import { useApi } from "@/hooks/useApi";
+import { type RegionReport, type Region, type ReportMetric } from "@/lib/api";
 import { BANK_REASON_SHORT, dt, GRADE_BADGE, GRADE_LABEL, num, VISIT_BADGE, withUnit } from "@/lib/format";
 import Sents from "@/components/Sents";
 
@@ -27,23 +28,12 @@ function rankText(m: ReportMetric): string {
 export default function ReportPage() {
   const router = useRouter();
   const admCd = typeof router.query.admCd === "string" ? router.query.admCd : "";
-  const [r, setR] = useState<RegionReport | null>(null);
-  const [err, setErr] = useState<string | null>(null);
   const [view, setView] = useState<EmdCode>("FAR2KM_SHARE");
-  const [regions, setRegions] = useState<Region[]>([]);
-
-  useEffect(() => {
-    cachedApi<{ items: Region[] }>("/meta/regions", 600_000).then((x) => setRegions(x.items)).catch(() => null);
-  }, []);
-  useEffect(() => {
-    if (!router.isReady || !admCd) return;
-    if (!/^\d{5}$/.test(admCd)) { setErr("지역 보고서는 시군구(5자리 코드) 단위입니다."); return; }
-    let alive = true;
-    setR(null); setErr(null);
-    api<RegionReport>(`/areas/${encodeURIComponent(admCd)}/report`)
-      .then((x) => { if (alive) setR(x); }).catch((e) => { if (alive) setErr(e.message); });
-    return () => { alive = false; };
-  }, [router.isReady, admCd]);
+  const regions = useApi<{ items: Region[] }>("/meta/regions", { cacheMs: 600_000 }).data?.items ?? [];
+  const valid = /^\d{5}$/.test(admCd);
+  const { data: r, error } = useApi<RegionReport>(router.isReady && valid ? `/areas/${encodeURIComponent(admCd)}/report` : null,
+    { keep: false });
+  const err = router.isReady && admCd && !valid ? "지역 보고서는 시군구(5자리 코드) 단위입니다." : error?.message ?? null;
 
   const v = EMD_VIEWS.find((x) => x.code === view)!;
   const emdFeatures: MiniFeature[] = useMemo(() => (r?.emds || []).map((e) => {

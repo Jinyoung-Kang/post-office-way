@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { useEffect, useState } from "react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import Layout, { Card, Empty, ErrorBox, Hero, NoDataGuide, Segmented } from "@/components/Layout";
-import { api, cachedApi, qs, type MetricDef, type Region } from "@/lib/api";
+import { useApi } from "@/hooks/useApi";
+import { qs, type MetricDef, type Region } from "@/lib/api";
 import { groupMetrics, num, shortSido, withUnit } from "@/lib/format";
 import { TableSkeleton } from "@/components/Skeleton";
 import { useQueryState } from "@/lib/useQueryState";
@@ -14,8 +14,8 @@ type Resp = { items: Row[]; total: number; metric: { code: string; name: string;
 
 export default function Rankings() {
   const router = useRouter();
-  const [metrics, setMetrics] = useState<MetricDef[]>([]);
-  const [regions, setRegions] = useState<Region[]>([]);
+  const metrics = (useApi<{ items: MetricDef[] }>("/metrics", { cacheMs: 600_000 }).data?.items ?? []).filter((m) => m.available);
+  const regions = useApi<{ items: Region[] }>("/meta/regions", { cacheMs: 600_000 }).data?.items ?? [];
   // 모든 조건을 주소에 반영 (?metric=&level=3&sido=37&sort=asc) — 공유·새로고침에도 같은 순위
   const [metric, setMetric] = useQueryState<string>("metric", "ACCESS_GAP_SCORE");
   const [levelStr, setLevelStr] = useQueryState<"2" | "3">("level", "2", ["2", "3"]);
@@ -23,25 +23,13 @@ export default function Rankings() {
   const setLevel = (l: 2 | 3) => setLevelStr(String(l) as "2" | "3");
   const [sidoQ, setSido] = useQueryState<string>("sido", "");
   const [sort, setSort] = useQueryState<"desc" | "asc">("sort", "desc", ["desc", "asc"]);
-  const [data, setData] = useState<Resp | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-
-  useEffect(() => {
-    cachedApi<{ items: MetricDef[] }>("/metrics", 600_000).then((r) => setMetrics(r.items.filter((m) => m.available))).catch(() => null);
-    cachedApi<{ items: Region[] }>("/meta/regions", 600_000).then((r) => setRegions(r.items)).catch(() => null);
-  }, []);
   const sido = sidoQ || regions.find((r) => r.emdCount > 0)?.admCd || "";
 
   // 시군구 순위는 시도와 무관 — 시도 목록이 늦게 와 기본 시도가 정해져도 다시 요청하지 않게 요청에 쓰는 값만 의존
   const parent = level === 3 ? sido : "";
-  useEffect(() => {
-    if (level === 3 && !parent) return;
-    setErr(null);
-    let alive = true;   // 조건을 빠르게 바꿀 때 이전 응답이 덮어쓰지 않게
-    api<Resp>(`/areas${qs({ level, metric, parent: parent || undefined, sort, size: 20 })}`)
-      .then((r) => { if (alive) setData(r); }).catch((e) => { if (alive) { setData(null); setErr(e.message); } });
-    return () => { alive = false; };
-  }, [metric, level, parent, sort]);
+  const { data, error } = useApi<Resp>(level === 3 && !parent ? null
+    : `/areas${qs({ level, metric, parent: parent || undefined, sort, size: 20 })}`);
+  const err = error?.message ?? null;
 
   const unit = data?.metric.unit || "";
   const worseFirst = data ? (data.metric.higherIsWorse ? sort === "desc" : sort === "asc") : true;

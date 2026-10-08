@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
 import Layout, { Card, ErrorBox, Hero } from "@/components/Layout";
-import { cachedApi, type MetricDef } from "@/lib/api";
+import { useApi } from "@/hooks/useApi";
+import { type MetricDef } from "@/lib/api";
 import { groupMetrics } from "@/lib/format";
 import Sents from "@/components/Sents";
 
@@ -8,9 +8,8 @@ type Resp = { items: MetricDef[]; finRule: { code: string; version: string; name
 
 // 지표 정의 — metric_def 내용을 그대로 표시 (FR-504)
 export default function MetricsAbout() {
-  const [d, setD] = useState<Resp | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-  useEffect(() => { cachedApi<Resp>("/metrics", 600_000).then(setD).catch((e) => setErr(e.message)); }, []);
+  const { data: d, error } = useApi<Resp>("/metrics", { cacheMs: 600_000 });
+  const err = error?.message ?? null;
 
   return (
     <Layout title="지표 정의">

@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Layout, { Card, Empty, ErrorBox, Hero, Segmented } from "@/components/Layout";
-import { api, cachedApi, qs, type Page } from "@/lib/api";
+import { useApi } from "@/hooks/useApi";
+import { qs, type Page } from "@/lib/api";
 import { dt, num, short } from "@/lib/format";
 import JobsPanel from "@/components/JobsPanel";
 import ErrorLog from "@/components/ErrorLog";
@@ -33,29 +34,18 @@ const DETAIL_LABEL: Record<string, string> = {
 };
 
 export default function Quality() {
-  const [sum, setSum] = useState<Summary | null>(null);
-  const [runs, setRuns] = useState<CollectRun[]>([]);
-  const [calcs, setCalcs] = useState<CalcRun[]>([]);
-  const [issues, setIssues] = useState<Page<Issue> | null>(null);
   const [filter, setFilter] = useState<{ run?: Block; code?: string; severity?: string; scope: "latest" | "all"; page: number }>({ scope: "latest", page: 1 });
-  const [err, setErr] = useState<string | null>(null);
-
-  useEffect(() => {
-    // 머리글 배지와 같은 요청을 하나로 (운영 화면이라 짧게). 예전에는 .catch 가 이 주석 안에 들어가 실패가 처리되지 않았음
-    cachedApi<Summary>("/dq/summary", 5_000).then(setSum).catch((e) => setErr(e.message));
-    api<Page<CollectRun>>("/meta/collect-runs?size=12").then((r) => setRuns(r.items)).catch(() => null);
-    api<Page<CalcRun>>("/meta/calc-runs?size=5").then((r) => setCalcs(r.items)).catch(() => null);
-  }, []);
-
-  useEffect(() => {
-    const r = filter.run;
-    let alive = true;
-    api<Page<Issue>>(`/dq/issues${qs({ collectRunId: r?.scope === "collect" ? r.runId : undefined,
-      calcRunId: r?.scope === "calc" ? r.runId : undefined, checkCode: filter.code, severity: filter.severity,
-      scope: filter.scope, page: filter.page, size: 30 })}`)
-      .then((x) => { if (alive) setIssues(x); }).catch((e) => { if (alive) setErr(e.message); });
-    return () => { alive = false; };
-  }, [filter]);
+  // 머리글 배지와 같은 요청을 하나로 (운영 화면이라 짧게)
+  const sumQ = useApi<Summary>("/dq/summary", { cacheMs: 5_000 });
+  const sum = sumQ.data;
+  const runs = useApi<Page<CollectRun>>("/meta/collect-runs?size=12").data?.items ?? [];
+  const calcs = useApi<Page<CalcRun>>("/meta/calc-runs?size=5").data?.items ?? [];
+  const sel = filter.run;
+  const issuesQ = useApi<Page<Issue>>(`/dq/issues${qs({ collectRunId: sel?.scope === "collect" ? sel.runId : undefined,
+    calcRunId: sel?.scope === "calc" ? sel.runId : undefined, checkCode: filter.code, severity: filter.severity,
+    scope: filter.scope, page: filter.page, size: 30 })}`);
+  const issues = issuesQ.data;
+  const err = (sumQ.error ?? issuesQ.error)?.message ?? null;
 
   return (
     <Layout title="데이터·운영">
