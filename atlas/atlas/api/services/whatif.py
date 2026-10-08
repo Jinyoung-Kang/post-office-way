@@ -10,7 +10,7 @@ import hashlib
 import json
 from typing import Any
 
-from sqlalchemy import text
+from sqlalchemy import event, text
 from sqlalchemy.engine import Connection
 
 from atlas.api import cache
@@ -144,8 +144,16 @@ def run_whatif(c: Connection, calc_run_id: str | None, remove_ids: list[int], le
                        "b": r["dist_before_m"], "a": r["dist_after_m"], "h": r["new_hist_id"],
                        "bk": bank.get(r["adm_cd"])})
         out = get_scenario(c, str(sid))
-    cache.set(key, json.dumps(out, ensure_ascii=False), ttl=TTL_S)
+    _cache_after_commit(c, key, json.dumps(out, ensure_ascii=False))
     return out
+
+
+def _cache_after_commit(c: Connection, key: str, body: str) -> None:
+    """저장 트랜잭션이 커밋된 뒤에만 캐시 — 롤백되면 없는 시나리오 id 를 1시간 동안 돌려주게 됨."""
+    if c.in_transaction():
+        event.listen(c, "commit", lambda _conn: cache.set(key, body, ttl=TTL_S), once=True)
+    else:
+        cache.set(key, body, ttl=TTL_S)
 
 
 def _summary(results: list[dict[str, Any]], pops: dict[str, Any], aged: dict[str, Any] | None = None) -> dict[str, Any]:
