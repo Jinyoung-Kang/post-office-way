@@ -13,6 +13,9 @@ SELECT :calc_run_id, o.oa_cd, o.emd_cd, k.hist_id, round(CAST(k.d AS numeric), 1
          ORDER BY t.d, t.hist_id LIMIT 1) k
  WHERE o.stat_year = :stat_year AND o.rep_point_5179 IS NOT NULL AND o.tot_ppltn IS NOT NULL;
 
+-- 같은 트랜잭션에서 방금 넣은 10만 행은 통계에 없어 뒤 단계(생활 거점·은행 지점 영향)의 실행 계획이 어긋남 → 통계 갱신
+ANALYZE mart.oa_nearest;
+
 -- 읍면동(= 집계구 코드 앞 8자리)과 시군구(앞 5자리) 단위로 인구 가중 집계 (등호 조인 두 번)
 CREATE TEMP TABLE calc_oa_agg (adm_cd varchar(10), level smallint, pop numeric, pop_dist numeric, far_pop numeric)
     ON COMMIT DROP;

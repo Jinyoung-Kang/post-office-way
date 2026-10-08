@@ -69,6 +69,18 @@ def haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 NON_RETAIL = ("한국은행", "한국산업은행", "한국수출입은행", "외국은행")
 
 
+def bank_brand(category: str | None) -> str | None:
+    """'금융,보험 > 금융서비스 > 은행 > KB국민은행' → 'KB국민은행', 저축은행 계열은 '저축은행' 으로 묶음 (V17 과 같은 규칙)."""
+    cat = category or ""
+    if "> 은행" not in cat:
+        return None
+    if "> 저축은행" in cat:
+        return "저축은행"
+    if "> 은행 >" not in cat:
+        return None
+    return cat.split("> 은행 >", 1)[1].split(" > ", 1)[0].strip() or None
+
+
 def classify_bank(name: str, category: str) -> str | None:
     """BK9 장소 → 'BRANCH' | 'ATM' | None(우체국 관련은 이미 우체국 데이터로 셈, 정책·중앙·외국은행은 개인 창구 아님)."""
     n, cat = name or "", category or ""

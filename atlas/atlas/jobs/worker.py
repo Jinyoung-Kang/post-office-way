@@ -46,12 +46,17 @@ def execute(job: dict[str, Any], worker: str | None = None, lane: str | None = N
     log.info("job start", extra={"jobId": jid, "kind": kind, "attempt": job["attempts"]})
     try:
         spec = registry.get(kind)
-        result = registry.run(kind, job["params"] or {})
+        result = run_isolated(kind, job["params"] or {}) if spec.isolate else registry.run(kind, job["params"] or {})
         if spec.recalc and (job["params"] or {}).get("recalc", True):
             try:
                 result["chainedCalcJobId"] = queue.enqueue("calc", source="chain", requested_by=f"job:{jid}")
             except queue.JobConflict as e:
                 result["chainedCalcJobId"] = e.job_id    # 이미 대기 중인 계산이 이번 자료까지 반영
+        for nxt in spec.then:
+            try:
+                result.setdefault("chained", {})[nxt] = queue.enqueue(nxt, source="chain", requested_by=f"job:{jid}")
+            except queue.JobConflict as e:
+                result.setdefault("chained", {})[nxt] = e.job_id
         result["elapsedMs"] = int((time.monotonic() - t0) * 1000)
         queue.finish(jid, True, result)
         log.info("job done", extra={"jobId": jid, "kind": kind, "elapsedMs": result["elapsedMs"]})
@@ -64,6 +69,24 @@ def execute(job: dict[str, Any], worker: str | None = None, lane: str | None = N
         return False
     finally:
         stop.set()
+
+
+def _child(kind: str, params: dict[str, Any]) -> dict[str, Any]:
+    from atlas.core.logging import setup_logging
+
+    setup_logging()
+    return registry.run(kind, params)
+
+
+def run_isolated(kind: str, params: dict[str, Any]) -> dict[str, Any]:
+    """새 프로세스(spawn)에서 작업 하나 — 파이썬은 쓴 메모리를 OS 에 잘 돌려주지 않아, 도보 그래프(수 GB)를
+    워커 프로세스에서 돌리면 끝난 뒤에도 1GB 넘게 남았음. 자식 프로세스가 끝나면 모두 반환되고, 자식이 죽어도 워커는 남음.
+    fork 대신 spawn — 워커의 스레드·DB 연결을 물려받지 않게."""
+    import multiprocessing as mp
+    from concurrent.futures import ProcessPoolExecutor
+
+    with ProcessPoolExecutor(max_workers=1, mp_context=mp.get_context("spawn")) as ex:
+        return ex.submit(_child, kind, params).result()
 
 
 def _listen_conn() -> psycopg.Connection:

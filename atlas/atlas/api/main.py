@@ -20,7 +20,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 from atlas.api import errors, metrics
 from atlas.api.etag import ETagMiddleware
 from atlas.api.routers import (admin, areas, banks, calendar, dq, facilities, health, hubs, meta, metrics as metric_defs,
-                               overview, plan, visit, whatif)
+                               overview, plan, reports, visit, whatif)
 from atlas.api.security import RateLimitMiddleware, SecurityHeadersMiddleware, ip_from_scope
 from atlas.core.config import get_settings
 from atlas.core.db import get_engine
@@ -95,5 +95,5 @@ def prometheus() -> Response:
     return Response(body, media_type=ctype)
 
 
-for r in (health, meta, overview, facilities, banks, hubs, calendar, areas, metric_defs, whatif, plan, visit, dq, admin):
+for r in (health, meta, overview, facilities, banks, hubs, calendar, areas, metric_defs, whatif, plan, visit, dq, admin, reports):
     app.include_router(r.router, prefix="/api/v1")

@@ -17,6 +17,7 @@ export function withUnit(v: number | null | undefined, unit: string): string {
   if (unit === "0/1") return v >= 1 ? "있음" : "없음";
   if (unit === "%") return `${num(v, 1)}%`;
   if (unit === "점") return `${num(v, 1)}점`;
+  if (unit === "명" || unit === "곳" || unit === "개") return `${num(Math.round(v))}${unit}`;   // 사람·시설 수는 정수로 (중앙값이 x.5 여도)
   return `${num(v, 1)}${unit}`;
 }
 
@@ -96,8 +97,23 @@ const METRIC_GROUP: Record<string, string> = {
   POST_SOLE_HUB_PPLTN: "생활 거점", LIFE_DESERT_PPLTN: "생활 거점", CARE_DESERT_PPLTN: "생활 거점",
   POPW_PHARMACY_DIST_M: "생활 거점", POPW_CLINIC_DIST_M: "생활 거점", HOLIDAY_CARE_GAP_PPLTN: "생활 거점",
   HAS_365: "운영", LUNCH_CLOSED_RATIO: "운영",
+  POPW_FIN_WALK_M: "걸어서", WALK30_NO_FIN_PPLTN: "걸어서", WALK30_NO_FIN_SHARE: "걸어서", WALK30_NO_CASH_PPLTN: "걸어서",
 };
-const GROUP_ORDER = ["우체국 거리", "멀리 사는 사람", "금융 공백", "생활 거점", "운영", "기타"];
+const GROUP_ORDER = ["우체국 거리", "걸어서", "멀리 사는 사람", "금융 공백", "생활 거점", "운영", "기타"];
+
+// ① 은행 지점 영향 등급 — 상태 색은 등급에만, 늘 글자 라벨과 함께
+export const GRADE_LABEL: Record<string, string> = { HIGH: "높음", MID: "보통", LOW: "낮음" };
+export const GRADE_BADGE: Record<string, string> = { HIGH: "badge-error", MID: "badge-warn", LOW: "badge-good" };
+export const BANK_REASON_SHORT: Record<string, string> = {
+  NO_ALT_2KM: "2km 안 대체 없음", NO_ALT_WALK30: "걸어서 30분 안 대체 없음", SAME_BANK_10KM: "같은 은행 10km 밖", AGED_20: "고령 20%+",
+};
+
+// 걷는 시간 — 고령자 0.8m/s (서울시 보행약자 신호시간 기준)
+export const WALK_MPS = 0.8;
+export function walkMin(m: number | null | undefined): string {
+  if (m === null || m === undefined || !Number.isFinite(m)) return "—";
+  return `${Math.max(1, Math.round(m / WALK_MPS / 60))}분`;
+}
 
 export function groupMetrics<T extends { code: string }>(items: T[]): { label: string; items: T[] }[] {
   const by = new Map<string, T[]>();

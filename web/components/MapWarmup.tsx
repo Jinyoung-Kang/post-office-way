@@ -13,8 +13,8 @@ export default function MapWarmup() {
     <Head>
       {/* SDK(dapi) → 본체·이미지(t1) → 타일(mts) 순서로 받는 출처들 */}
       <link key="pc-dapi" rel="preconnect" href="https://dapi.kakao.com" />
-      <link key="pc-t1" rel="preconnect" href="https://t1.daumcdn.net" />
-      <link key="pc-mts" rel="preconnect" href="https://mts.daumcdn.net" />
+      <link key="pc-t1" rel="preconnect" href="https://t1.kakaocdn.net" />
+      <link key="pc-mts" rel="preconnect" href="https://mts.kakaocdn.net" />
     </Head>
   );
 }

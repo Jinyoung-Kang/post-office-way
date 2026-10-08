@@ -25,6 +25,9 @@
 | [ADR-015](adr/ADR-015-life-hub-calendar.md) | 생활 거점(약국·병의원)과 영업일 달력(특일 정보) — API 선정·제외 이유 |
 | [ADR-016](adr/ADR-016-map-display.md) | 지도 표시 방식 — 첫 그리기 보장, 늘 보이는 라벨, 누르면 고정 |
 | [ADR-017](adr/ADR-017-worker-lanes-ops.md) | 워커 차선(short·long)·생존 신호, 생존/준비 확인 분리, 백업·복원 |
+| [ADR-018](adr/ADR-018-bank-closure-impact.md) | 은행 지점 폐쇄 영향평가 — 전수 수집(사분할 격자)·이용 주민·대체 창구(은행대리업 우체국)·등급 규칙 |
+| [ADR-019](adr/ADR-019-walking-access.md) | 걸어서 가는 거리 — OSM 보행 그래프·k-최근접 다중 출발 탐색·워커 자식 프로세스 |
+| [ADR-020](adr/ADR-020-region-report.md) | 지역 한 장 보고서 — 서버에서 묶기·계산 버전 캐시·SVG 작은 지도·인쇄 |
 
 ## API (`http://localhost:8100/api/v1`, 자동 문서 `/docs`)
 
@@ -34,7 +37,10 @@
 | `GET /overview` | 전국 개요 — 시설·거리 분포·고령인구·금융 공백·취약 지역 |
 | `GET /areas` · `/areas/geojson` · `/areas/{admCd}` | 지역 목록·순위 / 단계구분도 GeoJSON(캐시) / 지역 상세(최근접 3·은행·지표·인구) |
 | `GET /facilities` · `/facilities/{histId}` | 시설 목록(bbox·유형·검색) / 시설 상세 |
-| `GET /banks` | 은행·금고 지점 레이어 (bbox 필수) |
+| `GET /banks` | 은행·금고 지점 레이어 (bbox 필수, 대면 지점은 마지막 전수 수집 기준) |
+| `GET /banks/impact` · `/banks/impact/{placeId}` · `/banks/impact/{placeId}/geojson` | 은행 지점 폐쇄 영향평가 — 순위·등급별 개수(`sido`·`sgg`·`grade`·`sort`) / 지점 상세(대체 창구·거리대별 이용 주민) / 이용 주민 집계구 |
+| `GET /areas/{admCd}/report` | 지역 한 장 보고서 (시군구) — 지표·전국 중앙값·순위, 우체국, 은행 지점 영향, 읍면동(경계 포함), 방문 여건 |
+| `POST /csp-report` | 브라우저의 CSP 위반 보고 수신 → 오류 로그 '보안 정책' (16KB·분당 30회·1시간 중복 억제) |
 | `GET /metrics` | 지표 정의 |
 | `POST /whatif` · `GET /whatif/{id}` · `GET /whatif/{id}/geojson` | 문 닫음 가정 시뮬레이션 · 재조회 · 영향 지역 폴리곤 |
 | `POST /plan/close` · `POST /plan/open` | 배치 제안 — 닫을 곳 찾기(영향 최소 조합) / 열 곳 찾기(효과 최대 후보지) |
@@ -69,10 +75,15 @@
 | V14 | 순위·백분위 사전 계산(`access_metric.rnk·pct·n`) + 기존 계산 채움 |
 | V15 | 오류 로그(`ops.app_error`) — API 가 처리하지 못한 예외, 30일 보관(make prune) |
 | V16 | 워커 생존 신호(`ops.worker`) — 차선별 마지막 신호·실행 중 작업, API 는 읽기만 |
+| V17 | 은행 브랜드(`bank_place.brand`)·은행대리업 대상 표(`bank_brand`)·지금 영업 중 지점 뷰(`bank_branch_current`) |
+| V18 | 은행 지점 영향평가(`bank_impact`)·등급 함수, 도보 결과(`oa_walk`)·실행 기록(`walk_run`), 도보 지표 4개 |
+| V19 | 집계구별 가장 가까운 은행 지점·대체 창구 거리(`oa_bank`) |
+| V20 | 오류 로그 출처에 `csp`(CSP 위반 보고) |
 
-- 지표 계산 SQL: `atlas/atlas/sql/calc/00_snapshot.sql` ~ `10_ranks.sql` (계산 실행 `calc_run` 단위로 결과 보존)
+- 지표 계산 SQL: `atlas/atlas/sql/calc/00_snapshot.sql` ~ `11_bank_impact.sql` (계산 실행 `calc_run` 단위로 결과 보존)
 - 판정 규칙: 금융 가능 `R-FIN-01` (`domain/rules.py`), 방문 여건 `VISIT-1` (`domain/visit.py`), 영업일 (`domain/calendar.py`),
   약국·병의원 행 해석 (`domain/care.py`)
+- 도보: 그래프 `walk/graph.py` · k-최근접 탐색 `walk/ksource.py` · OSM 내려받기 `walk/osm.py` · 계산 `walk/compute.py`
 - 작업: 종류 목록·차선 `jobs/registry.py` · 큐·생존 신호 `jobs/queue.py` · 스케줄 `jobs/scheduler.py` · 워커(차선별 스레드) `jobs/worker.py`
 
 ## 화면 캡처

@@ -28,3 +28,10 @@ backups/
 
 .DS_Store
 *.tsbuildinfo
+
+# 서비스 점검 결과·가상환경 (make qa)
+.qa/
+.qa-venv/
+
+# Claude Code 개인 설정 (이 기기 전용)
+.claude/settings.local.json

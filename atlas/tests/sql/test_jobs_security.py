@@ -269,3 +269,44 @@ def test_worker_survives_db_disconnect(fake_jobs, monkeypatch, engine):
             c.execute(text("SELECT pg_notify('atlas_jobs', 'stop')"))
         t.join(10)
     assert not t.is_alive()
+
+
+def test_isolated_job_runs_in_child_process_and_propagates_errors(clean, monkeypatch, tmp_path):
+    """무거운 작업(isolate)은 자식 프로세스에서 — 결과·예외가 그대로 돌아오고, 워커 메모리에 남지 않음."""
+    monkeypatch.setenv("OSM_DIR", str(tmp_path))                 # 자식(spawn)은 환경 변수로 설정을 다시 읽음
+    assert registry.get("walk").isolate and registry.get("osm").isolate
+    out = worker.run_isolated("walk", {})
+    assert "skipped" in out                                     # 그래프가 없으면 건너뜀
+    with pytest.raises(KeyError):
+        worker.run_isolated("no-such-job", {})
+
+
+def test_csp_report_recorded_once_filtered_and_scrubbed(client, engine, monkeypatch):
+    """CSP 위반 보고 → 오류 로그 '보안 정책'. 쿼리 문자열 제거, 같은 위반 1시간에 한 번, 카카오 eval·확장 프로그램은 무시."""
+    from atlas.api import cache
+
+    seen: set[str] = set()
+    monkeypatch.setattr(cache, "set_nx", lambda k, v, ttl: not (k in seen or seen.add(k)))
+    url = "/api/v1/csp-report"
+    old = {"csp-report": {"document-uri": "http://localhost:3100/banks?token=abc", "effective-directive": "script-src-elem",
+                          "blocked-uri": "https://t1.kakaocdn.net/mapjsapi/js/main/4.5.28/kakao.js?v=secret"}}
+    h = {"Content-Type": "application/csp-report"}
+    assert client.post(url, json=old, headers=h).status_code == 204
+    assert client.post(url, json=old, headers=h).status_code == 204          # 같은 위반 — 다시 기록하지 않음
+    ignored = [{"csp-report": {"effective-directive": "script-src", "blocked-uri": "eval",
+                               "source-file": "https://t1.kakaocdn.net/mapjsapi/js/main/4.5.28/kakao.js"}},
+               {"csp-report": {"effective-directive": "script-src", "blocked-uri": "chrome-extension://abc/x.js"}}]
+    for b in ignored:
+        client.post(url, json=b, headers=h)
+    new = [{"type": "csp-violation", "body": {"documentURL": "http://localhost:3100/", "effectiveDirective": "img-src",
+                                              "blockedURL": "https://tiles.example.com/1/2/3.png"}}]
+    assert client.post(url, json=new, headers={"Content-Type": "application/reports+json"}).status_code == 204
+    assert client.post(url, content=b"x" * (17 * 1024), headers=h).status_code == 413
+    assert client.post(url, content=b"not json", headers=h).status_code == 204
+    assert client.post(url, json={"csp-report": {"blocked-uri": 1, "line-number": "x"}}, headers=h).status_code == 204  # 퍼징
+    with engine.connect() as c:
+        rows = c.execute(text("SELECT path, error_type, message FROM ops.app_error WHERE source = 'csp' ORDER BY error_id")).all()
+    assert [r.error_type for r in rows] == ["script-src-elem", "img-src"]
+    assert rows[0].path == "/banks" and "secret" not in rows[0].message and "token" not in rows[0].path
+    errs = client.get("/api/v1/meta/errors").json()["items"]
+    assert {e["source"] for e in errs if e["title"].startswith("CSP")} == {"보안 정책"}

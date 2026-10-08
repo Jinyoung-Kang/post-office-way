@@ -113,7 +113,7 @@ def facility_hub(c: Connection, hist_id: int) -> dict[str, Any] | None:
                    FROM mart.care_place WHERE kind = 'CLINIC' ORDER BY geom_5179 <-> f.geom_5179 LIMIT 1)
                 UNION ALL
                 (SELECT 'BANK', name, category, false, ST_Distance(geom_5179, f.geom_5179)
-                   FROM mart.bank_place WHERE kind = 'BRANCH' ORDER BY geom_5179 <-> f.geom_5179 LIMIT 1)) k
+                   FROM mart.bank_branch_current ORDER BY geom_5179 <-> f.geom_5179 LIMIT 1)) k
          WHERE f.hist_id = :id"""), {"id": hist_id}).mappings().all()
     if not r and not near:
         return None

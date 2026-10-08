@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import gzip
 
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, Path, Query, Request
 from fastapi.responses import Response
 
 from atlas.api.services import areas as svc
+from atlas.api.services import report as report_svc
 from atlas.core.db import get_engine
 
 router = APIRouter(prefix="/areas", tags=["areas"])
@@ -42,3 +43,9 @@ def areas_geojson(request: Request, level: int = Query(..., description="2 시�
 def area_detail(adm_cd: str, calcRunId: str | None = None):
     with get_engine().connect() as c:
         return svc.area_detail(c, adm_cd, calcRunId)
+
+
+@router.get("/{adm_cd}/report", summary="③ 지역 한 장 보고서 — 시군구 접근성·도보·생활 거점·은행 지점 영향·읍면동·방문 여건")
+def area_report(adm_cd: str = Path(..., pattern=r"^\d{5}$"), calcRunId: str | None = None):
+    with get_engine().connect() as c:
+        return report_svc.report(c, adm_cd, calcRunId)

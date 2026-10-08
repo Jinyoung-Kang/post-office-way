@@ -41,7 +41,13 @@ export default function RegionCard({ admCd, calcRunId, highlight, onDrill, onClo
           {hl.rank && <p className="mt-1 text-[12px] text-ink-3">전국 {hl.rankOf}곳 중 값이 큰 순 {hl.rank}위 · 백분위 {hl.percentile}</p>}
         </div>
       )}
-      {onDrill && <button className="btn-ghost" onClick={() => onDrill(d.admCd)}>읍면동으로 보기</button>}
+      <div className="flex flex-wrap items-center gap-2">
+        {onDrill && <button className="btn-ghost" onClick={() => onDrill(d.admCd)}>읍면동으로 보기</button>}
+        {(d.level === 2 ? d.admCd : d.parentCd) && (
+          <Link href={`/report/${d.level === 2 ? d.admCd : d.parentCd}`} className="btn-ghost no-underline">
+            {d.level === 2 ? "지역 보고서" : `${d.parentNm || "시군구"} 보고서`}</Link>
+        )}
+      </div>
 
       <VisitRows admCd={d.admCd} />
 

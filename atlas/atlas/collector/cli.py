@@ -9,7 +9,10 @@
   atlas collect oa [--refresh]           ① SGIS 집계구 인구·경계 (이어받기 가능)
   atlas collect road [--max-calls N]     ② 카카오모빌리티 도로 거리 (캐시·예산 안에서 이어서)
   atlas collect geocheck [--max-calls N] ③ 카카오 주소 검색으로 시설 좌표 검증
-  atlas collect banks                    ④ 카카오 로컬 은행·금고 지점
+  atlas collect banks                    ④ 카카오 로컬 은행·금고 지점 (지역마다 가까운 3곳)
+  atlas collect banks-full               ④ 은행·금고 지점 전수 (사분할 격자, 약 5천 회 호출)
+  atlas collect osm                      ② OSM 한국 도로망 내려받기(바뀌었을 때만) + 도보 그래프
+  atlas collect walk                     ② 최신 지표 계산에 도보 거리 채우기 (그래프 필요)
   atlas collect weather|kma|air          ⑥ 방문 여건 — 기상청 단기예보·에어코리아 미세먼지 예보 (하루 1~3회)
   atlas collect care|holidays            ⑦ 약국·병의원(국립중앙의료원) · 공휴일(한국천문연구원 특일)
   atlas worker [--once]                  작업 큐 워커 + 스케줄러 (API 가 넣은 작업 실행)
@@ -240,7 +243,7 @@ def build_parser() -> argparse.ArgumentParser:
     d.set_defaults(fn=cmd_discover)
     c = sub.add_parser("collect")
     c.add_argument("what", choices=["post", "sgis", "sgis-pop", "sgis-bnd", "kosis", "oa", "road", "geocheck", "banks",
-                                   "weather", "kma", "air", "care", "holidays"])
+                                   "banks-full", "osm", "walk", "weather", "kma", "air", "care", "holidays"])
     c.add_argument("--refresh", action="store_true", help="집계구 경계를 전부 다시 받기 (oa)")
     c.add_argument("--max-calls", type=int, help="호출 예산 (road·geocheck)")
     c.add_argument("--scope", help="지역코드 목록 (post)")

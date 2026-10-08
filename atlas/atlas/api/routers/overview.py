@@ -77,6 +77,15 @@ def overview(calcRunId: str | None = None):
         hubs = c.execute(text("""SELECT count(*) FILTER (WHERE sole_hub_ppltn > 0) FROM mart.facility_hub
                                   WHERE calc_run_id = :rid"""), {"rid": rid}).scalar()
         top_sole_hub = _top(c, rid, "POST_SOLE_HUB_PPLTN", 2, y)
+        # ② 걸어서 (시군구 합) — 도보 계산(walk)이 끝난 calc_run 만
+        walk = dict(c.execute(text("""SELECT metric_code, sum(value) FROM mart.access_metric
+                                       WHERE calc_run_id = :rid AND level = 2
+                                         AND metric_code IN ('WALK30_NO_FIN_PPLTN', 'WALK30_NO_CASH_PPLTN') GROUP BY 1"""),
+                              {"rid": rid}).all())
+        # ① 은행 지점 폐쇄 영향 — 등급별 지점 수
+        banks = c.execute(text("""SELECT count(*) AS n, count(*) FILTER (WHERE grade = 'HIGH') AS high,
+                                         coalesce(sum(lost_ppltn), 0) AS lost
+                                    FROM mart.bank_impact WHERE calc_run_id = :rid"""), {"rid": rid}).mappings().one()
 
     tot_pop = sum(r["pop"] or 0 for r in dist)
     wavg = sum(float(r["d"]) * (r["pop"] or 0) for r in dist) / tot_pop if tot_pop else None
@@ -119,6 +128,10 @@ def overview(calcRunId: str | None = None):
                   "holidayCareGapPpltn": life.get("HOLIDAY_CARE_GAP_PPLTN"), "soleHubFacilities": hubs}
                  if life else None),
         "topSoleHub": top_sole_hub if life else [],
+        "walk": ({"noFinPpltn": walk.get("WALK30_NO_FIN_PPLTN"), "noCashPpltn": walk.get("WALK30_NO_CASH_PPLTN"),
+                  "noFinShare": round(100 * float(walk["WALK30_NO_FIN_PPLTN"]) / oa["pop"], 1) if oa["n"] and walk.get("WALK30_NO_FIN_PPLTN") is not None else None}
+                 if walk else None),
+        "banks": ({"branches": banks["n"], "high": banks["high"], "lostPpltn": banks["lost"]} if banks["n"] else None),
         "meta": meta_of(run),
     })
     cache.set(key, json.dumps(out, ensure_ascii=False), ttl=3600)

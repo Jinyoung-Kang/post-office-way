@@ -4,7 +4,7 @@ import { Skeleton } from "@/components/Skeleton";
 import { api } from "@/lib/api";
 
 type Entry = { at: string; source: string; ref: string; title: string; message: string; line: string };
-const SOURCES = ["전체", "API", "작업", "수집", "계산", "품질", "화면"] as const;
+const SOURCES = ["전체", "API", "보안 정책", "작업", "수집", "계산", "품질", "화면"] as const;
 
 // 오류 로그 — 흩어져 있던 실패(API 예외·작업·수집·계산·품질 ERROR·이 화면의 요청 실패)를 한곳에 시간순으로.
 // 한 줄 로그 형식이라 그대로 복사해 이슈·메신저에 붙일 수 있음

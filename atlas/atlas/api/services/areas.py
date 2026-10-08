@@ -154,7 +154,7 @@ def area_detail(c: Connection, adm_cd: str, calc_run_id: str | None) -> dict[str
         SELECT b.name, b.addr, ST_Y(b.geom) AS lat, ST_X(b.geom) AS lon,
                round(CAST(ST_Distance(b.geom_5179, a.rep_point_5179) AS numeric), 1) AS dist_m
           FROM mart.admin_area a
-         CROSS JOIN LATERAL (SELECT * FROM mart.bank_place b WHERE b.kind = 'BRANCH'
+         CROSS JOIN LATERAL (SELECT * FROM mart.bank_branch_current b
                               ORDER BY b.geom_5179 <-> a.rep_point_5179 LIMIT 3) b
          WHERE a.adm_cd = :cd AND a.stat_year = :y"""), {"cd": adm_cd, "y": run["stat_year"]}).mappings().all()
     fac_counts = c.execute(text("""

@@ -71,6 +71,31 @@ export default function OverviewPage() {
               </Link>
             )}
 
+            {(d.walk || d.banks) && (
+              <div className="rise grid gap-3 md:grid-cols-2">
+                {d.walk && (
+                  <Link href="/rankings?metric=WALK30_NO_FIN_SHARE" className="card grid grid-cols-2 gap-4 p-5 text-ink no-underline hover:bg-white/90">
+                    <div className="col-span-2 flex items-center justify-between">
+                      <span className="text-[13px] font-semibold text-ink-2">걸어서 — 고령자 걸음(0.8m/s)으로 30분</span>
+                      <span className="link text-[14px]">순위 ›</span>
+                    </div>
+                    <MiniStat label="금융 우체국에 닿지 못하는 인구" value={`${num(d.walk.noFinPpltn)}명`} bad />
+                    <MiniStat label="우체국도 은행도 못 닿는 인구" value={`${num(d.walk.noCashPpltn)}명`} />
+                  </Link>
+                )}
+                {d.banks && (
+                  <Link href="/banks" className="card grid grid-cols-2 gap-4 p-5 text-ink no-underline hover:bg-white/90">
+                    <div className="col-span-2 flex items-center justify-between">
+                      <span className="text-[13px] font-semibold text-ink-2">은행이 문을 닫으면 — {num(d.banks.branches)}개 지점 평가</span>
+                      <span className="link text-[14px]">자세히 ›</span>
+                    </div>
+                    <MiniStat label="영향 높은 지점" value={`${num(d.banks.high)}곳`} bad />
+                    <MiniStat label="새로 2km 안 대체 창구를 잃는 주민" value={`${num(d.banks.lostPpltn)}명`} />
+                  </Link>
+                )}
+              </div>
+            )}
+
             <Card title="최근접 금융 우체국까지 거리별 인구" right={<span className="text-[12px] text-ink-3">{num(d.areaCount)}개 읍면동 · 인구 비율</span>}>
               <div className="h-[260px]">
                 <ResponsiveContainer width="100%" height="100%">

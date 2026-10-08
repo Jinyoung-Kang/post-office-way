@@ -148,7 +148,8 @@ export default function MapPage() {
       <AtlasMap<AreaProps> className="absolute inset-0" features={fc?.features || []} styleOf={styleOf}
         tooltipOf={tooltipOf} selected={selected} geomKey={`${level}:${parent}`} focusCd={focusCd}
         onSelect={(cd) => { setSelected(cd); setFacility(null); }}
-        facilities={fac} onFacility={(f) => { setFacility(f); setSelected(null); }} banks={banks} care={care} labels={topLabels}
+        facilities={fac} onFacility={(f) => { setFacility(f); setSelected(null); }} banks={banks}
+        onBank={(b) => router.push(`/banks?id=${encodeURIComponent(b.placeId)}`)} care={care} labels={topLabels}
         padding={narrow ? [90, 16, 16, 16] : [24, detailOpen ? 400 : 24, 24, panelOpen ? 340 : 24]} />
 
       {/* 왼쪽 떠 있는 패널 — 지표·단위·범례·시설 */}

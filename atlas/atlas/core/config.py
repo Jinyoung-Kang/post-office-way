@@ -48,6 +48,13 @@ class Settings(BaseSettings):
     holiday_url: str = "https://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService"
     datago_call_delay_ms: int = 100
     datago_concurrency: int = 4               # 공공데이터포털 동시 호출 수 (기상청 격자). 서비스 한도 30 tps 안
+    # ② 도보 — OSM 한국 도로망(Geofabrik, ODbL). 내려받은 파일·그래프는 osm_dir(도커 볼륨)에 둠
+    osm_pbf_url: str = "https://download.geofabrik.de/asia/south-korea-latest.osm.pbf"
+    osm_dir: str = "/data/osm"
+    walk_speed_mps: float = 0.8               # 고령자 보행 속도 — 서울시 보행약자 신호시간(1m 당 1.25초) 기준
+    walk_limit_m: float = 3000.0              # 이보다 멀면 '걸어서 갈 수 없음'으로 보고 탐색을 멈춤
+    walk_snap_max_m: float = 1000.0           # 집계구 대표점·시설이 도로에서 이보다 멀면 도보 계산에서 뺌
+    walk_minutes: int = 30                    # 'N분 안' 지표의 기준
     migrate_on_start: bool = False            # API 기동 때 마이그레이션 (호스트 개발용. compose 는 migrate 서비스가 담당)
     rate_limit_enabled: bool = True
     # 이 대역에서 온 요청만 X-Forwarded-For 를 믿음 (web 컨테이너가 있는 도커 사설망 + 로컬)

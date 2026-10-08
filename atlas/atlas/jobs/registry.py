@@ -24,6 +24,8 @@ class JobSpec:
     needs: tuple[str, ...] = ()          # Settings 속성 이름 (예: "kakao_rest_api_key")
     recalc: bool = False                 # 끝나면 지표에 반영하려면 calc 가 필요한 작업
     long: bool = False                   # 10분 넘게 걸릴 수 있음 (하트비트만으로 생존 판단)
+    then: tuple[str, ...] = ()           # 성공하면 이어서 넣을 작업 (예: calc → walk). 이미 대기 중이면 그것으로 갈음
+    isolate: bool = False                # 별도 프로세스에서 실행 — 수 GB 를 쓰는 작업이 끝나면 메모리를 OS 에 돌려주고, 죽어도 워커는 삶
 
     def missing(self, s: Settings | None = None) -> list[str]:
         s = s or get_settings()
@@ -80,6 +82,24 @@ def _banks(_: dict[str, Any]) -> dict[str, Any]:
     return _ids(collect_banks())
 
 
+def _osm(p: dict[str, Any]) -> dict[str, Any]:
+    from atlas.walk.osm import refresh
+
+    return refresh(force_graph=bool(p.get("forceGraph")))
+
+
+def _walk(p: dict[str, Any]) -> dict[str, Any]:
+    from atlas.walk.compute import run_walk
+
+    return run_walk(p.get("calcRunId"))
+
+
+def _banks_full(_: dict[str, Any]) -> dict[str, Any]:
+    from atlas.collector.kakao.banks import collect_banks_full
+
+    return _ids(collect_banks_full())
+
+
 def _kma(_: dict[str, Any]) -> dict[str, Any]:
     from atlas.collector.weather.kma import collect_kma
 
@@ -122,13 +142,16 @@ JOBS: dict[str, JobSpec] = {j.kind: j for j in (
     JobSpec("kosis", "KOSIS 주민등록인구", _kosis, ("kosis_api_key",), recalc=True),
     JobSpec("oa", "SGIS 집계구", _oa, _SGIS, recalc=True, long=True),
     JobSpec("banks", "은행·금고 지점", _banks, _KAKAO, recalc=True, long=True),
+    JobSpec("banks-full", "은행·금고 지점 전수", _banks_full, _KAKAO, recalc=True, long=True),
+    JobSpec("osm", "OSM 도로망·도보 그래프", _osm, long=True, then=("walk",), isolate=True),
+    JobSpec("walk", "도보 거리 계산", _walk, long=True, isolate=True),
     JobSpec("road", "도로 거리", _road, _KAKAO, recalc=True, long=True),
     JobSpec("geocheck", "주소 좌표 검증", _geocheck, _KAKAO, long=True),
     JobSpec("kma", "기상청 단기예보", _kma, _DATAGO),
     JobSpec("air", "에어코리아 예보", _air, _DATAGO),
     JobSpec("care", "약국·병의원", _care, _DATAGO, recalc=True),
     JobSpec("holidays", "공휴일(특일)", _holidays, _DATAGO),
-    JobSpec("calc", "지표 계산", _calc),
+    JobSpec("calc", "지표 계산", _calc, then=("walk",)),       # 도보 결과는 calc_run 마다 — 그래프가 없으면 walk 는 건너뜀
 )}
 
 

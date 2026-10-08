@@ -69,8 +69,8 @@ export type Job = { jobId: number; kind: string; status: "QUEUED" | "RUNNING" | 
 export type ScheduleItem = { kind: string; title: string; group: string; enabled: boolean; note: string; times: string[];
   weekdays: number[] | null; nextRunAt: string | null; missingKeys: string[] };
 
-export type Bank = { placeId: string; name: string; category: string | null; kind: "BRANCH" | "ATM"; addr: string | null;
-  lat: number; lon: number };
+export type Bank = { placeId: string; name: string; category: string | null; brand?: string | null; kind: "BRANCH" | "ATM";
+  addr: string | null; lat: number; lon: number };
 
 export type Page<T> = { items: T[]; page: number; size: number; total: number };
 
@@ -106,6 +106,8 @@ export type Overview = {
   life: { soleHubPpltn: number | null; lifeDesertPpltn: number | null; careDesertPpltn: number | null;
     holidayCareGapPpltn: number | null; soleHubFacilities: number | null } | null;
   topSoleHub: { admCd: string; admNm: string; parentNm: string | null; value: number }[];
+  walk: { noFinPpltn: number | null; noCashPpltn: number | null; noFinShare: number | null } | null;
+  banks: { branches: number; high: number; lostPpltn: number } | null;
   meta: Meta;
 };
 
@@ -192,3 +194,53 @@ export type VisitConditions = {
 };
 export type VisitOutlook = { admCd: string; admNm: string; ruleVersion: string;
   days: (VisitItem & { date: string; dayLabel: string; closed: boolean; closedReason: string | null })[] };
+
+// ① 은행 지점 폐쇄 영향평가 (규칙 BANK-IMPACT-1, calc/11_bank_impact.sql + 도보)
+export type BankGrade = "HIGH" | "MID" | "LOW";
+export type BankImpact = {
+  placeId: string; name: string; brand: string | null; addr: string | null; lat: number; lon: number; postAgent: boolean;
+  admCd: string | null; admNm: string | null; parentNm: string | null;
+  catchOa: number; catchPpltn: number; catchAged: number | null;
+  sameBrandM: number | null; otherBankM: number | null; postM: number | null;
+  popwNowM: number | null; popwAltM: number | null; lostPpltn: number; lostAged: number | null;
+  walkNowM: number | null; walkAltM: number | null; walkLostPpltn: number | null;
+  grade: BankGrade; reasons: string[]; rank: number | null; rankOf: number | null;
+};
+export type BankWalkMeta = { speedMps: number; limitM: number; finishedAt: string; osmLastModified: string | null;
+  vertices: number | null } | null;
+export type BankListMeta = { fullCrawlAt: string | null; assumption: string };
+export type BankImpactList = Page<BankImpact> & {
+  summary: { branches: number; high: number; mid: number; low: number; lostPpltn: number; walkLostPpltn: number; catchPpltn: number };
+  reasons: Record<string, string>; rule: string; walk: BankWalkMeta; banks: BankListMeta; meta: Meta;
+};
+export type BankAlt = { kind: "SAME_BANK" | "OTHER_BANK" | "POST"; name: string; sub: string | null; lat: number; lon: number;
+  distM: number };
+export type BankImpactDetail = {
+  item: BankImpact; alternatives: BankAlt[]; altBands: { label: string; oa: number; ppltn: number }[];
+  reasons: Record<string, string>; rule: string; walk: BankWalkMeta; banks: BankListMeta; meta: Meta;
+};
+export type CatchmentProps = { admCd: string; admNm: string; ppltn: number | null; nowM: number | null; altM: number | null;
+  aged: number | null };
+
+// ③ 지역 한 장 보고서
+export type ReportMetric = { code: string; name: string; unit: string; higherIsWorse: boolean; value: number | null;
+  rank: number | null; rankOf: number | null; percentile: number | null; median: number | null };
+export type ReportPost = { histId: number; name: string; postDiv: number; financeTime: string | null; has365: boolean;
+  lat: number; lon: number; servedPpltn: number | null; soleFinPpltn: number | null; soleHubPpltn: number | null };
+export type ReportEmd = { admCd: string; admNm: string; totPpltn: number | null; values: Record<string, number>;
+  geometry: Geometry | null };
+export type RegionReport = {
+  area: { admCd: string; admNm: string; parentCd: string; parentNm: string | null; areaKm2: number; totPpltn: number | null;
+    aged65Ppltn: number | null; aged65Ratio: number | null; kosisPeriod: string | null; emdCount: number;
+    bbox: [number, number, number, number] };
+  metrics: ReportMetric[];
+  facilities: { all: number; fin: number; c365: number };
+  posts: ReportPost[];
+  banks: { branches: number; byGrade: Record<BankGrade, number>; lostPpltn: number;
+    top: { placeId: string; name: string; brand: string | null; grade: BankGrade; reasons: string[]; catchPpltn: number;
+      lostPpltn: number; walkLostPpltn: number | null }[] };
+  emds: ReportEmd[];
+  walk: { finishedAt: string } | null;
+  visit: VisitOutlook | null;
+  meta: Meta & { generatedFor: string };
+};

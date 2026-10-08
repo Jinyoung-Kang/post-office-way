@@ -157,3 +157,14 @@ select.field { appearance: none; padding-right: 32px;
 .map-label-warn { background: rgba(178, 80, 0, 0.92); }
 .map-label-good { background: rgba(29, 138, 58, 0.9); }
 .map-tip-x { float: right; margin-left: 8px; color: var(--text-3); font-size: 11px; }
+
+/* ③ 지역 보고서 인쇄 — 머리글·바닥글·버튼을 빼고 A4 에 맞춤. 카드가 쪽 사이에서 잘리지 않게 */
+@media print {
+  @page { size: A4; margin: 12mm; }
+  body { background: #fff !important; }
+  .gnav, footer, .skip-link, .no-print { display: none !important; }
+  .card { box-shadow: none !important; border: 1px solid #e5e5ea; break-inside: avoid; }
+  .report { padding-top: 0 !important; max-width: none !important; }
+  .rise { animation: none !important; }
+  a { color: inherit !important; text-decoration: none !important; }
+}

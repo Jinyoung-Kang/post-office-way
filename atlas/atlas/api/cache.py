@@ -34,6 +34,14 @@ def set(key: str, value: str | bytes, ttl: int | None = None) -> None:  # noqa: 
         log.warning("cache set failed", extra={"key": key})
 
 
+def set_nx(key: str, value: str, ttl: int) -> bool:
+    """처음이면 True (중복 억제용). Redis 가 없으면 True — 기록이 빠지는 것보다 중복이 낫다(속도 제한이 상한)."""
+    try:
+        return bool(client().set(key, value, ex=ttl, nx=True))
+    except redis.RedisError:
+        return True
+
+
 def delete_prefix(prefix: str) -> int:
     n = 0
     try:

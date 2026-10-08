@@ -75,6 +75,28 @@ export default function MetricsAbout() {
                 </ul>
               </Card>
             </div>
+            <div className="grid gap-5 md:grid-cols-2">
+              <Card title="BANK-IMPACT-1 · 은행 지점 영향" right={<a href="/banks" className="link text-[13px]">화면 ›</a>}>
+                <ul className="space-y-2 text-[14px] text-ink-2">
+                  <li><b className="text-ink">이용 주민</b> — 그 은행 지점이 가장 가까운 은행 지점인 집계구 인구(새마을금고·저축은행 제외).</li>
+                  <li><b className="text-ink">대체 창구</b> — 다음으로 가까운 다른 은행 지점, 또는 은행 업무(입출금)를 하는 금융 우체국 중 가까운 곳.</li>
+                  <li><b className="text-ink">잃는 주민</b> — 지금은 2km 안에 그 지점이 있는데 닫히면 2km 안 대체 창구가 없는 주민(걸어서는 30분).</li>
+                  <li><b className="text-ink">높음</b> 잃는 주민 1,000명+, 또는 잃는 주민이 있으면서 같은 은행 다음 지점 10km 밖·고령 20%+ · <b className="text-ink">보통</b> 요인 하나 · <b className="text-ink">낮음</b> 없음.</li>
+                </ul>
+                <p className="mt-3 text-[12px] text-ink-3">⚠ 2026 은행 점포폐쇄 공동절차 개정 내용을 참고한 분석용 기준이며 공식 사전영향평가가 아닙니다.
+                  우체국 은행대리업 대상 은행은 보도된 ‘국내 14개 시중·지방은행’을 은행 전체로 가정했습니다.</p>
+              </Card>
+              <Card title="걸어서 · 도보 접근성" right={<a href="/rankings?metric=WALK30_NO_FIN_SHARE" className="link text-[13px]">순위 ›</a>}>
+                <ul className="space-y-2 text-[14px] text-ink-2">
+                  <li><b className="text-ink">도로망</b> — OpenStreetMap 의 걸을 수 있는 길(인도·골목·일반 도로, 고속도로 제외). 교차점과 150m 간격 점으로 그래프를 만듭니다.</li>
+                  <li><b className="text-ink">경로</b> — 집계구 대표점과 시설을 가까운 길에 붙이고(붙임 거리 포함) 최단 경로. 3km 넘으면 ‘걸어서 어려움’.</li>
+                  <li><b className="text-ink">걷는 속도</b> — 고령자 0.8m/s(서울시 보행약자 신호시간 기준 1m 당 1.25초) → 30분 = 1,440m.</li>
+                  <li><b className="text-ink">k-최근접</b> — 시설들에서 동시에 퍼지는 탐색으로 우체국 3곳·은행 2곳까지 찾아, 문을 닫을 때의 다음 곳도 계산합니다.</li>
+                </ul>
+                <p className="mt-3 text-[12px] text-ink-3">⚠ 인도·골목이 덜 그려진 곳은 실제보다 멀게 나올 수 있고, 경사·계단·신호 대기는 반영하지 않습니다.
+                  도로망 © OpenStreetMap 기여자(ODbL).</p>
+              </Card>
+            </div>
             <Card title="데이터와 한계">
               <ul className="space-y-2 text-[14px] leading-relaxed text-ink-2">
                 <li><b className="text-ink">시설</b> — 우정사업본부 「우체국 찾기」 OpenAPI. 수집 시점 현재이며 변경은 이력(SCD2)으로 보관합니다.</li>
@@ -83,7 +105,7 @@ export default function MetricsAbout() {
                 <li><b className="text-ink">거리</b> — EPSG:5179 직선거리. 지역 대표점(ST_PointOnSurface) 1개가 지역 전체를 대표합니다.</li>
                 <li><b className="text-ink">집계구</b> — SGIS 통계 최소 단위(평균 약 500명) 인구·경계로 거주 분포를 반영한 거리(인구 가중 거리, 2km 밖 인구).</li>
                 <li><b className="text-ink">도로 거리</b> — 카카오모빌리티 자동차 경로. 직선 상위 2개 우체국 후보 중 짧은 쪽(도보·대중교통 아님).</li>
-                <li><b className="text-ink">은행·금고 지점</b> — 카카오 로컬 은행 범주(BK9)에서 ATM·우체국을 뺀 대면 창구. 폐점 반영이 늦을 수 있습니다.</li>
+                <li><b className="text-ink">은행·금고 지점</b> — 카카오 로컬 은행 범주(BK9)를 전국 격자로 전수 수집해 ATM·우체국을 뺀 대면 창구. 마지막 전수 수집에서 보이지 않은 지점은 폐점 가능성으로 계산에서 뺍니다(공식 점포 목록 아님).</li>
                 <li><b className="text-ink">좌표 검증</b> — 우체국·365코너·무인창구 좌표를 주소 검색 좌표와 비교해 1km 넘게 다르면 품질 경고.</li>
                 <li><b className="text-ink">약국·의원</b> — 국립중앙의료원 전국 약국·병의원 FullData(좌표·요일별 진료시간). 치과·한의원·요양병원 제외. 매주 갱신.</li>
                 <li><b className="text-ink">날씨·대기</b> — 기상청 단기예보(하루 8회 발표), 에어코리아 대기질 예보(하루 4회). 기상특보가 아닌 참고 정보입니다.</li>

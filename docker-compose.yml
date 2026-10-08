@@ -139,6 +139,7 @@ services:
     tmpfs: ["/tmp"]
     volumes:
       - ./seed:/app/seed:ro
+      - osm-data:/data/osm          # ② OSM 도로망 파일·도보 그래프 (약 0.5GB)
 
   collector:
     profiles: ["batch"]
@@ -154,6 +155,7 @@ services:
       # discover 결과(seed/area_codes.csv)와 스모크 응답을 호스트에 남깁니다.
       - ./seed:/app/seed
       - ./fixtures:/app/fixtures
+      - osm-data:/data/osm
 
   web:
     <<: *hardened
@@ -174,3 +176,4 @@ services:
 
 volumes:
   db-data:
+  osm-data:

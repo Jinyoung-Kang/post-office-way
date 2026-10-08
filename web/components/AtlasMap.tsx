@@ -18,6 +18,7 @@ type Props<P extends { admCd: string; admNm: string }> = {
   onSelect?: (admCd: string) => void;
   facilities?: FacilityLayer;
   onFacility?: (f: Facility) => void;
+  onBank?: (b: Bank) => void;      // ① 은행 지점을 누르면 (영향평가로 이동 등)
   banks?: boolean;               // ④ 은행·금고 지점 레이어
   care?: CareLayer;              // ⑦ 약국·의원 레이어 (공휴일 진료만 거를 수 있음)
   markers?: Marker[];
@@ -46,7 +47,7 @@ function esc(s: string) {
 }
 
 export default function AtlasMap<P extends { admCd: string; admNm: string }>(props: Props<P>) {
-  const { features, styleOf, tooltipOf, selected, onSelect, facilities, onFacility, banks, care, markers, labels, pinOnClick, geomKey, focusCd,
+  const { features, styleOf, tooltipOf, selected, onSelect, facilities, onFacility, onBank, banks, care, markers, labels, pinOnClick, geomKey, focusCd,
     padding = [24, 24, 24, 24], className } = props;
   const el = useRef<HTMLDivElement>(null);
   const map = useRef<any>(null);
@@ -62,8 +63,8 @@ export default function AtlasMap<P extends { admCd: string; admNm: string }>(pro
   const labelOverlays = useRef<any[]>([]);
   const pinned = useRef<string | null>(null);
   const shapeClickAt = useRef(0);   // 도형 클릭 뒤 같은 클릭으로 지도 click 이 또 오면 무시(카카오는 둘 다 보냄)
-  const cb = useRef({ styleOf, tooltipOf, onSelect, selected, onFacility, padding, pin: pinOnClick ?? !onSelect });
-  cb.current = { styleOf, tooltipOf, onSelect, selected, onFacility, padding, pin: pinOnClick ?? !onSelect };
+  const cb = useRef({ styleOf, tooltipOf, onSelect, selected, onFacility, onBank, padding, pin: pinOnClick ?? !onSelect });
+  cb.current = { styleOf, tooltipOf, onSelect, selected, onFacility, onBank, padding, pin: pinOnClick ?? !onSelect };
   const [err, setErr] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const [facNote, setFacNote] = useState<string | null>(null);
@@ -306,7 +307,13 @@ export default function AtlasMap<P extends { admCd: string; admNm: string }>(pro
           div.className = "fac-dot";
           div.style.background = BANK_TONE;
           div.style.borderRadius = "3px";
-          div.title = `${p.name} · ${(p.category || "").split(" > ").pop()}`;
+          // 은행(새마을금고·저축은행 제외)만 영향평가 대상 — 누를 수 있다는 것을 제목으로 알림
+          const evaluable = p.kind === "BRANCH" && !!p.brand && p.brand !== "새마을금고" && p.brand !== "저축은행";
+          div.title = `${p.name} · ${p.brand || (p.category || "").split(" > ").pop()}${evaluable && cb.current.onBank ? " — 눌러서 문을 닫으면 영향 보기" : ""}`;
+          if (evaluable) {
+            div.style.cursor = "pointer";
+            div.addEventListener("click", (e) => { e.stopPropagation(); cb.current.onBank?.(p); });
+          }
           bankOverlays.current.push(new kakao.maps.CustomOverlay({ map: map.current, position: new kakao.maps.LatLng(p.lat, p.lon),
             content: div, zIndex: 5 }));
         }

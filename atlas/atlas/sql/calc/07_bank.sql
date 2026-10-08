@@ -1,9 +1,8 @@
 -- ④ 금융 공백 — 은행·금고 대면 지점(kind=BRANCH)까지 거리와, 우체국만 있는/둘 다 없는 인구.
--- 카카오 장소는 최근 수집에서 본 것만(90일) 사용. mart.bank_place 가 비어 있으면 행이 생기지 않음.
+-- 지점 목록은 mart.bank_branch_current (마지막 전수 수집에서 본 지점, 없으면 최근 90일). 비어 있으면 행이 생기지 않음.
 
 CREATE TEMP TABLE calc_bank ON COMMIT DROP AS
-SELECT place_id, geom_5179 FROM mart.bank_place
- WHERE kind = 'BRANCH' AND last_seen >= (SELECT max(last_seen) - interval '90 days' FROM mart.bank_place);
+SELECT place_id, brand, geom_5179 FROM mart.bank_branch_current;
 
 CREATE INDEX ON calc_bank USING gist (geom_5179);
 ANALYZE calc_bank;

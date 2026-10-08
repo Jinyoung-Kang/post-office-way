@@ -104,7 +104,8 @@ def errors(days: int = Query(14, ge=1, le=90), limit: int = Query(200, ge=1, le=
     with get_engine().connect() as c:
         rows = c.execute(text("""
             SELECT at, source, ref, title, message FROM (
-                SELECT at, 'API' AS source, coalesce(trace_id, CAST(error_id AS text)) AS ref,
+                SELECT at, CASE WHEN source = 'csp' THEN '보안 정책' ELSE 'API' END AS source,
+                       coalesce(trace_id, CAST(error_id AS text)) AS ref,
                        concat(method, ' ', path) AS title, concat(error_type, ': ', message) AS message
                   FROM ops.app_error WHERE at > now() - make_interval(days => :d)
                 UNION ALL

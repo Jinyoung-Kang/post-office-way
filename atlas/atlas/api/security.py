@@ -27,6 +27,7 @@ RULES: tuple[tuple[str, str, str, int], ...] = (
     ("GET", "/api/v1/admin", "admin", 30),
     ("POST", "/api/v1/whatif", "heavy", 30),      # 부분 재계산·KNN
     ("POST", "/api/v1/plan", "heavy", 30),        # 탐욕 배치 (수 초)
+    ("POST", "/api/v1/csp-report", "report", 30),  # 브라우저 보고 — 공개 엔드포인트라 따로 묶음
     ("*", "/api/v1", "default", 600),
 )
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classOf, dist, groupMetrics, num, quantileBreaks, SEQ, shortSido, withUnit } from "./format";
+import { classOf, dist, groupMetrics, num, quantileBreaks, SEQ, shortSido, walkMin, withUnit } from "./format";
 
 describe("quantileBreaks", () => {
   it("값이 고르게 퍼지면 단계 수 - 1 개의 경계", () => {
@@ -36,6 +36,14 @@ describe("표기", () => {
     expect(withUnit(12.345, "%")).toBe("12.3%");
     expect(withUnit(1, "0/1")).toBe("있음");
     expect(num(1234567)).toBe("1,234,567");
+    expect(withUnit(7425.5, "명")).toBe("7,426명");          // 사람 수는 정수 (중앙값이 x.5 여도)
+  });
+
+  it("걷는 시간 — 고령자 0.8m/s", () => {
+    expect(walkMin(1440)).toBe("30분");
+    expect(walkMin(10)).toBe("1분");                         // 0분으로 보이지 않게
+    expect(walkMin(null)).toBe("—");
+    expect(walkMin(Infinity)).toBe("—");
   });
 
   it("시도 약칭", () => {
