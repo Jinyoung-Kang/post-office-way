@@ -7,15 +7,15 @@ import json
 import re
 from typing import Any
 
-from sqlalchemy import text
 from sqlalchemy.engine import Connection
 
-from atlas.core import cache
-from atlas.features.facilities import FACILITY_COLS
 from atlas.calc.runs import data_version, meta_of, resolve_calc_run
+from atlas.core import cache
 from atlas.core.serial import jsonable
-from atlas.domain.params import page_params
 from atlas.domain.errors import Invalid, NotFound
+from atlas.domain.params import page_params
+from atlas.domain.rules import POST_DIV_LABEL
+from atlas.features.areas import queries as q
 
 DEFAULT_SIMPLIFY = {2: 200.0, 3: 50.0}
 GEO_TTL = 24 * 3600          # 계산이 바뀌면 키(calc_run)가 바뀌지만, 쓰이지 않는 키가 남지 않게 만료도 둠
@@ -23,7 +23,7 @@ _PARENT = re.compile(r"^\d{2}(\d{3})?$")
 
 
 def metric_row(c: Connection, code: str) -> dict[str, Any]:
-    r = c.execute(text("SELECT * FROM mart.metric_def WHERE metric_code = :c"), {"c": code}).mappings().first()
+    r = q.metric_def(c, code)
     if not r:
         raise NotFound("METRIC_NOT_FOUND", f"지표 {code} 가 없습니다.")
     return dict(r)
@@ -40,15 +40,6 @@ def simplify_step(v: float | None) -> float | None:
     """단순화 허용 오차를 10m 단위로 묶음 — 임의 실수마다 전국 경계 단순화(최대 수 초)와 캐시 키가 새로 생기지 않게.
     값을 거부하지 않으므로 기존 요청은 그대로 동작."""
     return None if v is None else float(round(v / 10) * 10)
-
-# 지표 값 + 레벨 전체 기준 순위(1 = 값이 가장 큼)·백분위(값 오름차순 0~100)
-# 순위·백분위는 계산 때 미리 넣어 둔 열(V14, calc/10_ranks.sql)을 읽기만 함
-_RANKED = """
-    SELECT adm_cd, value, rnk, pct, n
-      FROM mart.access_metric
-     WHERE calc_run_id = :run AND metric_code = :metric AND level = :level AND value IS NOT NULL
-"""
-
 
 def _check_level(level: int, parent: str | None, run: dict[str, Any]) -> None:
     if level not in (2, 3):
@@ -92,22 +83,7 @@ def _geojson_text(c: Connection, run: dict[str, Any], level: int, metric: str, p
         geom = "a.geom"
     else:
         geom = "ST_Transform(ST_SimplifyPreserveTopology(a.geom_5179, CAST(:tol AS float8)), 4326)"
-    fc = c.execute(text(f"""
-        WITH m AS ({_RANKED})
-        SELECT CAST(json_build_object('type', 'FeatureCollection', 'features', coalesce(json_agg(json_build_object(
-                 'type', 'Feature', 'id', a.adm_cd,
-                 'properties', json_build_object('admCd', a.adm_cd, 'admNm', a.adm_nm, 'level', a.level,
-                     'parentCd', a.parent_cd, 'value', m.value, 'unit', CAST(:unit AS text), 'rank', m.rnk, 'rankOf', m.n,
-                     'percentile', m.pct, 'totPpltn', p.tot_ppltn, 'agedChildIdx', p.aged_child_idx,
-                     'lat', round(CAST(ST_Y(a.rep_point) AS numeric), 5), 'lon', round(CAST(ST_X(a.rep_point) AS numeric), 5)),
-                 'geometry', CAST(ST_AsGeoJSON({geom}, 5) AS json)) ORDER BY a.adm_cd), CAST('[]' AS json))) AS text)
-          FROM mart.admin_area a
-          LEFT JOIN m ON m.adm_cd = a.adm_cd
-          LEFT JOIN mart.area_population p ON p.adm_cd = a.adm_cd AND p.stat_year = a.stat_year
-         WHERE a.stat_year = :year AND a.level = :level
-           AND (CAST(:parent AS text) IS NULL OR a.adm_cd LIKE CAST(:parent AS text) || '%')
-    """), {"run": run["calc_run_id"], "metric": metric, "level": level, "year": run["stat_year"],
-           "parent": parent, "unit": mdef["unit"], "tol": simplify}).scalar_one()
+    fc = q.choropleth(c, run, level, metric, parent, mdef["unit"], geom, simplify)
     meta = meta_of(run, metric=metric, metricName=mdef["name_ko"], unit=mdef["unit"],
                    higherIsWorse=mdef["higher_is_worse"], level=level, parent=parent, crs="EPSG:4326")
     # text 로 받아 그대로 이어 붙임 — json 으로 받으면 드라이버가 수 MB 를 dict 로 파싱했다가 다시 직렬화함
@@ -124,22 +100,7 @@ def list_areas(c: Connection, level: int, metric: str, parent: str | None, calc_
     page, size, offset = page_params(page, size)
     if sort not in ("desc", "asc"):
         raise Invalid("sort 는 desc 또는 asc 입니다.")
-    params = {"run": run["calc_run_id"], "metric": metric, "level": level, "year": run["stat_year"],
-              "parent": parent, "lim": size, "off": offset}
-    where = """a.stat_year = :year AND a.level = :level
-               AND (CAST(:parent AS text) IS NULL OR a.adm_cd LIKE CAST(:parent AS text) || '%')"""
-    total = c.execute(text(f"SELECT count(*) FROM mart.admin_area a WHERE {where}"), params).scalar_one()
-    rows = c.execute(text(f"""
-        WITH m AS ({_RANKED})
-        SELECT a.adm_cd, a.adm_nm, a.parent_cd, pa.adm_nm AS parent_nm, m.value, m.rnk, m.n, m.pct,
-               p.tot_ppltn, p.aged_child_idx, ST_Y(a.rep_point) AS lat, ST_X(a.rep_point) AS lon
-          FROM mart.admin_area a
-          LEFT JOIN m ON m.adm_cd = a.adm_cd
-          LEFT JOIN mart.area_population p ON p.adm_cd = a.adm_cd AND p.stat_year = a.stat_year
-          LEFT JOIN mart.area_population pa ON pa.adm_cd = a.parent_cd AND pa.stat_year = a.stat_year
-         WHERE {where}
-         ORDER BY m.value {sort} NULLS LAST, a.adm_cd
-         LIMIT :lim OFFSET :off"""), params).mappings().all()
+    total, rows = q.ranked_page(c, run, level, metric, parent, sort, size, offset)
     items = [jsonable({"admCd": r["adm_cd"], "admNm": r["adm_nm"], "parentCd": r["parent_cd"],
                        "parentNm": r["parent_nm"], "value": r["value"], "rank": r["rnk"], "rankOf": r["n"],
                        "percentile": r["pct"], "totPpltn": r["tot_ppltn"], "agedChildIdx": r["aged_child_idx"],
@@ -152,50 +113,14 @@ def list_areas(c: Connection, level: int, metric: str, parent: str | None, calc_
 
 def area_detail(c: Connection, adm_cd: str, calc_run_id: str | None) -> dict[str, Any]:
     run = resolve_calc_run(c, calc_run_id)
-    a = c.execute(text("""
-        SELECT a.adm_cd, a.adm_nm, a.level, a.parent_cd, pa.adm_nm AS parent_nm, a.src_crs,
-               ST_Y(a.rep_point) AS lat, ST_X(a.rep_point) AS lon,
-               ST_XMin(a.geom) AS minx, ST_YMin(a.geom) AS miny, ST_XMax(a.geom) AS maxx, ST_YMax(a.geom) AS maxy,
-               round(CAST(ST_Area(a.geom_5179) / 1e6 AS numeric), 2) AS area_km2,
-               p.tot_ppltn, p.ppltn_dnsty, p.aged_child_idx, p.avg_age, p.loaded_at AS pop_loaded_at
-          FROM mart.admin_area a
-          LEFT JOIN mart.area_population p ON p.adm_cd = a.adm_cd AND p.stat_year = a.stat_year
-          LEFT JOIN mart.area_population pa ON pa.adm_cd = a.parent_cd AND pa.stat_year = a.stat_year
-         WHERE a.adm_cd = :cd AND a.stat_year = :y"""), {"cd": adm_cd, "y": run["stat_year"]}).mappings().first()
+    a = q.area(c, adm_cd, run["stat_year"])
     if not a:
         raise NotFound("AREA_NOT_FOUND", f"admCd {adm_cd} ({run['stat_year']}년) 가 없습니다.")
-    metrics = c.execute(text("""
-        SELECT d.metric_code, d.name_ko, d.unit, d.higher_is_worse, m.value, m.rnk, m.pct, m.n
-          FROM mart.access_metric m
-          JOIN mart.metric_def d ON d.metric_code = m.metric_code
-         WHERE m.calc_run_id = :run AND m.adm_cd = :cd
-         ORDER BY d.sort_order, d.metric_code"""),
-        {"run": run["calc_run_id"], "lvl": a["level"], "cd": adm_cd}).mappings().all()
-    nearest = c.execute(text(f"""
-        SELECT n.rank, n.dist_m, r.road_m, r.drive_s, {FACILITY_COLS}
-          FROM mart.area_nearest n JOIN mart.post_facility_hist h ON h.hist_id = n.hist_id
-          LEFT JOIN mart.area_road r ON r.adm_cd = n.adm_cd AND r.stat_year = :y AND r.hist_id = n.hist_id AND r.status = 'OK'
-         WHERE n.calc_run_id = :run AND n.adm_cd = :cd ORDER BY n.rank"""),
-        {"run": run["calc_run_id"], "cd": adm_cd, "y": run["stat_year"]}).mappings().all()
-    banks = c.execute(text("""
-        SELECT b.name, b.addr, ST_Y(b.geom) AS lat, ST_X(b.geom) AS lon,
-               round(CAST(ST_Distance(b.geom_5179, a.rep_point_5179) AS numeric), 1) AS dist_m
-          FROM mart.admin_area a
-         CROSS JOIN LATERAL (SELECT * FROM mart.bank_branch_current b
-                              ORDER BY b.geom_5179 <-> a.rep_point_5179 LIMIT 3) b
-         WHERE a.adm_cd = :cd AND a.stat_year = :y"""), {"cd": adm_cd, "y": run["stat_year"]}).mappings().all()
-    fac_counts = c.execute(text("""
-        SELECT h.post_div, count(*) AS n, count(*) FILTER (WHERE h.fin_available) AS fin
-          FROM mart.facility_area_map m JOIN mart.post_facility_hist h ON h.hist_id = m.hist_id
-         WHERE m.stat_year = :y AND m.level = :lvl AND m.adm_cd = :cd
-           AND h.valid_from <= :asof AND (h.valid_to IS NULL OR h.valid_to > :asof)
-         GROUP BY h.post_div ORDER BY h.post_div"""),
-        {"y": run["stat_year"], "lvl": a["level"], "cd": adm_cd, "asof": run["facility_as_of"]}).mappings().all()
-    resident = c.execute(text("""SELECT ref_period, tot_ppltn, aged65_ppltn, aged65_ratio, match_method, loaded_at
-                                 FROM mart.area_resident_pop WHERE adm_cd = :cd AND stat_year = :y"""),
-                         {"cd": adm_cd, "y": run["stat_year"]}).mappings().first()
-    from atlas.domain.rules import POST_DIV_LABEL
-
+    metrics = q.area_metrics(c, run["calc_run_id"], adm_cd)
+    nearest = q.nearest_facilities(c, run["calc_run_id"], adm_cd, run["stat_year"])
+    banks = q.nearest_banks(c, adm_cd, run["stat_year"])
+    fac_counts = q.facility_counts(c, adm_cd, run["stat_year"], a["level"], run["facility_as_of"])
+    resident = q.resident_pop(c, adm_cd, run["stat_year"])
     return jsonable({
         "admCd": a["adm_cd"], "admNm": a["adm_nm"], "level": a["level"], "parentCd": a["parent_cd"],
         "parentNm": a["parent_nm"], "statYear": run["stat_year"], "areaKm2": a["area_km2"],
