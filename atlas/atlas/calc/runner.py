@@ -14,7 +14,7 @@ from typing import Any
 
 from sqlalchemy import Engine, text
 
-from atlas.collector.dq.rules import CALC_RULES, DQRecorder
+from atlas.ops.dq import CALC_RULES, DQRecorder
 from atlas.core.config import get_settings
 from atlas.core.db import get_engine, run_sql_file
 from atlas.domain.rules import RULE_VERSION

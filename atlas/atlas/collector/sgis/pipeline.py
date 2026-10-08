@@ -14,8 +14,8 @@ from typing import Any
 
 from sqlalchemy import text
 
-from atlas.collector import runs
-from atlas.collector.dq.rules import DQRecorder
+from atlas.ops import runs
+from atlas.ops.dq import DQRecorder
 from atlas.collector.http import Fetcher
 from atlas.collector.sgis.client import SgisClient, SgisError
 from atlas.core.config import get_settings

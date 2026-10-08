@@ -15,8 +15,8 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
 
-from atlas.collector import runs
-from atlas.collector.dq.rules import DQRecorder
+from atlas.ops import runs
+from atlas.ops.dq import DQRecorder
 from atlas.collector.kakao.client import KakaoStop, call, clean_addr, haversine_m, make_fetcher
 from atlas.core.config import get_settings
 from atlas.core.db import begin

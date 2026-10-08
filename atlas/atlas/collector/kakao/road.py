@@ -13,7 +13,7 @@ from typing import Any
 
 from sqlalchemy import text
 
-from atlas.collector import runs
+from atlas.ops import runs
 from atlas.collector.kakao.client import KakaoStop, call, make_fetcher
 from atlas.core.config import get_settings
 from atlas.core.db import begin

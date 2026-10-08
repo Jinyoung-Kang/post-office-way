@@ -12,8 +12,8 @@ from typing import Any, Callable
 
 from sqlalchemy import text
 
-from atlas.collector import runs
-from atlas.collector.dq.rules import COLLECT_POST_RULES, DQRecorder
+from atlas.ops import runs
+from atlas.ops.dq import COLLECT_POST_RULES, DQRecorder
 from atlas.collector.http import Fetcher
 from atlas.collector.post.parser import normalize_item, parse_post_xml
 from atlas.collector.post.seed import AreaCode, load_area_codes

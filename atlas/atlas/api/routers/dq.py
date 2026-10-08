@@ -4,7 +4,7 @@ from fastapi import APIRouter
 from sqlalchemy import text
 
 from atlas.api.common import bad_request, jsonable, not_found, page_params, parse_uuid
-from atlas.collector.dq.rules import RULES
+from atlas.ops.dq import RULES
 from atlas.core.db import get_engine
 
 router = APIRouter(prefix="/dq", tags=["dq"])

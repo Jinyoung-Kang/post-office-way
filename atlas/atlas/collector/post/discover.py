@@ -10,7 +10,7 @@ import logging
 import time
 from typing import Callable
 
-from atlas.collector import runs
+from atlas.ops import runs
 from atlas.collector.http import Fetcher
 from atlas.collector.post.parser import normalize_item
 from atlas.collector.post.pipeline import fetch_area

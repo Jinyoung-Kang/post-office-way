@@ -21,7 +21,7 @@ import sqlalchemy.exc
 from atlas.core.clock import now_kst
 from atlas.core.jobctx import current_job_id
 from atlas.core.config import get_settings
-from atlas.collector import runs as collect_runs
+from atlas.ops import runs as collect_runs
 from atlas.jobs import queue, registry, scheduler
 
 log = logging.getLogger("atlas.worker")

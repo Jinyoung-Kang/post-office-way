@@ -17,7 +17,7 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
 
-from atlas.collector import runs
+from atlas.ops import runs
 from atlas.collector.datago.client import DataGoStop, call, items_of, make_fetcher
 from atlas.core.clock import now_kst
 from atlas.core.config import get_settings

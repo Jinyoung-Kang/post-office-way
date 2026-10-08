@@ -16,7 +16,7 @@ from typing import Any
 
 import httpx
 
-from atlas.collector import runs
+from atlas.ops import runs
 from atlas.core.config import get_settings
 
 log = logging.getLogger(__name__)
