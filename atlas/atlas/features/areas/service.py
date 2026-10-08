@@ -11,7 +11,7 @@ from sqlalchemy import text
 from sqlalchemy.engine import Connection
 
 from atlas.core import cache
-from atlas.api.common import FACILITY_COLS, metric_row
+from atlas.features.facilities import FACILITY_COLS
 from atlas.calc.runs import data_version, meta_of, resolve_calc_run
 from atlas.core.serial import jsonable
 from atlas.domain.params import page_params
@@ -20,6 +20,13 @@ from atlas.domain.errors import Invalid, NotFound
 DEFAULT_SIMPLIFY = {2: 200.0, 3: 50.0}
 GEO_TTL = 24 * 3600          # 계산이 바뀌면 키(calc_run)가 바뀌지만, 쓰이지 않는 키가 남지 않게 만료도 둠
 _PARENT = re.compile(r"^\d{2}(\d{3})?$")
+
+
+def metric_row(c: Connection, code: str) -> dict[str, Any]:
+    r = c.execute(text("SELECT * FROM mart.metric_def WHERE metric_code = :c"), {"c": code}).mappings().first()
+    if not r:
+        raise NotFound("METRIC_NOT_FOUND", f"지표 {code} 가 없습니다.")
+    return dict(r)
 
 
 def _check_parent(parent: str | None) -> None:

@@ -36,7 +36,7 @@ def report(c: Connection, adm_cd: str, calc_run_id: str | None) -> dict[str, Any
         body = _static(c, adm_cd, run, walk_at)
         cache.set(key, json.dumps(body, ensure_ascii=False), ttl=24 * 3600)
     try:
-        from atlas.api.services.visit import area_outlook
+        from atlas.features.visit import area_outlook
 
         body["visit"] = area_outlook(c, adm_cd)
     except DomainError:

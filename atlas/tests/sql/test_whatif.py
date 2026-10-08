@@ -6,7 +6,7 @@ import pytest
 from sqlalchemy import text
 
 from atlas.calc.runs import resolve_calc_run
-from atlas.api.services.whatif import get_scenario, partial_recompute, recompute_all, run_whatif
+from atlas.features.whatif.service import get_scenario, partial_recompute, recompute_all, run_whatif
 from atlas.calc.runner import run_calc
 
 pytestmark = pytest.mark.db
@@ -131,7 +131,7 @@ def test_concurrent_same_scenario_returns_existing(terrain, engine, monkeypatch)
 def test_whatif_cached_only_after_commit(terrain, engine):
     """저장 트랜잭션이 롤백되면 캐시에 남지 않아야 함 — 남으면 없는 시나리오 id 를 1시간 동안 돌려줌."""
     from atlas.core import cache
-    from atlas.api.services.whatif import _key
+    from atlas.features.whatif.service import _key
 
     rid = run_calc(stat_year=2024, levels=[2])
     with pytest.raises(RuntimeError):

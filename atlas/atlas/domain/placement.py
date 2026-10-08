@@ -1,6 +1,6 @@
 """⑤ 배치 제안 알고리즘 — 닫기(탐욕 최소 영향)·열기(p-median 탐욕 근사). DB·HTTP 없이 수요 지점과 후보만 받음.
 
-설명·가정은 api/services/plan.py 머리말. 직선거리 기준 — 공식 판단 근거 아님.
+설명·가정은 features/plan/service.py 머리말. 직선거리 기준 — 공식 판단 근거 아님.
 """
 from __future__ import annotations
 

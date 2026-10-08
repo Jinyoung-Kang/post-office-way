@@ -6,7 +6,7 @@ from sqlalchemy import text
 
 from atlas.core.serial import jsonable
 from atlas.domain.errors import Invalid
-from atlas.api.services import bank_impact as impact
+from atlas.features.bank_impact import service as impact
 from atlas.core.db import get_engine
 
 PLACE_ID = Path(..., pattern=r"^[A-Za-z0-9_-]{1,20}$")

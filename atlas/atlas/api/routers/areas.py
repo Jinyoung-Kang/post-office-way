@@ -5,8 +5,8 @@ import gzip
 from fastapi import APIRouter, Path, Query, Request
 from fastapi.responses import Response
 
-from atlas.api.services import areas as svc
-from atlas.api.services import report as report_svc
+from atlas.features.areas import service as svc
+from atlas.features.areas import report as report_svc
 from atlas.core.db import get_engine
 
 router = APIRouter(prefix="/areas", tags=["areas"])

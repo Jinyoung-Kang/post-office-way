@@ -1,21 +1,10 @@
-"""라우터·서비스 공통 — 지표 정의 조회, 시설 열·응답 모양."""
+"""시설(우체국) 조회 열과 응답 모양 — 시설 목록·상세와 지역 상세가 같은 모양을 쓰게."""
 from __future__ import annotations
 
 from typing import Any
 
-from sqlalchemy import text
-from sqlalchemy.engine import Connection
-
 from atlas.core.serial import jsonable
-from atlas.domain.errors import NotFound
 from atlas.domain.rules import POST_DIV_LABEL
-
-
-def metric_row(c: Connection, code: str) -> dict[str, Any]:
-    r = c.execute(text("SELECT * FROM mart.metric_def WHERE metric_code = :c"), {"c": code}).mappings().first()
-    if not r:
-        raise NotFound("METRIC_NOT_FOUND", f"지표 {code} 가 없습니다.")
-    return dict(r)
 
 
 def facility_json(r: dict[str, Any]) -> dict[str, Any]:

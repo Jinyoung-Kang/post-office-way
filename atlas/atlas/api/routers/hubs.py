@@ -5,7 +5,7 @@ from sqlalchemy import text
 
 from atlas.core.serial import jsonable
 from atlas.domain.errors import Invalid
-from atlas.api.services import hubs as svc
+from atlas.features import hubs as svc
 from atlas.core.db import get_engine
 
 router = APIRouter(tags=["hubs"])

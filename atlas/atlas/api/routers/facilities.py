@@ -3,14 +3,14 @@ from __future__ import annotations
 from fastapi import APIRouter, Query
 from sqlalchemy import text
 
-from atlas.api.common import FACILITY_COLS, facility_json
+from atlas.features.facilities import FACILITY_COLS, facility_json
 
 from atlas.core.serial import jsonable
 
 from atlas.domain.params import page_params
 from atlas.domain.errors import Invalid, NotFound
-from atlas.api.services import calendar as cal_svc
-from atlas.api.services import hubs as hub_svc
+from atlas.features import calendar as cal_svc
+from atlas.features import hubs as hub_svc
 from atlas.core.clock import now_kst
 from atlas.core.db import get_engine
 from atlas.domain.calendar import business_status

@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
-from atlas.api.services import whatif as svc
+from atlas.features.whatif import service as svc
 from atlas.core.db import get_engine
 
 router = APIRouter(prefix="/whatif", tags=["whatif"])

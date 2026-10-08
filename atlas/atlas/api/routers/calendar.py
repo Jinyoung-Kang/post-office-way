@@ -5,7 +5,7 @@ from datetime import date
 from fastapi import APIRouter, Query
 
 from atlas.domain.errors import Invalid
-from atlas.api.services import calendar as svc
+from atlas.features import calendar as svc
 from atlas.core.clock import now_kst
 from atlas.core.db import get_engine
 

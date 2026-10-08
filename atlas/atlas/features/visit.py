@@ -17,7 +17,7 @@ from atlas.core import cache
 from atlas.calc.runs import LATEST_DONE_ID, latest_done
 from atlas.core.serial import jsonable
 from atlas.domain.errors import Invalid, NotFound
-from atlas.api.services import calendar as cal
+from atlas.features import calendar as cal
 from atlas.core.clock import now_kst
 from atlas.core.config import get_settings
 from atlas.domain.calendar import day_status

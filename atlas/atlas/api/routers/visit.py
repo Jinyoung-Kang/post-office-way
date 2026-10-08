@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Query
 from fastapi.responses import Response
 
-from atlas.api.services import visit as svc
+from atlas.features import visit as svc
 from atlas.core.db import get_engine
 
 router = APIRouter(prefix="/visit", tags=["visit"])

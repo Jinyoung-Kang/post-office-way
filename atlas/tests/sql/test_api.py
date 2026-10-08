@@ -83,7 +83,7 @@ def test_geojson_free_inputs_are_bounded(client):
         assert r.status_code == 400, bad
         assert client.get("/api/v1/areas", params={"level": 2, "parent": bad}).status_code == 400, bad
     assert client.get("/api/v1/areas/geojson", params={"level": 2, "metric": "NEAREST_FIN_DIST_M", "parent": "99"}).status_code == 200
-    from atlas.api.services.areas import simplify_step
+    from atlas.features.areas.service import simplify_step
 
     assert simplify_step(123.4567) == simplify_step(120.0) == 120.0
     assert simplify_step(0) == 0.0 and simplify_step(None) is None and simplify_step(4.9) == 0.0
