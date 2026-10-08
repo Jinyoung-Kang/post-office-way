@@ -4,6 +4,7 @@
 """
 import os
 import threading
+import time
 
 import pytest
 from fastapi.testclient import TestClient
@@ -455,3 +456,39 @@ def test_job_with_only_failed_collect_runs_fails_and_skips_recalc(fake_jobs, eng
     job = queue.recent(1)[0]
     assert job["status"] == "FAILED" and "수집 실패" in job["error"]
     assert not [r for r in queue.recent(10) if r["kind"] == "calc"]       # 재계산 없음
+
+
+def test_schedule_runs_while_short_lane_is_busy(fake_jobs, monkeypatch, engine):
+    """short 차선이 오래 걸리는 작업을 도는 동안에도 스케줄 슬롯이 들어가야 함 — 예전에는 스케줄 확인이 short 차선 루프
+    안이라 30분 창을 넘기면 슬롯이 조용히 건너뛰어졌음 (R7)."""
+    from atlas.core.config import get_settings
+    from atlas.jobs import scheduler
+
+    monkeypatch.setattr(get_settings(), "atlas_schedule", "weather")
+    release, busy = threading.Event(), threading.Event()
+
+    def slow(_):
+        busy.set()
+        release.wait(15)
+        return {}
+
+    monkeypatch.setitem(registry.JOBS, "slowshort", JobSpec("slowshort", "느린 short 작업", slow))
+    monkeypatch.setattr(scheduler, "due", lambda now, entries: [("kma", "kma@test-slot")] if entries and busy.is_set() else [])
+    monkeypatch.setitem(registry.JOBS, "kma", JobSpec("kma", "예보(가짜)", lambda p: {}))
+    monkeypatch.setattr(worker, "SCHEDULE_TICK_S", 0.5)
+    stop = threading.Event()
+    t = threading.Thread(target=worker.run_forever, kwargs={"poll_s": 1.0, "stop": stop}, daemon=True)
+    t.start()
+    try:
+        queue.enqueue("slowshort")
+        assert busy.wait(5)
+        deadline = time.monotonic() + 6
+        while time.monotonic() < deadline and not [j for j in queue.recent(10) if j["slot"] == "kma@test-slot"]:
+            time.sleep(0.2)
+        assert [j for j in queue.recent(10) if j["slot"] == "kma@test-slot"], "short 차선이 바빠도 슬롯이 들어가야 함"
+    finally:
+        release.set()
+        stop.set()
+        with engine.begin() as c:
+            c.execute(text("SELECT pg_notify('atlas_jobs', 'stop')"))
+        t.join(10)

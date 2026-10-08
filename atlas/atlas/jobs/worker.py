@@ -1,7 +1,8 @@
 """워커 — 작업 큐를 비우고, 스케줄 슬롯을 넣고, 끊긴 작업을 정리합니다 (`atlas worker`, compose 서비스 worker).
 
 차선(lane)마다 스레드 하나: short(예보·공휴일·계산 등) / long(집계구·은행·도로·좌표 검증). 25분짜리 도로 거리 수집이
-도는 동안에도 예보는 제시간에 갱신됩니다. 스케줄·정리(reap)는 short 차선만 맡아 중복되지 않게 합니다.
+도는 동안에도 예보는 제시간에 갱신됩니다. 스케줄·정리(reap)는 따로 도는 스케줄 스레드 하나가 맡습니다
+(차선이 긴 작업을 도는 동안에도 멈추지 않게, 한 번 실행·단일 차선 모드에서는 첫 차선이 맡음).
 대기 중에는 LISTEN atlas_jobs 로 잠들어 있다가 API 가 작업을 넣으면(NOTIFY) 바로 깨어납니다.
 SIGTERM 을 받으면 새 작업을 가져가지 않고, 실행 중인 작업이 끝나면 종료합니다.
 """
@@ -26,6 +27,7 @@ from atlas.jobs import queue, registry, scheduler
 log = logging.getLogger("atlas.worker")
 HEARTBEAT_S = 30
 REAP_EVERY_S = 60
+SCHEDULE_TICK_S = 20.0    # 스케줄 스레드의 확인 주기 (슬롯 창 30분 안에서 충분히 촘촘)
 
 
 def execute(job: dict[str, Any], worker: str | None = None, lane: str | None = None) -> bool:
@@ -162,15 +164,8 @@ def run_lane(lane: str, poll_s: float = 30.0, once: bool = False, stop: threadin
                 if backoff:
                     log.info("db reconnected", extra={"worker": name})
                     backoff = 0.0
-                for kind, slot in scheduler.due(now_kst(), entries):
-                    if registry.get(kind).missing():
-                        continue
-                    if jid := queue.try_enqueue_slot(kind, slot):
-                        log.info("scheduled", extra={"jobId": jid, "slot": slot})
-                if schedule and time.monotonic() - last_reap > REAP_EVERY_S:
-                    if (r := queue.reap())["requeued"] or r["failed"]:
-                        log.warning("reaped stale jobs", extra=r)
-                    last_reap = time.monotonic()
+                if schedule:
+                    last_reap = _schedule_tick(entries, last_reap)
                 job = queue.claim(name, kinds)
                 if job:
                     queue.worker_beat(name, lane, job["job_id"])
@@ -204,6 +199,37 @@ def run_lane(lane: str, poll_s: float = 30.0, once: bool = False, stop: threadin
         log.info("worker lane stop", extra={"worker": name})
 
 
+def _schedule_tick(entries: list[scheduler.Entry], last_reap: float) -> float:
+    """예정 슬롯 넣기 + (REAP_EVERY_S 마다) 끊긴 작업 정리. 마지막 정리 시각을 돌려줌."""
+    for kind, slot in scheduler.due(now_kst(), entries):
+        if registry.get(kind).missing():
+            continue
+        if jid := queue.try_enqueue_slot(kind, slot):
+            log.info("scheduled", extra={"jobId": jid, "slot": slot})
+    if time.monotonic() - last_reap > REAP_EVERY_S:
+        if (r := queue.reap())["requeued"] or r["failed"]:
+            log.warning("reaped stale jobs", extra=r)
+        last_reap = time.monotonic()
+    return last_reap
+
+
+def run_scheduler(stop: threading.Event) -> None:
+    """스케줄 슬롯 넣기·끊긴 작업 정리만 하는 스레드 — 차선이 긴 작업을 도는 동안에도 멈추지 않게.
+    예전에는 short 차선 루프 안에서 작업 사이사이에만 확인해, short 작업이 30분 창을 넘기면 슬롯이 조용히 건너뛰어졌음 (R7)."""
+    entries = scheduler.enabled(get_settings().atlas_schedule)
+    log.info("scheduler start", extra={"schedule": [e.kind for e in entries]})
+    last_reap, backoff = 0.0, 0.0
+    while not stop.is_set():
+        try:
+            last_reap = _schedule_tick(entries, last_reap)
+            backoff = 0.0
+        except _DB_DOWN as e:
+            backoff = min(backoff * 2 or 1.0, RETRY_MAX_S)
+            log.warning("scheduler: db unavailable — retrying", extra={"retryInS": backoff,
+                                                                       "error": str(e).splitlines()[0][:200]})
+        stop.wait(backoff or SCHEDULE_TICK_S)
+
+
 def run_forever(poll_s: float = 30.0, once: bool = False, stop: threading.Event | None = None,
                 lanes: tuple[str, ...] = registry.LANES) -> None:
     stopping = stop or threading.Event()
@@ -215,8 +241,9 @@ def run_forever(poll_s: float = 30.0, once: bool = False, stop: threading.Event 
             run_lane(lane, poll_s, once, stopping, schedule=(i == 0))
         return
     threads = [threading.Thread(target=run_lane, name=f"lane-{lane}", daemon=True,
-                                kwargs={"lane": lane, "poll_s": poll_s, "stop": stopping, "schedule": lane == lanes[0]})
+                                kwargs={"lane": lane, "poll_s": poll_s, "stop": stopping, "schedule": False})
                for lane in lanes]
+    threads.append(threading.Thread(target=run_scheduler, name="scheduler", daemon=True, args=(stopping,)))
     for t in threads:
         t.start()
     while not stopping.wait(1.0):
