@@ -41,3 +41,10 @@ def test_dependency_direction(pkg):
             if any(m == p or m.startswith(p + ".") for p in FORBIDDEN[pkg]):
                 bad.append(f"{f.relative_to(PKG)} → {m}")
     assert not bad, "안쪽 계층이 바깥을 import:\n" + "\n".join(bad)
+
+
+def test_routers_have_no_sql():
+    """라우터는 HTTP(입력·상태 코드·헤더)만 — SQL 은 features 의 조회 함수로. health 는 DB 연결 자체를 확인하는 곳이라 예외."""
+    bad = [f"{f.name} → {m}" for f in sorted((PKG / "api" / "routers").glob("*.py")) if f.name != "health.py"
+           for m in _imports(f) if m == "sqlalchemy" or m.startswith("sqlalchemy.")]
+    assert not bad, "라우터에 SQL:\n" + "\n".join(bad)
