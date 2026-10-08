@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -21,6 +22,7 @@ from atlas.core.db import get_engine
 log = logging.getLogger(__name__)
 router = APIRouter(tags=["reports"])
 MAX_BODY = 16 * 1024
+HOURLY_MAX = 100                  # 오류 로그에 남기는 CSP 보고 상한(전체, 시간당) — 정상이면 하루 몇 건
 NOISE = ("chrome-extension", "moz-extension", "safari-extension", "safari-web-extension", "about")
 
 
@@ -89,7 +91,11 @@ def _record(reports: list[dict[str, Any]]) -> None:
         blocked = _clean(r.get("blocked"))
         blocked_origin = blocked.split("/", 3)[2] if "://" in blocked else blocked
         if not cache.set_nx(f"csp:{directive}:{blocked_origin}", "1", ttl=3600):
-            continue                                   # 같은 위반은 1시간에 한 번만
+            continue                                   # 같은 위반은 1시간에 한 번만 (Redis 가 없으면 기록하지 않음)
+        n = cache.incr(f"csp:hour:{int(time.time() // 3600)}", ttl=3600)
+        if n is None or n > HOURLY_MAX:                # 출처를 바꿔 가며 보내도 시간당 상한까지만 (S7)
+            log.warning("csp report dropped (hourly cap)", extra={"directive": directive, "blocked": blocked_origin})
+            continue
         page = urlsplit(r.get("document") or "").path[:200] or "-"
         src = _clean(r.get("source"))
         msg = f"{directive} 가 {blocked or '?'} 를 막음" + (f" (스크립트 {src}:{r.get('line')})" if src else "")

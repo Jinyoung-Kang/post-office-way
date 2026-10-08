@@ -2,6 +2,7 @@
 
 작업 실행 함수는 가짜로 바꿔 수집 API 를 부르지 않습니다.
 """
+import os
 import threading
 
 import pytest
@@ -318,6 +319,7 @@ def test_csp_report_recorded_once_filtered_and_scrubbed(client, engine, monkeypa
 
     seen: set[str] = set()
     monkeypatch.setattr(cache, "set_nx", lambda k, v, ttl: not (k in seen or seen.add(k)))
+    monkeypatch.setattr(cache, "incr", lambda k, ttl: len(seen))      # Redis 없이 돌려도 시간당 상한 안쪽
     url = "/api/v1/csp-report"
     old = {"csp-report": {"document-uri": "http://localhost:3100/banks?token=abc", "effective-directive": "script-src-elem",
                           "blocked-uri": "https://t1.kakaocdn.net/mapjsapi/js/main/4.5.28/kakao.js?v=secret"}}
@@ -364,3 +366,39 @@ def test_stored_run_and_job_errors_are_masked(clean, engine):
     with TestClient(app) as cl:
         listed = cl.get("/api/v1/meta/collect-runs").json()["items"][0]["error"]
     assert "[SQL" not in listed and "SECRETVALUE123" not in listed
+
+
+def _csp(origin: str) -> dict:
+    return {"csp-report": {"document-uri": "http://localhost:3100/", "effective-directive": "img-src",
+                           "blocked-uri": f"https://{origin}/x.png"}}
+
+
+@pytest.mark.skipif(not os.environ.get("TEST_REDIS_URL"), reason="시간당 카운터는 Redis 가 필요 (make test 는 켬)")
+def test_csp_report_flood_is_capped_per_hour(client, engine, monkeypatch):
+    """출처를 바꿔 가며 보내도(중복 억제가 안 통함) 시간당 상한까지만 오류 로그에 남김 (S7)."""
+    from atlas.api.routers import reports
+
+    monkeypatch.setattr(reports, "HOURLY_MAX", 5)
+    for i in range(20):
+        client.post("/api/v1/csp-report", json=_csp(f"spam{i}.example"), headers={"Content-Type": "application/csp-report"})
+    with engine.connect() as c:
+        n = c.execute(text("SELECT count(*) FROM ops.app_error WHERE source = 'csp'")).scalar()
+    assert n == 5
+
+
+def test_csp_report_not_recorded_without_redis(client, engine, monkeypatch):
+    """Redis 가 없으면 중복 억제·상한을 지킬 수 없으므로 기록하지 않음(로그에만) — 공개 쓰기 경로라 닫힌 쪽으로."""
+    import redis as redis_mod
+
+    from atlas.api import cache
+
+    class Down:
+        def __getattr__(self, name):
+            def f(*a, **k):
+                raise redis_mod.ConnectionError("down")
+            return f
+
+    monkeypatch.setattr(cache, "client", lambda: Down())
+    client.post("/api/v1/csp-report", json=_csp("cdn.example"), headers={"Content-Type": "application/csp-report"})
+    with engine.connect() as c:
+        assert c.execute(text("SELECT count(*) FROM ops.app_error WHERE source = 'csp'")).scalar() == 0
