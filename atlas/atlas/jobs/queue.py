@@ -1,6 +1,7 @@
 """Postgres 작업 큐 (ops.job) — 별도 브로커 없이 트랜잭션·잠금으로 '정확히 한 워커'를 보장합니다.
 
-- enqueue : INSERT (같은 종류가 대기·실행 중이면 ux_job_active 로 막힘 → JobConflict) + NOTIFY 로 워커 즉시 깨움
+- enqueue : INSERT (같은 종류가 대기 중이면 ux_job_queued 로 막힘 → JobConflict) + NOTIFY 로 워커 즉시 깨움.
+            실행 중인 같은 종류가 있으면 새로 대기열에 들어가 그것이 끝난 뒤 실행 (V23)
 - claim   : SELECT … FOR UPDATE SKIP LOCKED — 워커가 여럿이어도 한 작업은 한 워커만 가져감
 - heartbeat / reap : 실행 중 주기적으로 heartbeat_at 갱신, 끊긴 작업(워커 종료)은 재시도 또는 FAILED
 """
@@ -22,7 +23,7 @@ STALE_MIN = 10          # 하트비트가 이만큼 끊기면 워커가 죽은 �
 
 class JobConflict(RuntimeError):
     def __init__(self, kind: str, job_id: int | None):
-        super().__init__(f"{kind} 작업이 이미 대기·실행 중입니다 (jobId={job_id})")
+        super().__init__(f"{kind} 작업이 이미 대기 중입니다 (jobId={job_id})")
         self.kind, self.job_id = kind, job_id
 
 
@@ -33,8 +34,9 @@ def worker_name() -> str:
 
 
 def active(kind: str, engine: Engine | None = None) -> int | None:
+    """같은 종류의 대기 중 작업 (대기 중은 하나만 — V23)."""
     with (engine or get_engine()).connect() as c:
-        return c.execute(text("SELECT job_id FROM ops.job WHERE kind = :k AND status IN ('QUEUED', 'RUNNING')"),
+        return c.execute(text("SELECT job_id FROM ops.job WHERE kind = :k AND status = 'QUEUED'"),
                          {"k": kind}).scalar()
 
 
@@ -67,14 +69,16 @@ def try_enqueue_slot(kind: str, slot: str, params: dict[str, Any] | None = None,
 
 
 def claim(worker: str, kinds: list[str] | None = None, engine: Engine | None = None) -> dict[str, Any] | None:
-    """가장 오래 기다린 작업 하나 — kinds 를 주면 그 종류만(차선별 워커)."""
+    """가장 오래 기다린 작업 하나 — kinds 를 주면 그 종류만(차선별 워커).
+    같은 종류가 실행 중이면 건너뜀(대기 중인 것은 실행 중인 것이 끝난 뒤에 — 같은 종류가 동시에 두 개 돌지 않게, V23)."""
     with (engine or get_engine()).begin() as c:
         r = c.execute(text("""
             UPDATE ops.job SET status = 'RUNNING', started_at = now(), heartbeat_at = now(),
                                attempts = attempts + 1, worker = :w, error = NULL
-             WHERE job_id = (SELECT job_id FROM ops.job WHERE status = 'QUEUED'
-                               AND (CAST(:kinds AS text[]) IS NULL OR kind = ANY(CAST(:kinds AS text[])))
-                              ORDER BY created_at, job_id FOR UPDATE SKIP LOCKED LIMIT 1)
+             WHERE job_id = (SELECT q.job_id FROM ops.job q WHERE q.status = 'QUEUED'
+                               AND (CAST(:kinds AS text[]) IS NULL OR q.kind = ANY(CAST(:kinds AS text[])))
+                               AND NOT EXISTS (SELECT 1 FROM ops.job r WHERE r.kind = q.kind AND r.status = 'RUNNING')
+                              ORDER BY q.created_at, q.job_id FOR UPDATE SKIP LOCKED LIMIT 1)
             RETURNING job_id, kind, params, source, attempts, max_attempts"""),
             {"w": worker, "kinds": kinds}).mappings().first()
     return dict(r) if r else None

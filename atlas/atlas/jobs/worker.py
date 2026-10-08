@@ -54,7 +54,7 @@ def execute(job: dict[str, Any], worker: str | None = None, lane: str | None = N
             try:
                 result["chainedCalcJobId"] = queue.enqueue("calc", source="chain", requested_by=f"job:{jid}")
             except queue.JobConflict as e:
-                result["chainedCalcJobId"] = e.job_id    # 이미 대기 중인 계산이 이번 자료까지 반영
+                result["chainedCalcJobId"] = e.job_id    # 이미 '대기 중'인 계산이 이번 자료까지 반영 (실행 중이면 새로 들어감, V23)
         for nxt in spec.then:
             try:
                 result.setdefault("chained", {})[nxt] = queue.enqueue(nxt, source="chain", requested_by=f"job:{jid}")

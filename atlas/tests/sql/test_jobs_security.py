@@ -422,3 +422,22 @@ def test_reap_closes_orphan_runs_so_retry_works(fake_jobs, engine):
     with engine.connect() as c:
         assert c.execute(text("SELECT status FROM ops.collect_run WHERE collect_run_id = :r"), {"r": rid}).scalar() == "FAILED"
     runs.start_run("POST_AREA")                          # 재시도가 막히지 않음
+
+
+def test_chain_while_same_kind_running_queues_a_new_one(fake_jobs, engine):
+    """수집이 끝났을 때 계산이 '실행 중'이면 그 계산은 이미 스냅샷을 찍어 새 자료가 빠짐 → 새 계산이 대기열에 들어가야 하고,
+    같은 종류가 실행 중인 동안에는 가져가지 않음 (R2)."""
+    queue.enqueue("calc")
+    running = queue.claim("w-short", kinds=["calc"])            # 계산 실행 중
+    queue.enqueue("okjob")
+    job = queue.claim("w-long", kinds=["okjob"])
+    assert worker.execute(job)
+    chained = queue.recent(10)
+    new_calc = [r for r in chained if r["kind"] == "calc" and r["status"] == "QUEUED"]
+    assert len(new_calc) == 1 and new_calc[0]["job_id"] != running["job_id"]
+    assert queue.claim("w-short", kinds=["calc"]) is None       # 같은 종류가 실행 중이면 기다림
+    queue.finish(running["job_id"], True, {})
+    assert queue.claim("w-short", kinds=["calc"])["job_id"] == new_calc[0]["job_id"]
+    with pytest.raises(queue.JobConflict):                      # 대기 중은 여전히 하나만
+        queue.enqueue("calc")
+        queue.enqueue("calc")
