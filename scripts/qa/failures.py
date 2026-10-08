@@ -22,6 +22,9 @@ CASES = [
     ("/rankings", "/api/v1/areas?", 500, "점검용 실패"),
     # 자료가 아직 없을 때(404 + 코드)는 오류가 아니라 준비 안내 — 판정은 메시지가 아니라 오류 코드로
     ("/overview", "/api/v1/overview", 404, "아직 계산된 데이터가 없습니다", "CALC_RUN_NOT_FOUND"),
+    # 은행 지점 목록이 실패하면 상세 칸 자리 표시가 끝나지 않고 목록에는 '조건에 맞는 지점이 없습니다'가 보였음
+    ("/banks", "/api/v1/banks/impact?", 500, "점검용 실패"),
+    ("/banks", "/api/v1/banks/impact?", 404, "아직 계산된 데이터가 없습니다", "BANK_IMPACT_NOT_FOUND"),
 ]
 
 
@@ -48,6 +51,8 @@ async def main() -> None:
             busy = await pg.locator("main [aria-busy='true'], main .skeleton").count()
             if busy:
                 problems.append(f"{path}: {frag} 가 {status} 일 때 자리 표시 {busy}개가 남음")
+            if "조건에 맞는" in text:
+                problems.append(f"{path}: {frag} 가 {status} 일 때 '결과 없음' 문구가 오류와 함께 보임")
             for e in errors:
                 problems.append(f"{path}: 처리되지 않은 예외 — {e}")
             await ctx.close()

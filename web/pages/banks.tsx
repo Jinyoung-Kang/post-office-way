@@ -89,7 +89,8 @@ export default function BanksPage() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_460px]">
+        {/* 자료가 아직 없으면 고를 것이 없으니 목록·상세를 그리지 않음 */}
+        {!noData && <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_460px]">
           <Card title="은행 지점" pad={false}
             right={<div className="flex flex-wrap items-center gap-2">
               {/* 너비 고정 — 시도 목록이 늦게 오면 선택 상자가 넓어지며 머리글이 줄바꿈돼 아래가 밀렸음(CLS) */}
@@ -139,15 +140,17 @@ export default function BanksPage() {
                   <button className="btn-ghost" disabled={page >= pages} onClick={() => { setPageStr(String(page + 1)); setId(""); }}>다음</button>
                 </div>
               </div>
-            ) : <div className="px-6 pb-6"><Empty>조건에 맞는 지점이 없습니다.</Empty></div>}
+            ) : list ? <div className="px-6 pb-6"><Empty>조건에 맞는 지점이 없습니다.</Empty></div>
+              : null /* 목록 요청 실패 — 오류는 위에 한 번만 */}
           </Card>
 
           <div ref={detailRef} className="space-y-5 lg:sticky lg:top-[64px] lg:self-start">
             {detail ? <Detail d={detail} geo={geo} />
               : detailErr ? <ErrorBox error={detailErr} />
-              : <div className="card p-6"><TableSkeleton rows={6} /></div>}
+              : selected || loading ? <div className="card p-6"><TableSkeleton rows={6} /></div>   // 고른 지점(또는 목록)을 받는 중
+              : null /* 목록이 실패했거나 비어 고를 지점이 없음 — 끝나지 않는 자리 표시를 두지 않음 */}
           </div>
-        </div>
+        </div>}
 
         {list && (
           <Card title="이렇게 판정합니다">
