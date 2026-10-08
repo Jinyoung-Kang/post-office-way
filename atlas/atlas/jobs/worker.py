@@ -20,6 +20,7 @@ import sqlalchemy.exc
 from atlas.core.clock import now_kst
 from atlas.core.jobctx import current_job_id
 from atlas.core.config import get_settings
+from atlas.collector import runs as collect_runs
 from atlas.jobs import queue, registry, scheduler
 
 log = logging.getLogger("atlas.worker")
@@ -50,6 +51,9 @@ def execute(job: dict[str, Any], worker: str | None = None, lane: str | None = N
         spec = registry.get(kind)
         result = (run_isolated(kind, job["params"] or {}, jid, timeout_s=spec.timeout_s) if spec.isolate
                   else registry.run(kind, job["params"] or {}))
+        # 수집기는 실패를 실행 기록(FAILED)에 남기고 정상 반환하기도 함 — 모두 실패면 작업도 실패, 재계산은 넣지 않음 (R6)
+        if (ids := result.get("collectRunIds")) and set(collect_runs.statuses(ids)) == {"FAILED"}:
+            raise RuntimeError(f"수집 실패 — 새 자료가 없어 재계산하지 않음 (collectRunIds={ids})")
         if spec.recalc and (job["params"] or {}).get("recalc", True):
             try:
                 result["chainedCalcJobId"] = queue.enqueue("calc", source="chain", requested_by=f"job:{jid}")

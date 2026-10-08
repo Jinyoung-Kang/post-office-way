@@ -76,3 +76,13 @@ def finish_run(run_id: uuid.UUID, status: str, stats: dict[str, Any], error: str
         c.execute(text("""UPDATE ops.collect_run SET status = :st, stats = CAST(:s AS jsonb),
                                  error = :e, finished_at = now() WHERE collect_run_id = :id"""),
                   {"st": status, "s": json.dumps(stats, ensure_ascii=False), "e": safe_error(error), "id": run_id})
+
+
+def statuses(run_ids: list[str]) -> list[str]:
+    """실행 기록들의 상태 — 작업이 수집 실패를 '완료'로 감추지 않게 워커가 확인 (R6)."""
+    if not run_ids:
+        return []
+    with begin() as c:
+        return [r[0] for r in c.execute(text("""SELECT status FROM ops.collect_run
+                                                WHERE collect_run_id = ANY(CAST(:ids AS uuid[]))"""), {"ids": run_ids})]
+

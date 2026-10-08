@@ -441,3 +441,17 @@ def test_chain_while_same_kind_running_queues_a_new_one(fake_jobs, engine):
     with pytest.raises(queue.JobConflict):                      # 대기 중은 여전히 하나만
         queue.enqueue("calc")
         queue.enqueue("calc")
+
+
+def test_job_with_only_failed_collect_runs_fails_and_skips_recalc(fake_jobs, engine, monkeypatch):
+    """수집기가 실행 기록을 FAILED 로 남기고 정상 반환해도 작업은 FAILED, 재계산은 넣지 않음 (R6)."""
+    from atlas.collector import runs
+
+    rid = runs.start_run("NMC_CARE", check_running=False)
+    runs.finish_run(rid, "FAILED", {}, error="받은 자료 없음")
+    monkeypatch.setitem(registry.JOBS, "okjob", JobSpec("okjob", "테스트", lambda p: {"collectRunIds": [str(rid)]}, recalc=True))
+    queue.enqueue("okjob")
+    assert not worker.execute(queue.claim("w1"))
+    job = queue.recent(1)[0]
+    assert job["status"] == "FAILED" and "수집 실패" in job["error"]
+    assert not [r for r in queue.recent(10) if r["kind"] == "calc"]       # 재계산 없음
