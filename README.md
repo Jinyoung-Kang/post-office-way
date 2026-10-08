@@ -134,7 +134,7 @@ API 문서: http://localhost:8100/docs · Prometheus 지표: http://localhost:81
 | `make jobs` · `make schedule` · `make status` | 최근 작업 · 스케줄과 다음 시각 · 수집·계산·키 현황 | — |
 | `make bench` | API 부하 측정(p50/p95·처리량) + 누적 시간 상위 SQL | 약 1분 |
 | `make migrate` | 스키마 마이그레이션 + API 역할 비밀번호 설정 (`make up` 이 자동 실행) | — |
-| `make backup` · `make restore FILE=…` | DB 백업(`backups/`, `LITE=1` 은 원본 응답 제외) · 확인 후 복원 | 14초(경량 113MB) |
+| `make backup` · `make restore FILE=…` · `make restore-undo` | DB 백업(`backups/`, `LITE=1` 은 원본 응답 제외) · 임시 DB 에 복원해 검증한 뒤 교체(이전 DB 는 `atlas_prev`) · 복원 되돌리기 | 백업 14초(경량 113MB) · 복원 약 50초 |
 | `make test` | Python 테스트 189개 (단위·계약·PostGIS SQL·What-if 동등성·k-최근접 정답 비교·은행 지점 영향·도보·작업 큐·권한·보안) | 약 20초 |
 | `make qa` · `make qa-lh` | 띄운 서비스 점검 — API 퍼징·11개 화면 크롤링·네트워크(중복·평문·CSP)·접근성·설명 줄바꿈 / Lighthouse 3회 중앙값 | 약 5분 · 약 20분 |
 | `make prune` | 오래된 원문·스냅샷은 종류별 최근 `KEEP=3` 수집만, 계산 결과는 최근 `KEEP_CALC=5` 만 | — |

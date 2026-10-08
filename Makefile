@@ -28,7 +28,7 @@
 #   make status    수집·계산 현황   make logs / make psql / make down
 #   make prune     오래된 원문·스냅샷·계산 결과 정리 (KEEP=3 수집 run, KEEP_CALC=5 계산 run)
 #   make backup    DB 백업 → backups/*.dump (LITE=1 이면 원본 응답 raw 데이터 제외)
-#   make restore   FILE=backups/….dump 로 DB 되돌리기 (확인 후 api·worker·web 멈추고 복원)
+#   make restore   FILE=backups/….dump 로 DB 되돌리기 (임시 DB 에 복원·검증 뒤 교체, 이전 DB 는 atlas_prev — make restore-undo)
 # =============================================================================
 
 SHELL := /bin/bash
@@ -38,7 +38,7 @@ RUN := $(COMPOSE) --profile batch run --rm collector
 .DEFAULT_GOAL := help
 .PHONY: help env up down restart logs ps build migrate smoke discover collect sgis sgis-pop sgis-bnd kosis oa banks road geocheck \
         extras banks-full osm walk weather care holidays calc all-data prune backup restore jobs schedule enqueue bench \
-        status test test-unit qa qa-lh psql web-dev api-dev reset
+        status test test-unit qa qa-lh psql web-dev api-dev reset restore-undo
 
 help:
 	@grep -E '^#   make' Makefile | sed 's/^#   //'
@@ -179,13 +179,33 @@ backup:
 	  $(COMPOSE) exec -T db pg_dump -U atlas -d atlas -Fc $(if $(LITE),--exclude-table-data='raw.*') > $$f.part \
 	  && mv $$f.part $$f && echo "백업: $$f ($$(du -h $$f | cut -f1))" || { rm -f $$f.part; exit 1; }
 
+# 복원은 지금 DB 를 건드리기 전에 끝까지 검증 — 덤프 목차 확인 → 임시 DB(<DB>_restore)에 복원 → 성공하면 이름을 바꿔 교체.
+# 이전 DB 는 <DB>_prev 로 남김(되돌리기: make restore-undo). 복원이 중간에 실패하면 지금 DB 는 그대로.
+RESTORE_DB ?= atlas
+PSQL_ADMIN := $(COMPOSE) exec -T db psql -U atlas -d postgres -v ON_ERROR_STOP=1 -q
 restore:
 	@test -f "$(FILE)" || { echo "FILE=backups/<파일>.dump 를 지정하세요"; ls backups/*.dump 2>/dev/null; exit 2; }
-	@read -p "현재 DB 를 $(FILE) 내용으로 바꿉니다. 계속할까요? [y/N] " a && [ "$$a" = y ]
+	@$(COMPOSE) exec -T db pg_restore --list < $(FILE) > /dev/null || { echo "덤프를 읽을 수 없습니다: $(FILE)"; exit 1; }
+	@read -p "$(RESTORE_DB) DB 를 $(FILE) 내용으로 바꿉니다(지금 DB 는 $(RESTORE_DB)_prev 로 남기고, 이전에 남긴 $(RESTORE_DB)_prev 는 지웁니다). 계속할까요? [y/N] " a && [ "$$a" = y ]
+	@$(PSQL_ADMIN) -c "DROP DATABASE IF EXISTS $(RESTORE_DB)_restore WITH (FORCE)" -c "CREATE DATABASE $(RESTORE_DB)_restore"
+	@$(COMPOSE) exec -T db pg_restore -U atlas -d $(RESTORE_DB)_restore --exit-on-error < $(FILE) \
+	  || { $(PSQL_ADMIN) -c "DROP DATABASE IF EXISTS $(RESTORE_DB)_restore WITH (FORCE)"; \
+	       echo "복원 실패 — $(RESTORE_DB) DB 는 바뀌지 않았습니다"; exit 1; }
 	$(COMPOSE) stop api worker web
-	$(COMPOSE) exec -T db psql -U atlas -d postgres -v ON_ERROR_STOP=1 \
-	  -c "DROP DATABASE IF EXISTS atlas WITH (FORCE)" -c "CREATE DATABASE atlas"
-	$(COMPOSE) exec -T db pg_restore -U atlas -d atlas --exit-on-error < $(FILE)
+	@$(PSQL_ADMIN) -c "DROP DATABASE IF EXISTS $(RESTORE_DB)_prev WITH (FORCE)" \
+	  -c "SELECT count(pg_terminate_backend(pid)) FROM pg_stat_activity WHERE datname = '$(RESTORE_DB)'" \
+	  -c "ALTER DATABASE $(RESTORE_DB) RENAME TO $(RESTORE_DB)_prev" \
+	  -c "ALTER DATABASE $(RESTORE_DB)_restore RENAME TO $(RESTORE_DB)"
+	$(COMPOSE) up -d
+	@echo "복원 완료 — 이전 DB 는 $(RESTORE_DB)_prev 로 남겼습니다 (되돌리기: make restore-undo)"
+
+restore-undo:
+	@read -p "$(RESTORE_DB) 를 $(RESTORE_DB)_prev(복원 전 DB)로 되돌립니다. 계속할까요? [y/N] " a && [ "$$a" = y ]
+	$(COMPOSE) stop api worker web
+	@$(PSQL_ADMIN) -c "SELECT count(pg_terminate_backend(pid)) FROM pg_stat_activity WHERE datname = '$(RESTORE_DB)'" \
+	  -c "ALTER DATABASE $(RESTORE_DB) RENAME TO $(RESTORE_DB)_undone" \
+	  -c "ALTER DATABASE $(RESTORE_DB)_prev RENAME TO $(RESTORE_DB)" \
+	  -c "DROP DATABASE $(RESTORE_DB)_undone WITH (FORCE)"
 	$(COMPOSE) up -d
 
 # 테스트 DB(atlas_test)는 운영 DB 와 분리 — 테스트가 스키마를 지우고 다시 만듭니다.

@@ -26,6 +26,9 @@
    워커는 API 와 별도 서비스라 준비 상태의 `status` 에는 넣지 않고 정보로만 보여 준다.
 4. **백업·복원** — `make backup`: `pg_dump -Fc`(압축) → `backups/`(git 제외), `LITE=1` 이면 원본 응답(`raw.*`) 데이터를 빼 약 1/3 크기.
    `make restore FILE=…`: 확인 → api·worker·web 정지 → DB 재생성 → `pg_restore --exit-on-error` → 기동(migrate 가 역할 비밀번호 재설정).
+   - 2026-10-08 보완(리뷰 D6): 위 순서는 덤프가 잘렸거나 복원이 중간에 실패하면 원본이 이미 지워진 뒤라 되돌릴 수 없었다.
+     → 덤프 목차 확인 → 임시 DB(`atlas_restore`)에 복원 → 성공했을 때만 서비스를 멈추고 이름을 바꿔 교체, 이전 DB 는 `atlas_prev` 로
+     남김(`make restore-undo`). 잘린 덤프로 실패 경로(지금 DB 그대로)와 되돌리기를 시험 DB 로 확인.
    역할(`atlas_api`)은 클러스터 전역이라 덤프에 없고, 권한(GRANT)은 덤프에 있다.
 
 ## 검증
