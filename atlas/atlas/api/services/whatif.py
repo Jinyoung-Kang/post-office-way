@@ -16,7 +16,7 @@ from sqlalchemy.engine import Connection
 from atlas.api import cache
 from atlas.calc.runs import meta_of, resolve_calc_run
 from atlas.core.serial import jsonable
-from atlas.domain.params import parse_uuid
+from atlas.domain.params import far_meters, parse_uuid, pick_level
 from atlas.domain.errors import Conflict, Invalid, NotFound
 
 CAVEAT = "분석 데모 지표이며 공식 통계가 아닙니다. 직선거리 기준이며 도로 거리와 다릅니다."
@@ -36,14 +36,6 @@ _KNN_EXCLUDING = """
              ORDER BY t.d, t.hist_id LIMIT 1) k ON true
      WHERE a.stat_year = :y AND {where}
 """
-
-
-def _level_for(run: dict[str, Any], level: int | None) -> int:
-    levels = [int(x) for x in run["params"].get("levels", [2])]
-    lvl = level or max(levels)
-    if lvl not in levels:
-        raise Invalid(f"level {lvl} 은 이 calc_run 에서 계산되지 않았습니다 (가능: {levels}).")
-    return lvl
 
 
 def partial_recompute(c: Connection, run: dict[str, Any], level: int, ids: list[int]) -> list[dict[str, Any]]:
@@ -93,7 +85,7 @@ def run_whatif(c: Connection, calc_run_id: str | None, remove_ids: list[int], le
     run = resolve_calc_run(c, calc_run_id, require_done=False)
     if run["status"] != "DONE":
         raise Conflict("CALC_RUN_NOT_DONE", f"calcRunId {run['calc_run_id']} 상태가 {run['status']} 입니다.")
-    lvl = _level_for(run, level)
+    lvl = pick_level(run["params"], level)
     key = _key(run["calc_run_id"], lvl, ids)
     if hit := cache.get(key):
         return json.loads(hit)
@@ -124,7 +116,7 @@ def run_whatif(c: Connection, calc_run_id: str | None, remove_ids: list[int], le
         bank = {r[0]: float(r[1]) for r in c.execute(text("""
             SELECT adm_cd, value FROM mart.access_metric WHERE calc_run_id = :run AND metric_code = 'NEAREST_BANK_DIST_M'
                AND adm_cd = ANY(CAST(:cds AS text[]))"""), {"run": run["calc_run_id"], "cds": cds})}
-        far_m = float(run["params"].get("farKm", 2)) * 1000
+        far_m = far_meters(run["params"])
         summary = _summary(results, pops, aged)
         summary.update(_fin_access_loss(results, pops, bank, far_m))
         summary.update(_oa_impact(c, run, ids, far_m))

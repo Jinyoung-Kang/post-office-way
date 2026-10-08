@@ -14,6 +14,7 @@ from typing import Any
 
 from sqlalchemy import Engine, text
 
+from atlas.domain.params import far_meters
 from atlas.ops.dq import CALC_RULES, DQRecorder
 from atlas.core.config import get_settings
 from atlas.core.db import get_engine, run_sql_file
@@ -110,10 +111,10 @@ def execute_calc_run(calc_run_id: uuid.UUID, engine: Engine | None = None) -> di
                                                   {**base, "w_dist": float(w.get("dist", 0.6)),
                                                    "w_aged": float(w.get("aged", 0.4))}))
             step("kosisAged", lambda: run_sql_file(c, "calc/05_kosis_aged.sql",
-                                                   {**base, "far_m": float(params.get("farKm", 2)) * 1000}))
+                                                   {**base, "far_m": far_meters(params)}))
             kosis_period = c.execute(text("""SELECT max(ref_period) FROM mart.area_resident_pop
                                              WHERE stat_year = :y"""), {"y": stat_year}).scalar()
-            far = {**base, "far_m": float(params.get("farKm", 2)) * 1000}
+            far = {**base, "far_m": far_meters(params)}
             step("oa", lambda: run_sql_file(c, "calc/06_oa.sql", far))          # ① 집계구
             step("bank", lambda: run_sql_file(c, "calc/07_bank.sql", far))      # ④ 금융 공백
             step("road", lambda: run_sql_file(c, "calc/08_road.sql", base))     # ② 도로 거리

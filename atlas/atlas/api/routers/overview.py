@@ -10,6 +10,7 @@ from atlas.api import cache
 from atlas.calc.runs import data_version, meta_of, resolve_calc_run
 from atlas.core.serial import jsonable
 from atlas.core.db import get_engine
+from atlas.domain.params import far_meters
 from atlas.domain.rules import POST_DIV_LABEL
 
 router = APIRouter(prefix="/overview", tags=["overview"])
@@ -47,7 +48,7 @@ def overview(calcRunId: str | None = None):
                                   FROM mart.area_resident_pop WHERE stat_year = :y
                                     AND adm_cd IN (SELECT adm_cd FROM mart.admin_area WHERE stat_year = :y AND level = 2)"""),
                           {"y": y}).mappings().one()
-        far_m = float(run["params"].get("farKm", 2)) * 1000
+        far_m = far_meters(run["params"])
         # ① 집계구 기준 전국 값 (읍면동 대표점보다 거주 분포를 잘 반영)
         oa = c.execute(text("""SELECT count(*) AS n, sum(tot_ppltn) AS pop,
                                       sum(tot_ppltn * dist_m) / nullif(sum(tot_ppltn), 0) AS popw,

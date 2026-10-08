@@ -22,6 +22,7 @@ from atlas.api import cache
 from atlas.calc.runs import meta_of, resolve_calc_run
 from atlas.core.serial import jsonable
 from atlas.domain.errors import Invalid, NotFound
+from atlas.domain.params import far_meters, pick_level
 
 TOP_N = 8
 MAX_K = 7
@@ -166,19 +167,11 @@ def _key(kind: str, run_id: Any, **kw: Any) -> str:
     return f"plan:v{ALGO_VERSION}:{kind}:{run_id}:" + hashlib.sha1(json.dumps(kw, sort_keys=True).encode()).hexdigest()[:16]
 
 
-def _level(run: dict[str, Any], level: int | None) -> int:
-    levels = [int(x) for x in run["params"].get("levels", [2])]
-    lvl = level or max(levels)
-    if lvl not in levels:
-        raise Invalid(f"level {lvl} 은 이 calc_run 에서 계산되지 않았습니다 (가능: {levels}).")
-    return lvl
-
-
 def plan_close(c: Connection, scope: str, k: int, weight: str, level: int | None = None,
                calc_run_id: str | None = None) -> dict[str, Any]:
     _validate(scope, k, weight)
     run = resolve_calc_run(c, calc_run_id)
-    lvl, y, far_m = _level(run, level), run["stat_year"], float(run["params"].get("farKm", 2)) * 1000
+    lvl, y, far_m = pick_level(run["params"], level), run["stat_year"], far_meters(run["params"])
     key = _key("close", run["calc_run_id"], scope=scope, k=k, weight=weight, level=lvl)
     if hit := cache.get(key):
         return json.loads(hit)
@@ -281,7 +274,7 @@ def plan_open(c: Connection, scope: str, k: int, weight: str, level: int | None 
               calc_run_id: str | None = None) -> dict[str, Any]:
     _validate(scope, k, weight)
     run = resolve_calc_run(c, calc_run_id)
-    lvl, y, far_m = _level(run, level), run["stat_year"], float(run["params"].get("farKm", 2)) * 1000
+    lvl, y, far_m = pick_level(run["params"], level), run["stat_year"], far_meters(run["params"])
     key = _key("open", run["calc_run_id"], scope=scope, k=k, weight=weight, level=lvl)
     if hit := cache.get(key):
         return json.loads(hit)

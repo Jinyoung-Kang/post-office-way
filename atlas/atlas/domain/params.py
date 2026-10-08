@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import uuid
+from typing import Any
 
 from atlas.domain.errors import Invalid
 
@@ -24,3 +25,21 @@ def page_params(page: int, size: int, cap: int = MAX_SIZE) -> tuple[int, int, in
     if not 1 <= size <= cap:
         raise Invalid(f"size 는 1~{cap} 이어야 합니다.")
     return page, size, (page - 1) * size
+
+
+# 계산 설정(mart.calc_run.params) 해석 — 계산·What-if·배치 제안·개요가 같은 기준을 쓰게
+DEFAULT_FAR_KM = 2   # '먼 거리' 기본값 (calc/runner.py DEFAULT_PARAMS 의 farKm)
+
+
+def far_meters(params: dict[str, Any]) -> float:
+    """'먼 거리' 기준(m)."""
+    return float(params.get("farKm", DEFAULT_FAR_KM)) * 1000
+
+
+def pick_level(params: dict[str, Any], level: int | None) -> int:
+    """요청 레벨 — 생략하면 계산한 가장 세밀한 레벨. 계산하지 않은 레벨이면 Invalid."""
+    levels = [int(x) for x in params.get("levels", [2])]
+    lvl = level or max(levels)
+    if lvl not in levels:
+        raise Invalid(f"level {lvl} 은 이 calc_run 에서 계산되지 않았습니다 (가능: {levels}).")
+    return lvl
