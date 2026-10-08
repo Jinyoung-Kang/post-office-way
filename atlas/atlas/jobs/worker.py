@@ -48,7 +48,7 @@ def execute(job: dict[str, Any], worker: str | None = None, lane: str | None = N
     ctx = current_job_id.set(jid)                 # 이 작업이 여는 실행 기록에 작업 id 를 남김 (reap 때 닫기, R1)
     try:
         spec = registry.get(kind)
-        result = (run_isolated(kind, job["params"] or {}, jid) if spec.isolate
+        result = (run_isolated(kind, job["params"] or {}, jid, timeout_s=spec.timeout_s) if spec.isolate
                   else registry.run(kind, job["params"] or {}))
         if spec.recalc and (job["params"] or {}).get("recalc", True):
             try:
@@ -75,23 +75,50 @@ def execute(job: dict[str, Any], worker: str | None = None, lane: str | None = N
         stop.set()
 
 
-def _child(kind: str, params: dict[str, Any], job_id: int | None = None) -> dict[str, Any]:
+def _child(conn: Any, target: Any, kind: str, params: dict[str, Any], job_id: int | None) -> None:
+    """자식 프로세스 본체 — 결과나 예외를 (종류, 메시지) 문자열로 부모에 보냄. 예외 객체를 그대로 보내면
+    생성자 인자가 둘인 예외(RunInProgress·JobConflict)는 부모에서 되살리지 못해 원인이 BrokenProcessPool 로 가려졌음 (R9)."""
     from atlas.core.logging import setup_logging
 
     setup_logging()
     current_job_id.set(job_id)
-    return registry.run(kind, params)
+    try:
+        conn.send(("ok", (target or registry.run)(kind, params)))
+    except BaseException as e:  # noqa: BLE001 — 자식의 모든 실패를 부모에 알림
+        conn.send(("err", f"{type(e).__name__}: {e}"))
+    finally:
+        conn.close()
 
 
-def run_isolated(kind: str, params: dict[str, Any], job_id: int | None = None) -> dict[str, Any]:
+def run_isolated(kind: str, params: dict[str, Any], job_id: int | None = None, timeout_s: float | None = None,
+                 target: Any = None) -> dict[str, Any]:
     """새 프로세스(spawn)에서 작업 하나 — 파이썬은 쓴 메모리를 OS 에 잘 돌려주지 않아, 도보 그래프(수 GB)를
     워커 프로세스에서 돌리면 끝난 뒤에도 1GB 넘게 남았음. 자식 프로세스가 끝나면 모두 반환되고, 자식이 죽어도 워커는 남음.
-    fork 대신 spawn — 워커의 스레드·DB 연결을 물려받지 않게."""
+    fork 대신 spawn — 워커의 스레드·DB 연결을 물려받지 않게.
+    timeout_s 가 지나면 자식을 끝냄 — 예전에는 제한이 없고 하트비트는 계속 가서 멈춘 작업이 차선과 스케줄까지 막았음 (R5).
+    target 은 테스트용 (기본: registry.run)."""
     import multiprocessing as mp
-    from concurrent.futures import ProcessPoolExecutor
 
-    with ProcessPoolExecutor(max_workers=1, mp_context=mp.get_context("spawn")) as ex:
-        return ex.submit(_child, kind, params, job_id).result()
+    ctx = mp.get_context("spawn")
+    recv, send = ctx.Pipe(duplex=False)
+    p = ctx.Process(target=_child, args=(send, target, kind, params, job_id), name=f"job-{kind}", daemon=True)
+    p.start()
+    send.close()
+    try:
+        if not recv.poll(timeout_s):
+            raise TimeoutError(f"{kind} 작업이 {timeout_s:g}초 안에 끝나지 않아 중단했습니다")
+        try:
+            status, value = recv.recv()
+        except EOFError as e:                       # 결과를 보내기 전에 자식이 죽음(메모리 부족 등)
+            raise RuntimeError(f"{kind} 작업 프로세스가 비정상 종료했습니다 (exitcode={p.exitcode})") from e
+    finally:
+        recv.close()
+        if p.is_alive():
+            p.terminate()
+        p.join(10)
+    if status == "err":
+        raise RuntimeError(value)
+    return value
 
 
 def _listen_conn() -> psycopg.Connection:

@@ -309,7 +309,7 @@ def test_isolated_job_runs_in_child_process_and_propagates_errors(clean, monkeyp
     assert registry.get("walk").isolate and registry.get("osm").isolate
     out = worker.run_isolated("walk", {})
     assert "skipped" in out                                     # 그래프가 없으면 건너뜀
-    with pytest.raises(KeyError):
+    with pytest.raises(RuntimeError, match="KeyError"):          # 자식의 예외는 '종류: 메시지' 로 전달 (R9)
         worker.run_isolated("no-such-job", {})
 
 

@@ -17,6 +17,7 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql+psycopg://atlas:atlas@localhost:5442/atlas"
     redis_url: str = "redis://localhost:6389/0"
+    db_statement_timeout_ms: int = 0          # 0 = 제한 없음. 워커는 compose 에서 30분 (API 역할은 DB 역할 설정 15초)
 
     post_service_key: str = ""
     sgis_consumer_key: str = ""

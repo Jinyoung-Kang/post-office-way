@@ -26,6 +26,7 @@ class JobSpec:
     long: bool = False                   # 10분 넘게 걸릴 수 있음 (하트비트만으로 생존 판단)
     then: tuple[str, ...] = ()           # 성공하면 이어서 넣을 작업 (예: calc → walk). 이미 대기 중이면 그것으로 갈음
     isolate: bool = False                # 별도 프로세스에서 실행 — 수 GB 를 쓰는 작업이 끝나면 메모리를 OS 에 돌려주고, 죽어도 워커는 삶
+    timeout_s: int | None = None         # isolate 작업의 시간 제한 — 넘으면 자식 프로세스를 끝내고 FAILED (R5)
 
     def missing(self, s: Settings | None = None) -> list[str]:
         s = s or get_settings()
@@ -143,8 +144,8 @@ JOBS: dict[str, JobSpec] = {j.kind: j for j in (
     JobSpec("oa", "SGIS 집계구", _oa, _SGIS, recalc=True, long=True),
     JobSpec("banks", "은행·금고 지점", _banks, _KAKAO, recalc=True, long=True),
     JobSpec("banks-full", "은행·금고 지점 전수", _banks_full, _KAKAO, recalc=True, long=True),
-    JobSpec("osm", "OSM 도로망·도보 그래프", _osm, long=True, then=("walk",), isolate=True),
-    JobSpec("walk", "도보 거리 계산", _walk, long=True, isolate=True),
+    JobSpec("osm", "OSM 도로망·도보 그래프", _osm, long=True, then=("walk",), isolate=True, timeout_s=3600),   # 받기+빌드 약 4분
+    JobSpec("walk", "도보 거리 계산", _walk, long=True, isolate=True, timeout_s=1800),                         # 약 1분
     JobSpec("road", "도로 거리", _road, _KAKAO, recalc=True, long=True),
     JobSpec("geocheck", "주소 좌표 검증", _geocheck, _KAKAO, long=True),
     JobSpec("kma", "기상청 단기예보", _kma, _DATAGO),

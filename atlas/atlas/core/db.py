@@ -14,10 +14,16 @@ from atlas.core.config import get_settings
 _SQL_DIR = Path(__file__).resolve().parents[1] / "sql"
 
 
+def engine_options(statement_timeout_ms: int) -> dict:
+    """세션 시작 옵션 — 문장 시간 제한(워커: 멈춘 쿼리가 차선을 막지 않게, R5)."""
+    return {"options": f"-c statement_timeout={statement_timeout_ms}"} if statement_timeout_ms > 0 else {}
+
+
 @lru_cache
 def get_engine(url: str | None = None) -> Engine:
-    return create_engine(url or get_settings().database_url, pool_pre_ping=True, pool_size=5,
-                         max_overflow=5, future=True)
+    s = get_settings()
+    return create_engine(url or s.database_url, pool_pre_ping=True, pool_size=5, max_overflow=5, future=True,
+                         connect_args=engine_options(s.db_statement_timeout_ms))
 
 
 @contextmanager
