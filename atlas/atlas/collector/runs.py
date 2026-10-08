@@ -38,14 +38,28 @@ def start_run(kind: str, scope: str | None = None, check_running: bool = True) -
     return rid
 
 
-def reopen_run(run_id: uuid.UUID) -> dict[str, Any]:
-    """중단된 run 을 RUNNING 으로 되돌리고 기존 stats 를 돌려줍니다 (FR-105 재개)."""
+def reopen_run(run_id: uuid.UUID, kind: str) -> dict[str, Any]:
+    """중단된 run 을 RUNNING 으로 되돌리고 기존 stats 를 돌려줍니다 (FR-105 재개).
+
+    같은 종류의 가장 최근 실행이고 PARTIAL·FAILED 일 때만 — 오래된 실행을 다시 열면 그 뒤 수집된 자료를
+    낡은 스냅샷으로 되돌리게 되고(스냅샷이 정리됐으면 성공 코드의 시설이 모두 닫힘), 다른 종류의 실행 행을 덮어씀.
+    """
     with begin() as c:
-        r = c.execute(text("""UPDATE ops.collect_run SET status = 'RUNNING', finished_at = NULL, error = NULL
-                              WHERE collect_run_id = :id RETURNING kind, stats, scope"""), {"id": run_id}).first()
-    if not r:
-        raise ValueError(f"collect_run {run_id} 가 없습니다.")
-    return {"kind": r[0], "stats": r[1] or {}, "scope": r[2]}
+        r = c.execute(text("""SELECT kind, status, started_at FROM ops.collect_run WHERE collect_run_id = :id
+                              FOR UPDATE"""), {"id": run_id}).first()
+        if not r:
+            raise ValueError(f"collect_run {run_id} 가 없습니다.")
+        if r.kind != kind:
+            raise ValueError(f"재개할 수 없습니다: 수집 종류가 다릅니다 ({r.kind} ≠ {kind}).")
+        if r.status not in ("PARTIAL", "FAILED"):
+            raise ValueError(f"재개할 수 없습니다: 상태가 {r.status} 입니다 (PARTIAL·FAILED 만 이어 받기).")
+        newer = c.execute(text("""SELECT 1 FROM ops.collect_run WHERE kind = :k AND started_at > :t LIMIT 1"""),
+                          {"k": kind, "t": r.started_at}).first()
+        if newer:
+            raise ValueError("재개할 수 없습니다: 같은 종류의 더 최근 실행이 있습니다 — 새로 수집하세요.")
+        st = c.execute(text("""UPDATE ops.collect_run SET status = 'RUNNING', finished_at = NULL, error = NULL
+                               WHERE collect_run_id = :id RETURNING stats, scope"""), {"id": run_id}).first()
+    return {"kind": kind, "stats": st[0] or {}, "scope": st[1]}
 
 
 def save_stats(run_id: uuid.UUID, stats: dict[str, Any]) -> None:

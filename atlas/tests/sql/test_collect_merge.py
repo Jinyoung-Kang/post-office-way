@@ -126,3 +126,46 @@ def test_collect_pipeline_pagination_failure_and_resume(clean, engine, monkeypat
         n = c.execute(text("SELECT count(*) FROM mart.post_facility_hist WHERE is_current")).scalar_one()
     assert st == "DONE" and stats["failedCodes"] == [] and n == 52
     config.get_settings.cache_clear()
+
+
+# ---- D1: 재개·병합 안전장치 — 스냅샷이 없는 '성공 코드'나 오래된 실행 재개로 현재 시설이 대량으로 닫히면 안 됨 ----
+
+def test_merge_ignores_done_code_without_snapshot_rows(clean, engine):
+    """스냅샷(stg)이 정리된 실행으로 병합하면, '성공 코드'라도 행이 없는 코드의 시설은 닫지 않음."""
+    load(engine, [item("P1"), item("P2")], code="367")
+    rid = runs.start_run("POST_AREA", check_running=False)
+    with engine.begin() as c:
+        m = _merge_hist(c, rid, ["367"])
+    assert m["currentAfter"] == 2 and m["emptyDoneCodes"] == ["367"]
+
+
+def test_merge_stops_on_mass_closure(clean, engine):
+    """한 번에 현재 시설의 큰 비율이 닫히게 되면 병합을 멈추고 아무것도 바꾸지 않음."""
+    from atlas.collector.post.pipeline import MergeGuardError
+
+    load(engine, [item(f"P{i}") for i in range(30)], code="367")
+    rid = runs.start_run("POST_AREA", check_running=False)
+    with pytest.raises(MergeGuardError):
+        with engine.begin() as c:
+            c.execute(_INSERT_STG, {"run": rid, **normalize_item(item("P0"), "367")})
+            _merge_hist(c, rid, ["367"])           # P1~P29 (29곳) 가 닫히게 됨
+    assert len(current(engine)) == 30
+
+
+def test_reopen_only_latest_unfinished_run_of_same_kind(clean, engine):
+    old = runs.start_run("POST_AREA", check_running=False)
+    runs.finish_run(old, "PARTIAL", {})
+    new = runs.start_run("POST_AREA", check_running=False)
+    runs.finish_run(new, "DONE", {})
+    other = runs.start_run("KAKAO_BANK", check_running=False)
+    runs.finish_run(other, "PARTIAL", {})
+    with pytest.raises(ValueError, match="최근"):
+        runs.reopen_run(old, "POST_AREA")              # 더 새 실행이 있음 → 낡은 스냅샷으로 되돌리지 않음
+    with pytest.raises(ValueError, match="종류"):
+        runs.reopen_run(other, "POST_AREA")            # 다른 종류
+    with pytest.raises(ValueError, match="상태"):
+        runs.reopen_run(new, "POST_AREA")              # 이미 DONE
+    runs.finish_run(runs.start_run("POST_AREA", check_running=False), "FAILED", {})
+    latest = runs.start_run("POST_AREA", check_running=False)
+    runs.finish_run(latest, "PARTIAL", {"doneCodes": ["1"]})
+    assert runs.reopen_run(latest, "POST_AREA")["stats"] == {"doneCodes": ["1"]}

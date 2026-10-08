@@ -60,7 +60,7 @@ def collect_post(scope: list[str] | None = None, resume: uuid.UUID | None = None
                 [AreaCode(code=c) for c in scope if c not in {x.code for x in codes}]
 
     if resume:
-        prev = runs.reopen_run(resume)
+        prev = runs.reopen_run(resume, KIND)
         run_id, stats = resume, prev["stats"]
     else:
         run_id = runs.start_run(KIND, scope=",".join(scope) if scope else "all")
@@ -177,10 +177,36 @@ def _run_post_dq(c, dq: DQRecorder, run_id: uuid.UUID) -> None:
         FROM stg.post_facility WHERE collect_run_id = :run AND mod_dt < (current_date - interval '3 years')""", p)
 
 
+# 한 번의 병합으로 닫을 수 있는 현재 시설의 상한 — 넘으면 수집 이상(빈 응답·정리된 스냅샷)으로 보고 멈춤.
+# 평소 하루에 닫히는 시설은 몇 곳이라 비율 5% 와 최소 20곳이면 충분히 여유가 있음
+MAX_CLOSE_RATIO, MIN_CLOSE_GUARD = 0.05, 20
+
+
+class MergeGuardError(RuntimeError):
+    """병합이 현재 시설을 너무 많이 닫게 되어 멈춤 (트랜잭션은 되돌려짐)."""
+
+
 def _merge_hist(c, run_id: uuid.UUID, done_codes: list[str]) -> dict[str, Any]:
     before = c.execute(text("SELECT count(*) FROM mart.post_facility_hist WHERE is_current")).scalar_one()
-    run_sql_file(c, "mart_post_hist.sql", {"run": run_id, "done_codes": done_codes})
+    # '성공 코드'라도 이번 스냅샷에 행이 하나도 없으면 닫는 근거로 쓰지 않음
+    # (스냅샷이 정리된 실행·성공인데 0건인 응답 → 그 코드의 시설이 모두 닫히는 것을 막음)
+    with_rows = {r[0] for r in c.execute(text("""SELECT DISTINCT area_code FROM stg.post_facility
+                                                WHERE collect_run_id = :run AND area_code = ANY(CAST(:codes AS text[]))"""),
+                                         {"run": run_id, "codes": list(done_codes)})}
+    codes = [x for x in done_codes if x in with_rows]
+    empty = sorted(set(done_codes) - with_rows)
+    closing = c.execute(text("""SELECT count(*) FROM mart.post_facility_hist h
+                                 WHERE h.is_current AND h.area_code = ANY(CAST(:codes AS text[]))
+                                   AND NOT EXISTS (SELECT 1 FROM stg.post_facility s
+                                                    WHERE s.collect_run_id = :run AND s.post_id = h.post_id)"""),
+                        {"run": run_id, "codes": codes}).scalar_one()
+    if closing > max(MAX_CLOSE_RATIO * before, MIN_CLOSE_GUARD):
+        raise MergeGuardError(f"병합 중단: 현재 시설 {before}곳 중 {closing}곳이 한 번에 닫히게 됩니다 — "
+                              "수집 응답이나 스냅샷을 확인하세요.")
+    if empty:
+        log.warning("post merge: done codes without rows", extra={"runId": str(run_id), "codes": empty[:20]})
+    run_sql_file(c, "mart_post_hist.sql", {"run": run_id, "done_codes": codes})
     after = c.execute(text("SELECT count(*) FROM mart.post_facility_hist WHERE is_current")).scalar_one()
     new_rows = c.execute(text("SELECT count(*) FROM mart.post_facility_hist WHERE collect_run_id = :run"),
                          {"run": run_id}).scalar_one()
-    return {"currentBefore": before, "currentAfter": after, "newHistRows": new_rows}
+    return {"currentBefore": before, "currentAfter": after, "newHistRows": new_rows, "emptyDoneCodes": empty}
