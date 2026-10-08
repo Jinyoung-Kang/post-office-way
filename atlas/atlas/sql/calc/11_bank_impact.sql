@@ -48,8 +48,11 @@ SELECT :calc_run_id, place_id, brand, post_agent, adm_cd, emd_cd, catch_oa, catc
     SELECT s.*, mart.bank_impact_reasons(s.lost_ppltn, s.same_brand_m, s.catch_aged, s.catch_ppltn, NULL) AS reasons
       FROM (
         SELECT x.place_id, x.brand, x.post_agent,
-               (SELECT a.adm_cd FROM calc_area_sub a WHERE a.level = 2 AND ST_Intersects(a.geom, x.geom) LIMIT 1) AS adm_cd,
-               (SELECT a.adm_cd FROM calc_area_sub a WHERE a.level = 3 AND ST_Intersects(a.geom, x.geom) LIMIT 1) AS emd_cd,
+               -- 경계 위 지점은 두 지역에 걸침 → 코드가 작은 쪽으로 고정 (ORDER BY 없으면 실행마다 달라질 수 있음, R11)
+               (SELECT a.adm_cd FROM calc_area_sub a WHERE a.level = 2 AND ST_Intersects(a.geom, x.geom)
+                 ORDER BY a.adm_cd LIMIT 1) AS adm_cd,
+               (SELECT a.adm_cd FROM calc_area_sub a WHERE a.level = 3 AND ST_Intersects(a.geom, x.geom)
+                 ORDER BY a.adm_cd LIMIT 1) AS emd_cd,
                coalesce(c.catch_oa, 0) AS catch_oa, CAST(coalesce(c.pop, 0) AS int) AS catch_ppltn, CAST(c.aged AS int) AS catch_aged,
                (SELECT round(CAST(ST_Distance(y.geom_5179, x.geom_5179) AS numeric)) FROM calc_bankx y
                  WHERE y.brand = x.brand AND y.place_id <> x.place_id ORDER BY y.geom_5179 <-> x.geom_5179 LIMIT 1) AS same_brand_m,
