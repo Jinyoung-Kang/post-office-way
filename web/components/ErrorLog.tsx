@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/router";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Card } from "@/components/Layout";
 import { Skeleton } from "@/components/Skeleton";
 import { api, ApiError } from "@/lib/api";
+import { localStamp } from "@/lib/format";
 import Sents from "@/components/Sents";
 
 type Entry = { id?: string; at: string; source: string; ref: string; title: string; message: string; line: string };
@@ -41,16 +43,21 @@ export default function ErrorLog({ clientErrors = [] }: { clientErrors?: string[
     return () => { signal.alive = false; };
   }, [load]);
 
+  // '화면' 항목은 처음 본 시각을 기억 — 예전에는 새로 고칠 때마다 지금 시각으로 바뀌었음.
+  // 경로는 router 에서 (location 을 직접 쓰면 서버 렌더에서 깨질 수 있음)
+  const { pathname } = useRouter();
+  const firstSeen = useRef(new Map<string, Date>());
   const all: Entry[] = useMemo(() => {
-    const now = new Date();
-    const pad = (n: number) => String(n).padStart(2, "0");
-    const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
     const local = [...clientErrors, ...(failed ? [`오류 로그 조회 실패: ${failed}`] : [])]
       .filter((m) => !hiddenLocal.has(m))
-      .map((m) => ({ at: now.toISOString(), source: "화면", ref: "-", title: location.pathname, message: m,
-        line: `${stamp} [화면] ${location.pathname} — ${m}` }));
+      .map((m) => {
+        if (!firstSeen.current.has(m)) firstSeen.current.set(m, new Date());
+        const at = firstSeen.current.get(m)!;
+        return { at: at.toISOString(), source: "화면", ref: "-", title: pathname, message: m,
+          line: `${localStamp(at)} [화면] ${pathname} — ${m}` };
+      });
     return [...local, ...(items || [])];
-  }, [items, clientErrors, failed, hiddenLocal]);
+  }, [items, clientErrors, failed, hiddenLocal, pathname]);
   const shown = src === "전체" ? all : all.filter((e) => e.source === src);
   const counts = useMemo(() => Object.fromEntries(SOURCES.map((s) => [s, s === "전체" ? all.length : all.filter((e) => e.source === s).length])), [all]);
   const label = src === "전체" ? "모두" : src;

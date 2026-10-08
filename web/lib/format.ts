@@ -129,3 +129,10 @@ export function groupMetrics<T extends { code: string }>(items: T[]): { label: s
 export const SENTENCE_GAP = /(?<=(?:[^\s\d]|[^\s(\d]\d+)[.?!])\s+/;
 // '…니다. …' → 문장 배열. 화면 머리 설명·<Sents> 가 문장마다 줄을 바꾸는 데 씀
 export const sentences = (text: string) => text.split(SENTENCE_GAP).filter(Boolean);
+
+// 'YYYY-MM-DD HH:MM:SS' (브라우저 시간대) — 오류 로그 한 줄 형식과 같게
+export function localStamp(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+

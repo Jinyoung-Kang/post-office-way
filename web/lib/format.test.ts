@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classOf, dist, groupMetrics, num, quantileBreaks, sentences, SEQ, shortSido, walkMin, withUnit } from "./format";
+import { classOf, dist, groupMetrics, localStamp, num, quantileBreaks, sentences, SEQ, shortSido, walkMin, withUnit } from "./format";
 
 describe("quantileBreaks", () => {
   it("값이 고르게 퍼지면 단계 수 - 1 개의 경계", () => {
@@ -85,5 +85,9 @@ describe("유한하지 않은 값", () => {
     expect(withUnit(Infinity, "명")).toBe("—");
     expect(withUnit(NaN, "%")).toBe("—");
   });
+});
+
+it("localStamp", () => {
+  expect(localStamp(new Date(2026, 9, 8, 7, 5, 3))).toBe("2026-10-08 07:05:03");
 });
 
