@@ -97,8 +97,9 @@ def overview(calcRunId: str | None = None):
         bands.append({"label": label, "areas": len(rows), "ppltn": pop,
                       "share": round(100 * pop / tot_pop, 1) if tot_pop else None,
                       "aged65": aged if kosis["aged"] else None})
-    far_pop = sum(r["pop"] or 0 for r in dist if float(r["d"]) > 2000)
-    far_aged = sum(r["aged"] or 0 for r in dist if float(r["d"]) > 2000)
+    # '먼 거리'는 계산 설정(farKm) 하나로 — 집계구 값(oa)과 같은 기준 (예전에는 여기만 2km 고정, R10)
+    far_pop = sum(r["pop"] or 0 for r in dist if float(r["d"]) > far_m)
+    far_aged = sum(r["aged"] or 0 for r in dist if float(r["d"]) > far_m)
     out = jsonable({
         "facilities": [{"postDiv": f["post_div"], "label": POST_DIV_LABEL.get(f["post_div"], "기타"),
                         "count": f["n"], "finCount": f["fin"]} for f in fac],
@@ -107,6 +108,7 @@ def overview(calcRunId: str | None = None):
         "level": fine,
         "areaCount": len(dist),
         "weightedAvgDistM": round(wavg, 1) if wavg is not None else None,
+        "farKm": far_m / 1000,
         "farPpltn": far_pop, "farShare": round(100 * far_pop / tot_pop, 1) if tot_pop else None,
         "distanceBands": bands,
         "kosis": ({"refPeriod": kosis["period"], "aged65": kosis["aged"], "totPpltn": kosis["tot"],

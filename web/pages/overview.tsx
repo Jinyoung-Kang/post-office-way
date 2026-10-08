@@ -16,6 +16,7 @@ export default function OverviewPage() {
     api<VisitConditions>("/visit/conditions").then(setVisit).catch(() => setVisit(null));   // 예보를 안 받았으면 배너 없음
   }, []);
   const noData = !!err && /CALC_RUN_NOT_FOUND|완료된 계산/.test(err);
+  const far = `${d?.farKm ?? 2}km`;           // '먼 거리' 기준은 계산 설정(farKm)을 따름
 
   return (
     <Layout title="한눈에">
@@ -36,18 +37,18 @@ export default function OverviewPage() {
             <div className="rise grid grid-cols-2 gap-3 md:grid-cols-4">
               <Stat label="금융 가능 우체국" value={`${num(d.finTotal)}곳`} note={`전체 시설 ${num(d.facilityTotal)}곳 중`} />
               <Stat label="인구 가중 평균 거리" value={dist(d.weightedAvgDistM)} note="읍면동 대표점 → 최근접 · 직선" />
-              <Stat label="2km 넘게 떨어진 인구" value={`${num(d.farShare, 1)}%`} note={`${num(d.farPpltn)}명 (SGIS)`} />
+              <Stat label={`${far} 넘게 떨어진 인구`} value={`${num(d.farShare, 1)}%`} note={`${num(d.farPpltn)}명 (SGIS)`} />
               {d.kosis ? (
-                <Stat label="2km 밖 65세 이상" value={`${num(d.kosis.aged65Far)}명`} tone="bad"
+                <Stat label={`${far} 밖 65세 이상`} value={`${num(d.kosis.aged65Far)}명`} tone="bad"
                   note={`고령인구의 ${num(d.kosis.aged65FarShare, 1)}% · KOSIS ${fmtPeriod(d.kosis.refPeriod)}`} />
               ) : (
-                <Stat label="2km 밖 65세 이상" value="—" note="KOSIS 키를 넣고 make kosis" />
+                <Stat label={`${far} 밖 65세 이상`} value="—" note="KOSIS 키를 넣고 make kosis" />
               )}
             </div>
 
             {(d.oa || d.finGap || d.road) && (
               <div className="rise grid grid-cols-2 gap-3 md:grid-cols-4">
-                {d.oa && <Stat label="2km 밖 인구 · 집계구 기준" value={`${num(d.oa.farShare, 1)}%`}
+                {d.oa && <Stat label={`${far} 밖 인구 · 집계구 기준`} value={`${num(d.oa.farShare, 1)}%`}
                   note={`${num(d.oa.farPpltn)}명 · 집계구 ${num(d.oa.count)}곳 인구 가중 ${dist(d.oa.popwDistM)}`} />}
                 {d.road && <Stat label="도로로 가면" value={`${dist(d.road.popwRoadM)} · ${num(d.road.popwDriveMin, 0)}분`}
                   note={`직선 ${dist(d.road.popwStraightM)}의 ${num(d.road.popwRoadM / d.road.popwStraightM, 1)}배 · 자동차 · ${num(d.road.areas)}곳`} />}
@@ -125,8 +126,8 @@ export default function OverviewPage() {
             <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
               <TopList title="접근성 취약 점수 상위 시군구" unit="점" items={d.topGap} metric="ACCESS_GAP_SCORE" digits={1} />
               {d.topAgedFar.length > 0
-                ? <TopList title="2km 밖 고령인구가 많은 시군구" unit="명" items={d.topAgedFar} metric="AGED65_FAR_PPLTN" />
-                : <Card title="2km 밖 고령인구"><p className="text-[14px] text-ink-2">KOSIS 주민등록인구를 적재하면 표시됩니다.</p></Card>}
+                ? <TopList title={`${far} 밖 고령인구가 많은 시군구`} unit="명" items={d.topAgedFar} metric="AGED65_FAR_PPLTN" />
+                : <Card title={`${far} 밖 고령인구`}><p className="text-[14px] text-ink-2">KOSIS 주민등록인구를 적재하면 표시됩니다.</p></Card>}
             </div>
 
             {(d.topPostOnly.length > 0 || d.topSoleHub.length > 0) && (

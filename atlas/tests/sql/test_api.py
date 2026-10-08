@@ -108,3 +108,18 @@ def test_cache_follows_data_version_without_invalidation(client, engine):
                           VALUES (:r, 'DONE', 0.8, 3000, now())"""), {"r": client.rid})
     assert val(client.get("/api/v1/areas/geojson", params=p).json()) == before + 1
     assert client.get("/api/v1/overview").json()["walk"]["noFinPpltn"] == 10
+
+
+def test_overview_far_threshold_follows_calc_params(terrain, engine):
+    """개요의 '먼 거리' 인구가 계산 설정(farKm)과 같은 기준 — 예전에는 집계구 값만 설정을 따르고 나머지는 2km 고정 (R10)."""
+    from atlas.api.main import app
+
+    rid = run_calc(stat_year=2024, levels=[2], params={"farKm": 3})
+    with engine.connect() as c:
+        expect = c.execute(text("""SELECT coalesce(sum(p.tot_ppltn), 0) FROM mart.access_metric m
+                                     JOIN mart.area_population p ON p.adm_cd = m.adm_cd AND p.stat_year = 2024
+                                    WHERE m.calc_run_id = :r AND m.metric_code = 'NEAREST_FIN_DIST_M' AND m.level = 2
+                                      AND m.value > 3000"""), {"r": rid}).scalar()
+    with TestClient(app) as c:
+        ov = c.get("/api/v1/overview").json()
+    assert ov["farKm"] == 3 and ov["farPpltn"] == expect

@@ -93,7 +93,7 @@ export type WhatIf = {
 export type Overview = {
   facilities: { postDiv: number; label: string; count: number; finCount: number }[];
   facilityTotal: number; finTotal: number; level: number; areaCount: number;
-  weightedAvgDistM: number | null; farPpltn: number; farShare: number | null;
+  weightedAvgDistM: number | null; farKm: number; farPpltn: number; farShare: number | null;
   distanceBands: { label: string; areas: number; ppltn: number; share: number | null; aged65: number | null }[];
   kosis: { refPeriod: string; aged65: number; totPpltn: number; aged65Ratio: number | null; aged65Far: number;
     aged65FarShare: number | null } | null;
