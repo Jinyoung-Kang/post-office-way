@@ -358,7 +358,8 @@ def test_stored_run_and_job_errors_are_masked(clean, engine):
     rid = crun.start_run("POST_AREA", check_running=False)
     crun.finish_run(rid, "FAILED", {}, error=raw)
     jid = queue.enqueue("okjob")
-    queue.finish(jid, False, {}, error=raw)
+    queue.claim("w1")
+    queue.finish(jid, False, {}, error=raw, worker="w1")
     with engine.connect() as c:
         stored = [c.execute(text("SELECT error FROM ops.collect_run WHERE collect_run_id = :r"), {"r": rid}).scalar(),
                   c.execute(text("SELECT error FROM ops.job WHERE job_id = :j"), {"j": jid}).scalar()]
@@ -492,3 +493,21 @@ def test_schedule_runs_while_short_lane_is_busy(fake_jobs, monkeypatch, engine):
         with engine.begin() as c:
             c.execute(text("SELECT pg_notify('atlas_jobs', 'stop')"))
         t.join(10)
+
+
+def test_late_finish_from_reaped_worker_is_ignored(fake_jobs, engine):
+    """정리(reap)된 뒤 다른 워커가 다시 가져간 작업을, 처음 워커가 늦게 끝내도 덮어쓰지 않음 (R8)."""
+    jid = queue.enqueue("okjob")
+    queue.claim("w1")
+    with engine.begin() as c:
+        c.execute(text("UPDATE ops.job SET heartbeat_at = now() - interval '1 hour' WHERE job_id = :j"), {"j": jid})
+    queue.reap()
+    assert queue.claim("w2")["job_id"] == jid
+    queue.heartbeat(jid, worker="w1")
+    queue.finish(jid, True, {"from": "w1"}, worker="w1")          # 늦게 끝난 처음 워커
+    with engine.connect() as c:
+        st, w, res = c.execute(text("SELECT status, worker, result FROM ops.job WHERE job_id = :j"), {"j": jid}).one()
+    assert (st, w) == ("RUNNING", "w2") and res is None
+    queue.finish(jid, True, {"from": "w2"}, worker="w2")
+    with engine.connect() as c:
+        assert c.execute(text("SELECT status FROM ops.job WHERE job_id = :j"), {"j": jid}).scalar() == "DONE"

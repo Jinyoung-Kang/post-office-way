@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import socket
 from typing import Any
 
@@ -18,6 +19,7 @@ from atlas.core.db import get_engine
 from atlas.core.masking import safe_error
 
 CHANNEL = "atlas_jobs"
+log = logging.getLogger(__name__)
 STALE_MIN = 10          # 하트비트가 이만큼 끊기면 워커가 죽은 것으로 봄
 
 
@@ -108,19 +110,27 @@ def workers(engine: Engine | None = None, alive_s: int = 120) -> list[dict[str, 
             {"a": alive_s}).mappings()]
 
 
-def heartbeat(job_id: int, engine: Engine | None = None) -> None:
+# worker 를 주면 그 워커가 가진(RUNNING) 작업일 때만 — 정리(reap)된 뒤 다른 워커가 다시 가져간 작업을 처음 워커가
+# 늦게 끝내거나 하트비트를 보내 덮어쓰지 않게 (R8). worker 없이 부르면(관리·테스트) 상태만 확인
+_OWNED = "job_id = :id AND status = 'RUNNING' AND (CAST(:w AS text) IS NULL OR worker = CAST(:w AS text))"
+
+
+def heartbeat(job_id: int, engine: Engine | None = None, worker: str | None = None) -> None:
     with (engine or get_engine()).begin() as c:
-        c.execute(text("UPDATE ops.job SET heartbeat_at = now() WHERE job_id = :id AND status = 'RUNNING'"),
-                  {"id": job_id})
+        c.execute(text(f"UPDATE ops.job SET heartbeat_at = now() WHERE {_OWNED}"), {"id": job_id, "w": worker})
 
 
 def finish(job_id: int, ok: bool, result: dict[str, Any] | None = None, error: str | None = None,
-           engine: Engine | None = None) -> None:
+           engine: Engine | None = None, worker: str | None = None) -> bool:
+    """작업 결과 기록. 이미 다른 워커에게 넘어갔으면 기록하지 않고 False."""
     with (engine or get_engine()).begin() as c:
-        c.execute(text("""UPDATE ops.job SET status = :st, result = CAST(:r AS jsonb), error = :e, finished_at = now()
-                          WHERE job_id = :id"""),
-                  {"st": "DONE" if ok else "FAILED", "r": json.dumps(result or {}, default=str),
-                   "e": safe_error(error) or None, "id": job_id})
+        n = c.execute(text(f"""UPDATE ops.job SET status = :st, result = CAST(:r AS jsonb), error = :e, finished_at = now()
+                               WHERE {_OWNED}"""),
+                      {"st": "DONE" if ok else "FAILED", "r": json.dumps(result or {}, default=str),
+                       "e": safe_error(error) or None, "id": job_id, "w": worker}).rowcount
+    if not n:
+        log.warning("job finish ignored — no longer owned", extra={"jobId": job_id, "worker": worker})
+    return bool(n)
 
 
 def reap(engine: Engine | None = None) -> dict[str, int]:

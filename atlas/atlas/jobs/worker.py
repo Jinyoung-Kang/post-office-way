@@ -38,7 +38,7 @@ def execute(job: dict[str, Any], worker: str | None = None, lane: str | None = N
     def beat() -> None:
         while not stop.wait(HEARTBEAT_S):
             try:
-                queue.heartbeat(jid)
+                queue.heartbeat(jid, worker=worker)
                 if worker and lane:
                     queue.worker_beat(worker, lane, jid)
             except Exception:  # 하트비트 실패는 작업을 멈추지 않음 (DB 가 잠깐 끊겨도 reap 기준 10분)
@@ -67,12 +67,12 @@ def execute(job: dict[str, Any], worker: str | None = None, lane: str | None = N
             except queue.JobConflict as e:
                 result.setdefault("chained", {})[nxt] = e.job_id
         result["elapsedMs"] = int((time.monotonic() - t0) * 1000)
-        queue.finish(jid, True, result)
+        queue.finish(jid, True, result, worker=worker)
         log.info("job done", extra={"jobId": jid, "kind": kind, "elapsedMs": result["elapsedMs"]})
         return True
     except Exception as e:  # 작업 실패는 기록만 하고 워커는 계속
         queue.finish(jid, False, {"elapsedMs": int((time.monotonic() - t0) * 1000)},
-                     error=f"{type(e).__name__}: {e}")
+                     error=f"{type(e).__name__}: {e}", worker=worker)
         log.error("job failed", extra={"jobId": jid, "kind": kind, "error": str(e)[:300],
                                         "trace": traceback.format_exc(limit=3)})
         return False
