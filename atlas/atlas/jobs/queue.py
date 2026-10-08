@@ -136,15 +136,20 @@ def finish(job_id: int, ok: bool, result: dict[str, Any] | None = None, error: s
 def reap(engine: Engine | None = None) -> dict[str, int]:
     """하트비트가 끊긴 RUNNING 작업 — 시도 횟수가 남았으면 다시 대기열로, 아니면 FAILED.
     그 작업이 연 실행 기록(수집·계산·도보)도 FAILED 로 닫음 — 남으면 재시도가 '이미 실행 중'으로 실패 (R1)."""
+    stale = f"j.status = 'RUNNING' AND j.heartbeat_at < now() - interval '{STALE_MIN} minutes'"
     with (engine or get_engine()).begin() as c:
-        requeued = [r[0] for r in c.execute(text(f"""
-            UPDATE ops.job SET status = 'QUEUED', worker = NULL, error = '워커 응답 없음 — 다시 대기열로'
-             WHERE status = 'RUNNING' AND heartbeat_at < now() - interval '{STALE_MIN} minutes'
-               AND attempts < max_attempts RETURNING job_id"""))]
-        failed = [r[0] for r in c.execute(text(f"""
-            UPDATE ops.job SET status = 'FAILED', finished_at = now(), error = '워커 응답 없음 — 재시도 횟수 초과'
-             WHERE status = 'RUNNING' AND heartbeat_at < now() - interval '{STALE_MIN} minutes'
+        # 같은 종류가 이미 대기 중이면 그 작업이 대신함 — 다시 넣으면 '대기 중 하나' 고유 인덱스(V23) 위반으로 정리 전체가 실패했음
+        superseded = [r[0] for r in c.execute(text(f"""
+            UPDATE ops.job j SET status = 'FAILED', finished_at = now(),
+                                 error = '워커 응답 없음 — 같은 종류가 이미 대기 중이라 그 작업이 대신함'
+             WHERE {stale} AND EXISTS (SELECT 1 FROM ops.job q WHERE q.kind = j.kind AND q.status = 'QUEUED')
             RETURNING job_id"""))]
+        requeued = [r[0] for r in c.execute(text(f"""
+            UPDATE ops.job j SET status = 'QUEUED', worker = NULL, error = '워커 응답 없음 — 다시 대기열로'
+             WHERE {stale} AND j.attempts < j.max_attempts RETURNING job_id"""))]
+        failed = superseded + [r[0] for r in c.execute(text(f"""
+            UPDATE ops.job j SET status = 'FAILED', finished_at = now(), error = '워커 응답 없음 — 재시도 횟수 초과'
+             WHERE {stale} RETURNING job_id"""))]
         if ids := requeued + failed:
             for table in ("ops.collect_run", "mart.calc_run", "mart.walk_run"):
                 c.execute(text(f"""UPDATE {table} SET status = 'FAILED', finished_at = now(),

@@ -227,6 +227,9 @@ def run_scheduler(stop: threading.Event) -> None:
             backoff = min(backoff * 2 or 1.0, RETRY_MAX_S)
             log.warning("scheduler: db unavailable — retrying", extra={"retryInS": backoff,
                                                                        "error": str(e).splitlines()[0][:200]})
+        except Exception:  # noqa: BLE001 — 한 번의 예상 밖 오류로 스레드가 죽으면 워커 전체가 재시작을 반복함
+            backoff = min(backoff * 2 or 1.0, RETRY_MAX_S)
+            log.exception("scheduler tick failed — retrying", extra={"retryInS": backoff})
         stop.wait(backoff or SCHEDULE_TICK_S)
 
 

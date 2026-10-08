@@ -528,3 +528,42 @@ def test_error_log_time_is_kst_regardless_of_process_timezone(client, engine, mo
         monkeypatch.undo()
         time.tzset()
     assert line.startswith("2026-10-08 09:00:00")
+
+
+def test_reap_when_same_kind_already_queued(fake_jobs, engine):
+    """죽은 워커의 작업을 다시 대기열로 돌릴 때 같은 종류가 이미 대기 중이면(V23: 실행 중 하나 + 대기 중 하나)
+    고유 인덱스 위반으로 정리 전체가 실패하고 스케줄러 스레드가 죽어 워커가 재시작을 반복했음 — 대기 중인 것이 대신하므로 FAILED 로."""
+    queue.enqueue("calc")
+    stale = queue.claim("dead-worker", kinds=["calc"])
+    queued = queue.enqueue("calc")                                # 실행 중일 때 들어온 다음 계산
+    with engine.begin() as c:
+        c.execute(text("UPDATE ops.job SET heartbeat_at = now() - interval '20 minutes' WHERE job_id = :id"),
+                  {"id": stale["job_id"]})
+    assert queue.reap() == {"requeued": 0, "failed": 1}
+    st = {r["job_id"]: (r["status"], r["error"]) for r in queue.recent(10)}
+    assert st[stale["job_id"]][0] == "FAILED" and "대기 중" in st[stale["job_id"]][1]
+    assert st[queued][0] == "QUEUED"
+    assert queue.claim("w2", kinds=["calc"])["job_id"] == queued   # 막혀 있던 대기 작업을 이제 가져감
+
+
+def test_scheduler_survives_unexpected_error(monkeypatch):
+    """스케줄러 한 번의 예상 밖 오류(DB 끊김 외)로 스레드가 죽어 워커 전체가 재시작하지 않게 — 기록하고 다음 주기에 다시."""
+    import threading
+
+    calls = []
+
+    def boom(entries, last):
+        calls.append(1)
+        if len(calls) == 1:
+            raise RuntimeError("예상 밖 오류")
+        stop.set()
+        return last
+
+    stop = threading.Event()
+    monkeypatch.setattr(worker, "_schedule_tick", boom)
+    monkeypatch.setattr(worker, "SCHEDULE_TICK_S", 0.01)
+    monkeypatch.setattr(worker, "RETRY_MAX_S", 0.01)
+    t = threading.Thread(target=worker.run_scheduler, args=(stop,), daemon=True)
+    t.start()
+    t.join(5)
+    assert not t.is_alive() and len(calls) == 2
