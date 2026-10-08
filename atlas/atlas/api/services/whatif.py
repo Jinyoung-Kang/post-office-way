@@ -17,6 +17,7 @@ from atlas.core import cache
 from atlas.calc.runs import meta_of, resolve_calc_run
 from atlas.core.serial import jsonable
 from atlas.domain.params import far_meters, parse_uuid, pick_level
+from atlas.domain.whatif import fin_access_loss, oa_impact, summarize
 from atlas.domain.errors import Conflict, Invalid, NotFound
 
 CAVEAT = "분석 데모 지표이며 공식 통계가 아닙니다. 직선거리 기준이며 도로 거리와 다릅니다."
@@ -117,8 +118,8 @@ def run_whatif(c: Connection, calc_run_id: str | None, remove_ids: list[int], le
             SELECT adm_cd, value FROM mart.access_metric WHERE calc_run_id = :run AND metric_code = 'NEAREST_BANK_DIST_M'
                AND adm_cd = ANY(CAST(:cds AS text[]))"""), {"run": run["calc_run_id"], "cds": cds})}
         far_m = far_meters(run["params"])
-        summary = _summary(results, pops, aged)
-        summary.update(_fin_access_loss(results, pops, bank, far_m))
+        summary = summarize(results, pops, aged)
+        summary.update(fin_access_loss(results, pops, bank, far_m))
         summary.update(_oa_impact(c, run, ids, far_m))
         sid = c.execute(text("""INSERT INTO mart.whatif_scenario (calc_run_id, level, removed_hist_ids, status, summary)
                                 VALUES (:run, :lvl, CAST(:ids AS bigint[]), 'DONE', CAST(:s AS jsonb))
@@ -151,40 +152,8 @@ def _cache_after_commit(c: Connection, key: str, body: str) -> None:
         cache.set(key, body, ttl=TTL_S)
 
 
-def _summary(results: list[dict[str, Any]], pops: dict[str, Any], aged: dict[str, Any] | None = None) -> dict[str, Any]:
-    aged = aged or {}
-    n = len(results)
-    before = [float(r["dist_before_m"]) for r in results if r["dist_before_m"] is not None]
-    after = [float(r["dist_after_m"]) for r in results if r["dist_after_m"] is not None]
-    inc = [float(r["dist_after_m"]) - float(r["dist_before_m"]) for r in results
-           if r["dist_after_m"] is not None and r["dist_before_m"] is not None]
-    return {
-        "affectedAreas": n,
-        "affectedPpltn": sum(int(pops.get(r["adm_cd"]) or 0) for r in results),
-        # KOSIS 미적재면 None (0 과 구분)
-        "affectedAged65": (sum(int(aged.get(r["adm_cd"]) or 0) for r in results) if aged else None),
-        "avgDistBeforeM": round(sum(before) / len(before), 1) if before else None,
-        "avgDistAfterM": round(sum(after) / len(after), 1) if after else None,
-        "maxIncreaseM": round(max(inc), 1) if inc else None,
-        "areasWithoutFacility": sum(1 for r in results if r["dist_after_m"] is None),
-    }
-
-
-def _fin_access_loss(results: list[dict[str, Any]], pops: dict[str, Any], bank: dict[str, float],
-                     far_m: float) -> dict[str, Any]:
-    """④ 문을 닫아 '금융 창구가 2km 안에 하나도 없게 되는' 인구 — 은행 지점 자료가 있을 때만."""
-    if not bank:
-        return {"lostFinAccessPpltn": None}
-    lost = 0
-    for r in results:
-        b, a, bk = r["dist_before_m"], r["dist_after_m"], bank.get(r["adm_cd"], 1e12)
-        if b is not None and float(b) <= far_m and (a is None or float(a) > far_m) and bk > far_m:
-            lost += int(pops.get(r["adm_cd"]) or 0)
-    return {"lostFinAccessPpltn": lost}
-
-
 def _oa_impact(c: Connection, run: dict[str, Any], ids: list[int], far_m: float) -> dict[str, Any]:
-    """① 집계구 단위 — 최근접이 바뀌는 인구와 새로 far_m 밖이 되는 인구(읍면동 대표점 1개보다 정확)."""
+    """① 집계구 단위 영향 — 닫은 시설이 최근접이던 집계구의 다음 최근접 거리를 구해 domain.whatif.oa_impact 로."""
     # 계산 통계(oaCount)로 판단 — 'LIMIT 1' 존재 확인은 일반 계획이 계산 여러 개가 쌓인 표를 순차 탐색해 약 100ms (벤치마크)
     has = c.execute(text("SELECT coalesce(CAST(stats->>'oaCount' AS int), 0) > 0 FROM mart.calc_run WHERE calc_run_id = :r"),
                     {"r": run["calc_run_id"]}).scalar()
@@ -202,18 +171,7 @@ def _oa_impact(c: Connection, run: dict[str, Any], ids: list[int], far_m: float)
                  ORDER BY h.geom_5179 <-> o.rep_point_5179 LIMIT 1) k ON true
          WHERE n.calc_run_id = :run AND n.hist_id = ANY(CAST(:ids AS bigint[]))"""),
         {"y": run["stat_year"], "asof": run["facility_as_of"], "ids": ids, "run": run["calc_run_id"]}).all()
-    def newly_far(b, a) -> bool:
-        return b is not None and float(b) <= far_m and (a is None or float(a) > far_m)
-
-    def none_near(*ds) -> bool:
-        return all(d is not None and float(d) > far_m for d in ds)
-
-    # ⑦ 새로 2km 밖이 되면서 은행 지점·약국·의원도 2km 안에 없는 인구 — 문을 닫아 생활 거점을 모두 잃음
-    has_life = any(r[4] is not None and r[5] is not None for r in rows)
-    return {"oaAffectedPpltn": sum(int(r[0] or 0) for r in rows),
-            "oaNewlyFarPpltn": sum(int(r[0] or 0) for r in rows if newly_far(r[1], r[2])),
-            "lifeHubLostPpltn": (sum(int(r[0] or 0) for r in rows
-                                     if newly_far(r[1], r[2]) and none_near(r[3], r[4], r[5])) if has_life else None)}
+    return oa_impact(rows, far_m)
 
 
 def get_scenario(c: Connection, scenario_id: str) -> dict[str, Any]:
