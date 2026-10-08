@@ -88,9 +88,10 @@ export default function Rankings() {
                         tickFormatter={(v) => (unit === "m" ? `${num(v / 1000, 1)}km` : num(v, 1))} />
                       <YAxis type="category" dataKey="name" width={150} tick={{ fontSize: 13, fill: "#1d1d1f" }} axisLine={false} tickLine={false} />
                       <Tooltip cursor={{ fill: "rgba(0,0,0,.03)" }} contentStyle={{ borderRadius: 12, border: 0, boxShadow: "0 4px 20px rgba(0,0,0,.12)" }}
-                        formatter={(v: number) => [withUnit(v, unit), data.metric.name]} />
+                        formatter={(v) => [withUnit(Number(v), unit), data.metric.name]} />
+                      {/* recharts 3 은 막대 클릭에 데이터 행을 payload 로 넘김 */}
                       <Bar dataKey="value" fill="#0071e3" radius={[0, 6, 6, 0]} cursor="pointer"
-                        onClick={(d: { admCd?: string }) => d.admCd && go(d.admCd)} />
+                        onClick={(d) => { const cd = (d.payload as { admCd?: string } | undefined)?.admCd; if (cd) go(cd); }} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>

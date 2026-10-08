@@ -104,10 +104,13 @@ export default function OverviewPage() {
                     <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fontSize: 13, fill: "#6e6e73" }} />
                     <YAxis hide domain={[0, "dataMax"]} />
                     <Tooltip cursor={{ fill: "rgba(0,0,0,.03)" }} contentStyle={{ borderRadius: 12, border: 0, boxShadow: "0 4px 20px rgba(0,0,0,.12)" }}
-                      formatter={(v: number, _n, p) => [`${num(v, 1)}% · ${num(p.payload.ppltn)}명${p.payload.aged65 !== null ? ` (65+ ${num(p.payload.aged65)}명)` : ""}`, "인구"]} />
+                      formatter={(v, _n, p) => {
+                        const b = p.payload as Overview["distanceBands"][number];
+                        return [`${num(Number(v), 1)}% · ${num(b.ppltn)}명${b.aged65 !== null ? ` (65+ ${num(b.aged65)}명)` : ""}`, "인구"];
+                      }} />
                     <Bar dataKey="share" radius={[8, 8, 0, 0]}>
                       {d.distanceBands.map((b, i) => <Cell key={b.label} fill={SEQ[Math.min(i, SEQ.length - 1)]} />)}
-                      <LabelList dataKey="share" position="top" formatter={(v: number) => `${num(v, 1)}%`}
+                      <LabelList dataKey="share" position="top" formatter={(v) => `${num(Number(v), 1)}%`}
                         style={{ fontSize: 13, fontWeight: 600, fill: "#1d1d1f" }} />
                     </Bar>
                   </BarChart>
