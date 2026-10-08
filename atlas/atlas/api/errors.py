@@ -6,6 +6,7 @@ import logging
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 log = logging.getLogger(__name__)
@@ -58,7 +59,8 @@ def install(app: FastAPI) -> None:
     async def _any(request: Request, exc: Exception):
         tid = getattr(request.state, "trace_id", None)
         log.exception("unhandled", extra={"traceId": tid})
-        record(tid, request.method, request.url.path, exc)
+        # 동기 DB 쓰기 — 이벤트 루프에서 바로 부르면 DB 가 느릴 때 이 워커의 모든 요청이 멈춤
+        await run_in_threadpool(record, tid, request.method, request.url.path, exc)
         return JSONResponse(_body(request, "INTERNAL", "서버 내부 오류"), status_code=500)
 
 

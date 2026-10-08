@@ -74,6 +74,8 @@ def cases() -> list[tuple]:
     for b in [None, {}, [], {"csp-report": None}, {"csp-report": {"blocked-uri": 1, "line-number": "x"}}, [{"type": "csp-violation"}],
               [{"type": "csp-violation", "body": {"blockedURL": "x" * 5000}}], "문자열", 12345]:
         out.append(("POST", "/csp-report", b))
+    for d in ("2026-02-30", "2026-13-01", "0001-01-01", "9999-12-31"):        # 형식은 맞지만 없는·극단 날짜
+        out.append(("GET", "/calendar" + q(start=d, days=62)))
     for b in [None, {}, {"ids": []}, {"ids": ["api:1"]}, {"ids": ["api:1'--"]}, {"ids": [1]}, {"ids": "api:1"}]:   # 토큰 없음 → 400·401
         out.append(("POST", "/admin/errors/ack", b))
     return out
