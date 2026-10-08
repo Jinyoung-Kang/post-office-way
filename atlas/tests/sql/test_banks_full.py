@@ -73,3 +73,26 @@ def test_bank_brand_from_category():
     assert bank_brand("금융,보험 > 금융서비스 > 은행 > 저축은행 > SBI저축은행") == "저축은행"
     assert bank_brand("금융,보험 > 금융서비스 > 은행") is None
     assert bank_brand(None) is None
+
+
+def _status(engine, rid):
+    with engine.connect() as c:
+        return c.execute(text("SELECT status, stats FROM ops.collect_run WHERE collect_run_id = :r"), {"r": rid}).one()
+
+
+def test_failed_next_page_makes_crawl_partial(clean, monkeypatch, engine):
+    """2·3쪽을 받지 못하면 그 칸의 지점이 빠지므로 '전수'가 아님 → PARTIAL (기준 목록이 되면 빠진 지점이 폐점 처리됨)."""
+    pts = [(f"P{i}", 127.0 + i * 0.0001, 37.5) for i in range(30)]      # 한 칸에 30곳 → 2쪽 필요
+    inner = fake_kakao(pts)
+    monkeypatch.setattr(banks, "call", lambda f, u, p, s: None if p["page"] == 2 else inner(f, u, p, s))
+    monkeypatch.setattr(banks, "make_fetcher", lambda *_: FakeFetcher())
+    status, stats = _status(engine, banks.collect_banks_full())
+    assert status == "PARTIAL" and stats["failedPages"] == 1
+
+
+def test_truncated_tile_makes_crawl_partial(clean, monkeypatch, engine):
+    same = [(f"P{i}", 127.0001, 37.5001) for i in range(50)]
+    monkeypatch.setattr(banks, "call", fake_kakao(same))
+    monkeypatch.setattr(banks, "make_fetcher", lambda *_: FakeFetcher())
+    status, stats = _status(engine, banks.collect_banks_full())
+    assert status == "PARTIAL" and stats["truncated"] == 1

@@ -133,7 +133,7 @@ def collect_banks_full() -> uuid.UUID:
     run_id = runs.start_run("KAKAO_BANK", scope=f"FULL;BK9;quadtree;start={START_STEP};min={MIN_SIDE}")
     fetcher = make_fetcher(run_id, "KAKAO_LOCAL")
     stats: dict[str, Any] = {"tiles": 0, "splits": 0, "truncated": 0, "emptyTiles": 0, "failedTiles": 0,
-                             "branches": 0, "atms": 0, "skipped": 0, "stoppedBy": None}
+                             "failedPages": 0, "branches": 0, "atms": 0, "skipped": 0, "stoppedBy": None}
     t0 = time.monotonic()
     seen: set[str] = set()
     stack = _tiles(KOREA_BBOX, START_STEP)
@@ -181,7 +181,8 @@ def collect_banks_full() -> uuid.UUID:
                 save(first.get("documents") or [])
                 for n in range(2, min(3, -(-total // 15)) + 1):
                     nxt = page(tile, n)
-                    if not nxt:
+                    if nxt is None:                 # 재시도 끝에 실패 — 이 칸의 나머지 지점을 못 받음
+                        stats["failedPages"] += 1
                         break
                     save(nxt.get("documents") or [])
             except KakaoStop as e:
@@ -197,8 +198,10 @@ def collect_banks_full() -> uuid.UUID:
                 {"r": run_id}).scalar_one()
         stats.update({"places": len(seen), "calls": fetcher.calls, "errors": fetcher.errors,
                       "elapsedMs": int((time.monotonic() - t0) * 1000)})
-        # 실패한 칸이 있으면 '전수'라고 할 수 없으므로 PARTIAL — 계산은 이전 전수 실행(또는 90일 규칙)을 계속 씀
-        ok = not stats["stoppedBy"] and not stats["failedTiles"]
+        # 받지 못한 칸·쪽이 있거나 45곳에서 잘린 칸이 있으면 '전수'라고 할 수 없으므로 PARTIAL
+        # — 전수(DONE) 실행은 기준 목록이 되어 그 실행에서 안 보인 지점을 폐점으로 빼므로, 빠짐이 있으면 안 됨.
+        # 계산은 이전 전수 실행(또는 90일 규칙)을 계속 씀
+        ok = not (stats["stoppedBy"] or stats["failedTiles"] or stats["failedPages"] or stats["truncated"])
         runs.finish_run(run_id, "DONE" if ok else "PARTIAL", stats)
     except Exception as e:
         stats["calls"] = fetcher.calls
