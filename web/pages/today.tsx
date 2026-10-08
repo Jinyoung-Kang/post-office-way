@@ -136,7 +136,10 @@ export default function TodayPage() {
                       {closed ? <><th className="num" title="시군구 안 읍면동 중 365코너가 없는 곳">365코너 없는 읍면동</th><th className="num">공휴일 의료 공백</th></> : <th className="num">최근접 우체국</th>}</tr></thead>
                     <tbody>{shown.map((x) => (
                       <tr key={x.admCd} className="clickable" onClick={() => router.push(`/?adm=${x.admCd}&metric=AGED65_FAR_PPLTN`)}>
-                        <td className="whitespace-nowrap"><span className="text-ink-3">{shortSido(x.parentNm)} </span><span className="font-medium">{x.admNm}</span></td>
+                        <td className="whitespace-nowrap"><Link href={`/?adm=${x.admCd}&metric=AGED65_FAR_PPLTN`}
+                          onClick={(e) => e.stopPropagation()} className="text-ink no-underline hover:underline">
+                          <span className="text-ink-3">{shortSido(x.parentNm)} </span><span className="font-medium">{x.admNm}</span>
+                        </Link></td>
                         <td className="whitespace-nowrap"><VisitBadge level={x.level} /></td>
                         <td className="min-w-[180px] text-[13px]">{x.reasons.map((r) => r.text).join(" · ")}</td>
                         <td className="num whitespace-nowrap">{num(x.tmpMin, 0)}~{num(x.tmpMax, 0)}℃</td>

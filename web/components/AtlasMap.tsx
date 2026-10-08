@@ -268,7 +268,11 @@ export default function AtlasMap<P extends { admCd: string; admNm: string }>(pro
           div.title = `${f.name} (${f.divLabel})`;
           div.setAttribute("role", "button");
           div.setAttribute("aria-label", `${f.name} ${f.divLabel}`);
+          div.tabIndex = 0;                      // role=button 이면 키보드로도 — 초점과 Enter·Space
           div.addEventListener("click", (e) => { e.stopPropagation(); cb.current.onFacility?.(f); });
+          div.addEventListener("keydown", (e) => {
+            if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); cb.current.onFacility?.(f); }
+          });
           facOverlays.current.push(new kakao.maps.CustomOverlay({ map: map.current, position: new kakao.maps.LatLng(f.lat, f.lon),
             content: div, zIndex: 6, clickable: true }));
         }

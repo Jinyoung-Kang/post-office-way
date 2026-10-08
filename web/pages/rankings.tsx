@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
@@ -103,7 +104,11 @@ export default function Rankings() {
                     {data.items.map((r) => (
                       <tr key={r.admCd} className="clickable" onClick={() => go(r.admCd)}>
                         <td className="num text-ink-3">{r.rank ?? "—"}</td>
-                        <td>{r.parentNm ? <span className="text-ink-3">{r.parentNm} </span> : null}<span className="font-medium">{r.admNm}</span></td>
+                        {/* 행 클릭은 마우스용 — 키보드로도 갈 수 있게 지역 이름을 링크로 (행 클릭과 겹치지 않게 전파 막음) */}
+                        <td><Link href={`/?adm=${r.admCd}&metric=${metric}`} onClick={(e) => e.stopPropagation()}
+                          className="text-ink no-underline hover:underline">
+                          {r.parentNm ? <span className="text-ink-3">{r.parentNm} </span> : null}<span className="font-medium">{r.admNm}</span>
+                        </Link></td>
                         <td className="num font-medium">{withUnit(r.value, unit)}</td>
                         <td className="num">{r.percentile ?? "—"}</td>
                         <td className="num">{num(r.totPpltn)}</td>
