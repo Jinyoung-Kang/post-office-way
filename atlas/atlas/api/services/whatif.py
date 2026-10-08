@@ -14,7 +14,9 @@ from sqlalchemy import event, text
 from sqlalchemy.engine import Connection
 
 from atlas.api import cache
-from atlas.api.common import jsonable, meta_of, parse_uuid, resolve_calc_run
+from atlas.calc.runs import meta_of, resolve_calc_run
+from atlas.core.serial import jsonable
+from atlas.domain.params import parse_uuid
 from atlas.domain.errors import Conflict, Invalid, NotFound
 
 CAVEAT = "분석 데모 지표이며 공식 통계가 아닙니다. 직선거리 기준이며 도로 거리와 다릅니다."

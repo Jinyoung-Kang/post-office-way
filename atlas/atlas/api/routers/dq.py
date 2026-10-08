@@ -3,7 +3,9 @@ from __future__ import annotations
 from fastapi import APIRouter
 from sqlalchemy import text
 
-from atlas.api.common import jsonable, page_params, parse_uuid
+from atlas.core.serial import jsonable
+
+from atlas.domain.params import page_params, parse_uuid
 from atlas.domain.errors import Invalid, NotFound
 from atlas.ops.dq import RULES
 from atlas.core.db import get_engine

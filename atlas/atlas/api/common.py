@@ -1,84 +1,14 @@
-"""라우터 공통 — calc_run 결정, 메타(calcRunId·statYear·facilityAsOf), 페이지네이션, 직렬화."""
+"""라우터·서비스 공통 — 지표 정의 조회, 시설 열·응답 모양."""
 from __future__ import annotations
 
-import uuid
-from datetime import date, datetime
-from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
 
-from atlas.domain.errors import Conflict, Invalid, NotFound
+from atlas.core.serial import jsonable
+from atlas.domain.errors import NotFound
 from atlas.domain.rules import POST_DIV_LABEL
-
-MAX_SIZE = 200
-MAX_PAGE = 100_000   # OFFSET 이 bigint 를 넘지 않게 (그 이상은 의미 없는 페이지)
-
-
-def jsonable(v: Any) -> Any:
-    if isinstance(v, Decimal):
-        f = float(v)
-        return int(f) if f.is_integer() else f
-    if isinstance(v, (datetime, date)):
-        return v.isoformat()
-    if isinstance(v, uuid.UUID):
-        return str(v)
-    if isinstance(v, dict):
-        return {k: jsonable(x) for k, x in v.items()}
-    if isinstance(v, (list, tuple)):
-        return [jsonable(x) for x in v]
-    return v
-
-
-def parse_uuid(v: str | None, what: str = "calcRunId") -> uuid.UUID | None:
-    if v in (None, ""):
-        return None
-    try:
-        return uuid.UUID(v)
-    except ValueError as e:
-        raise Invalid(f"{what} 형식이 잘못되었습니다: {v}") from e
-
-
-def resolve_calc_run(c: Connection, calc_run_id: str | None, require_done: bool = True) -> dict[str, Any]:
-    """calcRunId 생략 시 최신 DONE calc_run."""
-    rid = parse_uuid(calc_run_id)
-    if rid:
-        r = c.execute(text("""SELECT calc_run_id, stat_year, facility_as_of, params, status, created_at, finished_at
-                              FROM mart.calc_run WHERE calc_run_id = :id"""), {"id": rid}).mappings().first()
-        if not r:
-            raise NotFound("CALC_RUN_NOT_FOUND", f"calcRunId {rid} 가 없습니다.")
-        if require_done and r["status"] != "DONE":
-            raise Conflict("CALC_RUN_NOT_DONE", f"calcRunId {rid} 상태가 {r['status']} 입니다.")
-    else:
-        r = c.execute(text("""SELECT calc_run_id, stat_year, facility_as_of, params, status, created_at, finished_at
-                              FROM mart.calc_run WHERE status = 'DONE'
-                              ORDER BY finished_at DESC NULLS LAST, created_at DESC LIMIT 1""")).mappings().first()
-        if not r:
-            raise NotFound("CALC_RUN_NOT_FOUND", "완료된 계산 실행이 없습니다. 수집 후 `make calc` 를 실행하세요.")
-    return dict(r)
-
-
-def data_version(c: Connection, run: dict[str, Any]) -> str:
-    """계산 결과 캐시의 버전 — (계산 실행, 도보 완료 시각). 도보 계산이 끝나면 지표 값·개요가 바뀌므로 키도 바뀜.
-    키가 데이터를 따라가니 계산·도보가 끝난 뒤 캐시를 지울 필요가 없음 — 지우던 방식은 커밋 직전에 읽은 요청이
-    지운 뒤에 낡은 값을 다시 써서 다음 계산까지 남을 수 있었음 (R4)."""
-    w = c.execute(text("SELECT finished_at FROM mart.walk_run WHERE calc_run_id = :r AND status = 'DONE'"),
-                  {"r": run["calc_run_id"]}).scalar()
-    return f"{run['calc_run_id']}:{int(w.timestamp()) if w else 0}"
-
-
-def meta_of(run: dict[str, Any], **extra: Any) -> dict[str, Any]:
-    return jsonable({"calcRunId": run["calc_run_id"], "statYear": run["stat_year"],
-                     "facilityAsOf": run["facility_as_of"], **extra})
-
-
-def page_params(page: int, size: int, cap: int = MAX_SIZE) -> tuple[int, int, int]:
-    if not 1 <= page <= MAX_PAGE:
-        raise Invalid(f"page 는 1~{MAX_PAGE} 이어야 합니다.")
-    if not 1 <= size <= cap:
-        raise Invalid(f"size 는 1~{cap} 이어야 합니다.")
-    return page, size, (page - 1) * size
 
 
 def metric_row(c: Connection, code: str) -> dict[str, Any]:

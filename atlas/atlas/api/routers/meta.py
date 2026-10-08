@@ -3,7 +3,10 @@ from __future__ import annotations
 from fastapi import APIRouter, Query
 from sqlalchemy import text
 
-from atlas.api.common import jsonable, page_params
+from atlas.calc.runs import latest_done
+from atlas.core.serial import jsonable
+
+from atlas.domain.params import page_params
 from atlas.core.clock import KST
 from atlas.core.config import get_settings
 from atlas.core.db import get_engine
@@ -56,8 +59,7 @@ def calc_runs(page: int = 1, size: int = 20):
 def regions(year: int | None = Query(None)):
     with get_engine().connect() as c:
         # 기본은 최신 계산의 통계 연도 (.env STAT_YEAR 를 바꾸고 아직 계산 전이어도 화면과 어긋나지 않게)
-        y = year or c.execute(text("""SELECT stat_year FROM mart.calc_run WHERE status = 'DONE'
-                                      ORDER BY finished_at DESC NULLS LAST LIMIT 1""")).scalar() or get_settings().stat_year
+        y = year or (latest_done(c) or {}).get("stat_year") or get_settings().stat_year
         rows = c.execute(text("""
             SELECT left(a.adm_cd, 2) AS sido, coalesce(p.adm_nm, left(a.adm_cd, 2)) AS nm,
                    count(*) FILTER (WHERE a.level = 2) AS sgg, count(*) FILTER (WHERE a.level = 3) AS emd

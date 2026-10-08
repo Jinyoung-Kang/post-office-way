@@ -14,7 +14,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, StringConstraints
 from sqlalchemy import text
 
-from atlas.api.common import jsonable
+from atlas.core.serial import jsonable
 from atlas.api.errors import ApiError
 from atlas.api.security import client_ip
 from atlas.core.config import get_settings

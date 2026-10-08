@@ -10,7 +10,11 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
 
-from atlas.api.common import jsonable, meta_of, page_params, resolve_calc_run
+from atlas.calc.runs import LATEST_DONE_ID, meta_of, resolve_calc_run
+
+from atlas.core.serial import jsonable
+
+from atlas.domain.params import page_params
 
 LIFE_METRICS = ("POST_SOLE_HUB_PPLTN", "LIFE_DESERT_PPLTN", "CARE_DESERT_PPLTN", "HOLIDAY_CARE_GAP_PPLTN",
                 "POPW_PHARMACY_DIST_M", "POPW_CLINIC_DIST_M")
@@ -93,14 +97,13 @@ def facilities(c: Connection, calc_run_id: str | None, sido: str | None, sort: s
 
 def facility_hub(c: Connection, hist_id: int) -> dict[str, Any] | None:
     """시설 카드용 — 최신 계산의 대체 불가능성 + 시설 주변 약국·의원·은행 최근접."""
-    r = c.execute(text("""
+    r = c.execute(text(f"""
         SELECT h.served_ppltn, h.sole_fin_ppltn, h.sole_hub_ppltn, h.oa_count,
                (SELECT count(*) + 1 FROM mart.facility_hub x WHERE x.calc_run_id = h.calc_run_id
                    AND x.sole_hub_ppltn > h.sole_hub_ppltn) AS rnk,
                (SELECT count(*) FROM mart.facility_hub x WHERE x.calc_run_id = h.calc_run_id AND x.sole_hub_ppltn > 0) AS n
           FROM mart.facility_hub h
-         WHERE h.hist_id = :id AND h.calc_run_id = (SELECT calc_run_id FROM mart.calc_run WHERE status = 'DONE'
-                                                     ORDER BY finished_at DESC NULLS LAST LIMIT 1)"""),
+         WHERE h.hist_id = :id AND h.calc_run_id = {LATEST_DONE_ID}"""),
                   {"id": hist_id}).mappings().first()
     near = c.execute(text("""
         SELECT k.kind, k.name, k.div_name, k.open_holiday, round(CAST(k.d AS numeric)) AS dist_m

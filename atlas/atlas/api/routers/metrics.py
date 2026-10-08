@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 from sqlalchemy import text
 
+from atlas.calc.runs import LATEST_DONE_ID
 from atlas.core.db import get_engine
 from atlas.domain.rules import RULE_VERSION
 
@@ -26,10 +27,9 @@ def list_metrics():
     with get_engine().connect() as c:
         rows = c.execute(text("SELECT * FROM mart.metric_def ORDER BY sort_order, metric_code")).mappings().all()
         # 최신 calc_run 에 실제로 값이 있는 지표 (KOSIS 미적재면 고령인구 지표는 false)
-        avail = {r[0] for r in c.execute(text("""
+        avail = {r[0] for r in c.execute(text(f"""
             SELECT DISTINCT metric_code FROM mart.access_metric
-             WHERE calc_run_id = (SELECT calc_run_id FROM mart.calc_run WHERE status = 'DONE'
-                                  ORDER BY finished_at DESC NULLS LAST LIMIT 1) AND value IS NOT NULL"""))}
+             WHERE calc_run_id = {LATEST_DONE_ID} AND value IS NOT NULL"""))}
     return {"items": [{"code": r["metric_code"], "name": r["name_ko"], "unit": r["unit"], "formula": r["formula"],
                        "limitation": r["limitation"], "higherIsWorse": r["higher_is_worse"],
                        "ruleVersion": r["rule_version"], "available": r["metric_code"] in avail} for r in rows],

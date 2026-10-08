@@ -4,7 +4,7 @@ from fastapi import APIRouter, Path, Query
 from fastapi.responses import Response
 from sqlalchemy import text
 
-from atlas.api.common import jsonable
+from atlas.core.serial import jsonable
 from atlas.domain.errors import Invalid
 from atlas.api.services import bank_impact as impact
 from atlas.core.db import get_engine

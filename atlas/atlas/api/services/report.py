@@ -12,7 +12,8 @@ from sqlalchemy import text
 from sqlalchemy.engine import Connection
 
 from atlas.api import cache
-from atlas.api.common import jsonable, meta_of, resolve_calc_run
+from atlas.calc.runs import meta_of, resolve_calc_run
+from atlas.core.serial import jsonable
 from atlas.domain.errors import DomainError, Invalid, NotFound
 
 # 보고서에 싣는 지표 — 화면 순서대로 (없는 지표는 건너뜀)

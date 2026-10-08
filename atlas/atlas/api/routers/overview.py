@@ -7,7 +7,8 @@ from fastapi import APIRouter
 from sqlalchemy import text
 
 from atlas.api import cache
-from atlas.api.common import data_version, jsonable, meta_of, resolve_calc_run
+from atlas.calc.runs import data_version, meta_of, resolve_calc_run
+from atlas.core.serial import jsonable
 from atlas.core.db import get_engine
 from atlas.domain.rules import POST_DIV_LABEL
 

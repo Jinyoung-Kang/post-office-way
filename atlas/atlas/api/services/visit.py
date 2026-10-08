@@ -14,7 +14,8 @@ from sqlalchemy import text
 from sqlalchemy.engine import Connection
 
 from atlas.api import cache
-from atlas.api.common import jsonable
+from atlas.calc.runs import LATEST_DONE_ID, latest_done
+from atlas.core.serial import jsonable
 from atlas.domain.errors import Invalid, NotFound
 from atlas.api.services import calendar as cal
 from atlas.core.clock import now_kst
@@ -24,11 +25,6 @@ from atlas.domain.visit import LEVEL_LABEL, VISIT_RULE_VERSION, WINDOW_HOURS, Ho
 
 IMPACT_METRICS = ("AGED65_FAR_PPLTN", "FAR2KM_PPLTN", "NEAREST_FIN_DIST_M", "HOLIDAY_CARE_GAP_PPLTN", "HAS_365")
 
-
-def _latest_calc(c: Connection) -> dict[str, Any] | None:
-    r = c.execute(text("""SELECT calc_run_id, stat_year FROM mart.calc_run WHERE status = 'DONE'
-                          ORDER BY finished_at DESC NULLS LAST, created_at DESC LIMIT 1""")).mappings().first()
-    return dict(r) if r else None
 
 
 def available_dates(c: Connection, today: date) -> list[date]:
@@ -140,12 +136,11 @@ def _pick_date(c: Connection, day: str | None) -> tuple[date, list[date]]:
 
 def _version(c: Connection, d: date) -> str:
     """판정 입력의 버전 — 이 값이 같으면 결과도 같음(예보 발표·대기 발표·공휴일·계산·오늘 날짜)."""
-    v = c.execute(text("""SELECT (SELECT max(base_at) FROM mart.weather_hourly
+    v = c.execute(text(f"""SELECT (SELECT max(base_at) FROM mart.weather_hourly
                                   WHERE fcst_at >= CAST(:d AS timestamp) AND fcst_at < CAST(:d AS timestamp) + interval '1 day'),
                                  (SELECT max(announced_at) FROM mart.air_forecast WHERE inform_date = :d),
                                  (SELECT max(fetched_at) FROM mart.holiday),
-                                 (SELECT calc_run_id FROM mart.calc_run WHERE status = 'DONE'
-                                   ORDER BY finished_at DESC NULLS LAST, created_at DESC LIMIT 1)"""), {"d": d}).one()
+                                 {LATEST_DONE_ID}"""), {"d": d}).one()
     return "|".join(str(x) for x in (*v, now_kst().date(), VISIT_RULE_VERSION))
 
 
@@ -166,7 +161,7 @@ def conditions(c: Connection, day: str | None, sido: str | None = None) -> dict[
 
 
 def _conditions(c: Connection, d: date, dates: list[date], sido: str | None) -> dict[str, Any]:
-    calc = _latest_calc(c)
+    calc = latest_done(c)
     year = calc["stat_year"] if calc else get_settings().stat_year
     hours, (air, air_at) = _hours_by_grid(c, d), _air(c, d)
     if not hours and not air:
@@ -197,7 +192,7 @@ def area_outlook(c: Connection, adm_cd: str) -> dict[str, Any]:
     if len(adm_cd) < 5 or not sgg.isdigit():
         raise Invalid("admCd 는 시군구(5자리) 또는 읍면동 코드입니다.")
     now = now_kst()
-    calc = _latest_calc(c)
+    calc = latest_done(c)
     year = calc["stat_year"] if calc else get_settings().stat_year
     areas = _areas(c, year, calc and calc["calc_run_id"], sgg)
     if not areas:

@@ -5,7 +5,7 @@ import random
 import pytest
 from sqlalchemy import text
 
-from atlas.api.common import resolve_calc_run
+from atlas.calc.runs import resolve_calc_run
 from atlas.api.services.whatif import get_scenario, partial_recompute, recompute_all, run_whatif
 from atlas.calc.runner import run_calc
 
