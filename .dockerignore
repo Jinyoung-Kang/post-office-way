@@ -1,0 +1,13 @@
+# 빌드 컨텍스트(저장소 루트 — api·worker 이미지)에서 뺄 것. 이미지에 COPY 하지는 않지만 비밀값·큰 파일이 도커 데몬으로
+# 전송되지 않게 (리뷰 S10). web 이미지는 web/.dockerignore
+.env
+.env.*
+!.env.example
+backups/
+.qa/
+.qa-venv/
+.git/
+web/
+**/__pycache__/
+**/.pytest_cache/
+**/node_modules/

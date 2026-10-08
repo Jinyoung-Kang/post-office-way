@@ -52,8 +52,10 @@ def known_secrets() -> list[str]:
     from atlas.core.config import get_settings
 
     s = get_settings()
-    return [s.post_service_key, s.sgis_consumer_key, s.sgis_consumer_secret, s.kakao_rest_api_key,
+    vals = [s.post_service_key, s.sgis_consumer_key, s.sgis_consumer_secret, s.kakao_rest_api_key,
             s.kosis_api_key, s.data_go_kr_key, s.admin_token, s.api_db_password]
+    # API 컨테이너는 외부 키 대신 표시값('set')만 받음 — 짧은 값까지 가리면 오류 문장의 'reset' 같은 낱말이 깨짐
+    return [v for v in vals if v and len(v) >= 8]
 
 
 def safe_error(s: str | None, limit: int = 1000) -> str | None:

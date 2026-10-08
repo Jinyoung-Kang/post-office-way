@@ -104,6 +104,14 @@ services:
       # 최소 권한 역할 — 조회·What-if 저장·작업 요청만 (raw·stg·DDL 없음)
       DATABASE_URL: postgresql+psycopg://atlas_api:${API_DB_PASSWORD:?API_DB_PASSWORD 가 없습니다 — make env 를 실행하세요}@db:5432/atlas
       PROMETHEUS_MULTIPROC_DIR: /tmp/prom
+      # API 는 외부 API 키를 쓰지 않음 — 관리 작업 요청 때 '키가 있는지'만 봄(KEY_MISSING). 원문 대신 표시값만 넘겨
+      # API 컨테이너가 뚫려도 외부 키가 새지 않게 (리뷰 S10)
+      POST_SERVICE_KEY: ${POST_SERVICE_KEY:+set}
+      SGIS_CONSUMER_KEY: ${SGIS_CONSUMER_KEY:+set}
+      SGIS_CONSUMER_SECRET: ${SGIS_CONSUMER_SECRET:+set}
+      KAKAO_REST_API_KEY: ${KAKAO_REST_API_KEY:+set}
+      KOSIS_API_KEY: ${KOSIS_API_KEY:+set}
+      DATA_GO_KR_KEY: ${DATA_GO_KR_KEY:+set}
     read_only: true
     tmpfs: ["/tmp"]
     ports:
