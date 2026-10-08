@@ -48,15 +48,18 @@ def collect_holidays(years: list[int] | None = None) -> uuid.UUID:
                 failed.append(y)
                 continue
             rows = parse_items(items_of(body))
+            if not rows:
+                # 결과가 비면(다음 해는 아직 발표 전일 수 있음·일시 이상) 그 해 기존 휴일을 그대로 둠
+                stats.setdefault("emptyYears", []).append(y)
+                continue
             with begin() as c:
                 # 그 해 자료를 통째로 바꿈 (대체공휴일·임시공휴일 지정이 나중에 추가됨)
                 c.execute(text("DELETE FROM mart.holiday WHERE locdate BETWEEN :a AND :b"),
                           {"a": date(y, 1, 1), "b": date(y, 12, 31)})
-                if rows:
-                    c.execute(text("""INSERT INTO mart.holiday (locdate, name, is_holiday, collect_run_id)
-                                      VALUES (:d, :name, :h, :run) ON CONFLICT (locdate) DO UPDATE
-                                      SET name = mart.holiday.name || '·' || EXCLUDED.name"""),
-                              [{**r, "run": run_id} for r in rows])
+                c.execute(text("""INSERT INTO mart.holiday (locdate, name, is_holiday, collect_run_id)
+                                  VALUES (:d, :name, :h, :run) ON CONFLICT (locdate) DO UPDATE
+                                  SET name = mart.holiday.name || '·' || EXCLUDED.name"""),
+                          [{**r, "run": run_id} for r in rows])
             got += rows
         stats.update({"rows": len(got), "failedYears": failed, "calls": fetcher.calls,
                       "elapsedMs": int((time.monotonic() - t0) * 1000)})

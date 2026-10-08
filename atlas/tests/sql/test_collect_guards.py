@@ -125,3 +125,17 @@ def test_kosis_partial_failure_keeps_failed_sido(clean, engine, monkeypatch):
     _run_kosis(monkeypatch, fail={"26"})                    # 부산만 일시 오류
     with engine.connect() as c2:
         assert resident() == {"11010": 200, "21010": 200}   # 부산(21010)의 기존 값 유지
+
+
+# ---- D5: 공휴일 응답이 비면(아직 발표 전·일시 이상) 그 해 기존 휴일을 지우지 않음 ----
+
+def test_empty_holiday_year_keeps_existing(clean, engine, monkeypatch):
+    from atlas.collector.datago import holiday
+
+    with engine.begin() as c:
+        c.execute(text("INSERT INTO mart.holiday (locdate, name, is_holiday) VALUES ('2027-01-01', '1월1일', true)"))
+    monkeypatch.setattr(holiday, "make_fetcher", lambda *a: FakeFetcher())
+    monkeypatch.setattr(holiday, "call", lambda f, u, p, s: {})              # 결과 없음(03)
+    holiday.collect_holidays(years=[2027])
+    with engine.connect() as c:
+        assert c.execute(text("SELECT count(*) FROM mart.holiday")).scalar_one() == 1
