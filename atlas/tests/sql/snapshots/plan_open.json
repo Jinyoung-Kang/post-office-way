@@ -1,0 +1,40 @@
+{
+ "candidateCount": 4,
+ "caveat": "직선거리·지역 대표점 기준의 탐욕 근사이며 공식 판단 근거가 아닙니다. 실제 결정에는 도로 접근성·수요·비용을 함께 봐야 합니다.",
+ "farM": 2000.0,
+ "improvedAreas": [
+  {
+   "admCd": "99040",
+   "admNm": "지역99040",
+   "distAfterM": 0.0,
+   "distBeforeM": 6000.0,
+   "weight": 4000
+  }
+ ],
+ "k": 1,
+ "level": 2,
+ "meta": {
+  "calcRunId": "<uuid>",
+  "facilityAsOf": "<ts>",
+  "statYear": 2024
+ },
+ "mode": "open",
+ "scope": "99",
+ "scopeName": null,
+ "steps": [
+  {
+   "areasImproved": 1,
+   "gain": 24000000.0,
+   "gainKmPpl": 24000.0,
+   "lat": 37.234,
+   "lon": 127.669,
+   "newlyNear": 4000,
+   "siteCd": "99040",
+   "siteNm": "지역99040"
+  }
+ ],
+ "totalGainKmPpl": 24000.0,
+ "totalNewlyNear": 4000,
+ "weight": "pop",
+ "weightFallback": true
+}

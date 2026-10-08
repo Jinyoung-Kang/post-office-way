@@ -1,0 +1,104 @@
+{
+ "banks": {
+  "assumption": "우체국 은행대리업: 보도된 '국내 14개 시중·지방은행 모두'를 은행 전체로 가정(은행별 명단 미확인), 금융 우체국 전체에서 입출금 가능으로 봄.",
+  "fullCrawlAt": null
+ },
+ "items": [
+  {
+   "addr": null,
+   "admCd": "99010",
+   "admNm": "지역99010",
+   "brand": "KB국민은행",
+   "catchAged": 135,
+   "catchOa": 3,
+   "catchPpltn": 450,
+   "grade": "HIGH",
+   "lat": 37.162,
+   "lon": 127.523,
+   "lostAged": 105,
+   "lostPpltn": 350,
+   "name": "K1",
+   "otherBankM": 19416,
+   "parentNm": null,
+   "placeId": "K1",
+   "popwAltM": 5726,
+   "popwNowM": 2109,
+   "postAgent": true,
+   "postM": 5831,
+   "rank": 1,
+   "rankOf": 2,
+   "reasons": [
+    "NO_ALT_2KM",
+    "NO_ALT_WALK30",
+    "SAME_BANK_10KM",
+    "AGED_20"
+   ],
+   "sameBrandM": null,
+   "walkAltM": null,
+   "walkLostPpltn": 50,
+   "walkNowM": 1786
+  },
+  {
+   "addr": null,
+   "admCd": "99040",
+   "admNm": "지역99040",
+   "brand": "신한은행",
+   "catchAged": null,
+   "catchOa": 0,
+   "catchPpltn": 0,
+   "grade": "MID",
+   "lat": 37.261,
+   "lon": 127.703,
+   "lostAged": null,
+   "lostPpltn": 0,
+   "name": "S1",
+   "otherBankM": 19416,
+   "parentNm": null,
+   "placeId": "S1",
+   "popwAltM": null,
+   "popwNowM": null,
+   "postAgent": true,
+   "postM": 9487,
+   "rank": 2,
+   "rankOf": 2,
+   "reasons": [
+    "SAME_BANK_10KM"
+   ],
+   "sameBrandM": null,
+   "walkAltM": null,
+   "walkLostPpltn": 0,
+   "walkNowM": null
+  }
+ ],
+ "meta": {
+  "calcRunId": "<uuid>",
+  "facilityAsOf": "<ts>",
+  "statYear": 2024
+ },
+ "page": 1,
+ "reasons": {
+  "AGED_20": "이 지점을 쓰는 주민의 20% 이상이 65세 이상(추정)",
+  "NO_ALT_2KM": "지금은 2km 안에 이 지점이 있는데, 문을 닫으면 2km 안에 다른 은행도 은행 업무를 하는 우체국도 없는 주민이 있음",
+  "NO_ALT_WALK30": "지금은 걸어서 30분 안에 이 지점이 있는데, 문을 닫으면 30분 안에 대체 창구가 없는 주민이 있음",
+  "SAME_BANK_10KM": "같은 은행의 다음 지점이 10km 넘게 떨어져 있음"
+ },
+ "rule": "BANK-IMPACT-1 — 높음: 대체 창구가 2km 안에 없는 주민 1,000명 이상, 또는 그런 주민이 있으면서 같은 은행 다음 지점이 10km 밖이거나 고령 비율 20% 이상 / 보통: 위 요인 중 하나 / 낮음: 없음. 2026 은행 점포폐쇄 공동절차 개정 내용을 참고한 분석용 기준이며 공식 사전영향평가가 아닙니다.",
+ "size": 20,
+ "summary": {
+  "branches": 2,
+  "catchPpltn": 450,
+  "high": 1,
+  "lostPpltn": 350,
+  "low": 0,
+  "mid": 1,
+  "walkLostPpltn": 50
+ },
+ "total": 2,
+ "walk": {
+  "finishedAt": "<ts>",
+  "limitM": 3000,
+  "osmLastModified": null,
+  "speedMps": 0.8,
+  "vertices": null
+ }
+}

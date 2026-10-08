@@ -64,7 +64,7 @@ def clean(engine):
                           mart.whatif_result, mart.whatif_scenario, mart.area_nearest, mart.access_metric,
                           mart.facility_area_map, ops.dq_check, ops.dq_issue, mart.calc_run, mart.post_facility_hist,
                           mart.admin_area, mart.area_population, stg.post_facility, raw.api_response,
-                          ops.collect_run CASCADE"""))
+                          ops.collect_run RESTART IDENTITY CASCADE"""))   # id 를 처음부터 — 응답 스냅숏이 실행 순서와 무관하게
     return engine
 
 

@@ -1,0 +1,209 @@
+{
+ "features": [
+  {
+   "geometry": {
+    "coordinates": [
+     [
+      [
+       [
+        127.5,
+        37.099
+       ],
+       [
+        127.5,
+        37.189
+       ],
+       [
+        127.613,
+        37.189
+       ],
+       [
+        127.613,
+        37.099
+       ],
+       [
+        127.5,
+        37.099
+       ]
+      ]
+     ]
+    ],
+    "type": "MultiPolygon"
+   },
+   "id": "99010",
+   "properties": {
+    "admCd": "99010",
+    "admNm": "지역99010",
+    "agedChildIdx": 100,
+    "lat": 37.144,
+    "level": 2,
+    "lon": 127.556,
+    "parentCd": "99",
+    "percentile": 0.0,
+    "rank": 1,
+    "rankOf": 1,
+    "totPpltn": 1000,
+    "unit": "명",
+    "value": 350
+   },
+   "type": "Feature"
+  },
+  {
+   "geometry": {
+    "coordinates": [
+     [
+      [
+       [
+        127.613,
+        37.099
+       ],
+       [
+        127.613,
+        37.189
+       ],
+       [
+        127.725,
+        37.189
+       ],
+       [
+        127.725,
+        37.098
+       ],
+       [
+        127.613,
+        37.099
+       ]
+      ]
+     ]
+    ],
+    "type": "MultiPolygon"
+   },
+   "id": "99020",
+   "properties": {
+    "admCd": "99020",
+    "admNm": "지역99020",
+    "agedChildIdx": 200,
+    "lat": 37.144,
+    "level": 2,
+    "lon": 127.669,
+    "parentCd": "99",
+    "percentile": null,
+    "rank": null,
+    "rankOf": null,
+    "totPpltn": 2000,
+    "unit": "명",
+    "value": null
+   },
+   "type": "Feature"
+  },
+  {
+   "geometry": {
+    "coordinates": [
+     [
+      [
+       [
+        127.5,
+        37.189
+       ],
+       [
+        127.5,
+        37.279
+       ],
+       [
+        127.613,
+        37.279
+       ],
+       [
+        127.613,
+        37.189
+       ],
+       [
+        127.5,
+        37.189
+       ]
+      ]
+     ]
+    ],
+    "type": "MultiPolygon"
+   },
+   "id": "99030",
+   "properties": {
+    "admCd": "99030",
+    "admNm": "지역99030",
+    "agedChildIdx": 300,
+    "lat": 37.234,
+    "level": 2,
+    "lon": 127.556,
+    "parentCd": "99",
+    "percentile": null,
+    "rank": null,
+    "rankOf": null,
+    "totPpltn": 3000,
+    "unit": "명",
+    "value": null
+   },
+   "type": "Feature"
+  },
+  {
+   "geometry": {
+    "coordinates": [
+     [
+      [
+       [
+        127.613,
+        37.189
+       ],
+       [
+        127.613,
+        37.279
+       ],
+       [
+        127.726,
+        37.279
+       ],
+       [
+        127.725,
+        37.189
+       ],
+       [
+        127.613,
+        37.189
+       ]
+      ]
+     ]
+    ],
+    "type": "MultiPolygon"
+   },
+   "id": "99040",
+   "properties": {
+    "admCd": "99040",
+    "admNm": "지역99040",
+    "agedChildIdx": 400,
+    "lat": 37.234,
+    "level": 2,
+    "lon": 127.669,
+    "parentCd": "99",
+    "percentile": null,
+    "rank": null,
+    "rankOf": null,
+    "totPpltn": 4000,
+    "unit": "명",
+    "value": null
+   },
+   "type": "Feature"
+  }
+ ],
+ "meta": {
+  "calcRunId": "<uuid>",
+  "crs": "EPSG:4326",
+  "facilityAsOf": "<ts>",
+  "higherIsWorse": true,
+  "level": 2,
+  "metric": "WALK30_NO_FIN_PPLTN",
+  "metricName": "걸어서 30분 안에 금융 우체국이 없는 인구",
+  "parent": null,
+  "statYear": 2024,
+  "unit": "명"
+ },
+ "type": "FeatureCollection"
+}

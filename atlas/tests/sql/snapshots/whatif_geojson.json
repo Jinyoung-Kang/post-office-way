@@ -1,0 +1,47 @@
+{
+ "features": [
+  {
+   "geometry": {
+    "coordinates": [
+     [
+      [
+       [
+        127.5,
+        37.099
+       ],
+       [
+        127.5,
+        37.189
+       ],
+       [
+        127.613,
+        37.189
+       ],
+       [
+        127.613,
+        37.099
+       ],
+       [
+        127.5,
+        37.099
+       ]
+      ]
+     ]
+    ],
+    "type": "MultiPolygon"
+   },
+   "id": "99010",
+   "properties": {
+    "admCd": "99010",
+    "admNm": "지역99010",
+    "affectedAged65": null,
+    "affectedPpltn": 1000,
+    "distAfterM": 10770.33,
+    "distBeforeM": 3000.0,
+    "increaseM": 7770.33
+   },
+   "type": "Feature"
+  }
+ ],
+ "type": "FeatureCollection"
+}

@@ -1,0 +1,49 @@
+{
+ "areas": [
+  {
+   "admCd": "99010",
+   "admNm": "지역99010",
+   "affectedAged65": null,
+   "affectedPpltn": 1000,
+   "distAfterM": 10770.33,
+   "distBeforeM": 3000,
+   "lat": 37.144,
+   "lon": 127.556,
+   "nearestBankM": 3605.55,
+   "newNearestHistId": 2,
+   "newNearestName": "F2",
+   "parentNm": null
+  }
+ ],
+ "caveat": "분석 데모 지표이며 공식 통계가 아닙니다. 직선거리 기준이며 도로 거리와 다릅니다.",
+ "createdAt": "<ts>",
+ "level": 2,
+ "meta": {
+  "calcRunId": "<uuid>",
+  "facilityAsOf": "<ts>",
+  "statYear": 2024
+ },
+ "removed": [
+  {
+   "addr": null,
+   "histId": 1,
+   "lat": 37.117,
+   "lon": 127.556,
+   "name": "F1"
+  }
+ ],
+ "scenarioId": "<uuid>",
+ "summary": {
+  "affectedAged65": null,
+  "affectedAreas": 1,
+  "affectedPpltn": 1000,
+  "areasWithoutFacility": 0,
+  "avgDistAfterM": 10770.3,
+  "avgDistBeforeM": 3000.0,
+  "lifeHubLostPpltn": null,
+  "lostFinAccessPpltn": 0,
+  "maxIncreaseM": 7770.3,
+  "oaAffectedPpltn": 450,
+  "oaNewlyFarPpltn": 100
+ }
+}

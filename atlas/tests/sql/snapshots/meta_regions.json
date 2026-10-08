@@ -1,0 +1,29 @@
+{
+ "items": [
+  {
+   "admCd": "99",
+   "admNm": "99",
+   "emdCount": 0,
+   "sigungu": [
+    {
+     "admCd": "99010",
+     "admNm": "지역99010"
+    },
+    {
+     "admCd": "99020",
+     "admNm": "지역99020"
+    },
+    {
+     "admCd": "99030",
+     "admNm": "지역99030"
+    },
+    {
+     "admCd": "99040",
+     "admNm": "지역99040"
+    }
+   ],
+   "sigunguCount": 4
+  }
+ ],
+ "statYear": 2024
+}

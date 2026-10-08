@@ -1,0 +1,101 @@
+{
+ "affectedAreas": [],
+ "candidateCount": 3,
+ "caveat": "직선거리·지역 대표점 기준의 탐욕 근사이며 공식 판단 근거가 아닙니다. 실제 결정에는 도로 접근성·수요·비용을 함께 봐야 합니다.",
+ "demandPoints": 3,
+ "demandUnit": "oa",
+ "farM": 2000.0,
+ "k": 1,
+ "leastImpact": [
+  {
+   "addedKmPpl": 0.0,
+   "addr": null,
+   "areasAffected": 0,
+   "histId": 2,
+   "lat": 37.18,
+   "lon": 127.669,
+   "name": "F2",
+   "newlyFar": 0,
+   "soleHubPpltn": null
+  },
+  {
+   "addedKmPpl": 0.0,
+   "addr": null,
+   "areasAffected": 0,
+   "histId": 3,
+   "lat": 37.243,
+   "lon": 127.556,
+   "name": "F3",
+   "newlyFar": 0,
+   "soleHubPpltn": null
+  },
+  {
+   "addedKmPpl": 517.1,
+   "addr": null,
+   "areasAffected": 3,
+   "histId": 1,
+   "lat": 37.117,
+   "lon": 127.556,
+   "name": "F1",
+   "newlyFar": 30,
+   "soleHubPpltn": null
+  }
+ ],
+ "level": 2,
+ "meta": {
+  "calcRunId": "<uuid>",
+  "facilityAsOf": "<ts>",
+  "statYear": 2024
+ },
+ "mode": "close",
+ "mostCritical": [
+  {
+   "addedKmPpl": 517.1,
+   "addr": null,
+   "areasAffected": 3,
+   "histId": 1,
+   "name": "F1",
+   "newlyFar": 30,
+   "soleHubPpltn": null
+  },
+  {
+   "addedKmPpl": 0.0,
+   "addr": null,
+   "areasAffected": 0,
+   "histId": 3,
+   "name": "F3",
+   "newlyFar": 0,
+   "soleHubPpltn": null
+  },
+  {
+   "addedKmPpl": 0.0,
+   "addr": null,
+   "areasAffected": 0,
+   "histId": 2,
+   "name": "F2",
+   "newlyFar": 0,
+   "soleHubPpltn": null
+  }
+ ],
+ "scope": "99",
+ "scopeName": null,
+ "steps": [
+  {
+   "addedCost": 0.0,
+   "addedKmPpl": 0.0,
+   "addr": null,
+   "areasAffected": 0,
+   "histId": 2,
+   "hist_id": 2,
+   "lat": 37.18,
+   "lon": 127.669,
+   "name": "F2",
+   "newlyFar": 0,
+   "soleHubPpltn": null
+  }
+ ],
+ "totalAddedKmPpl": 0.0,
+ "totalNewlyFar": 0,
+ "weight": "aged65",
+ "weightFallback": false
+}

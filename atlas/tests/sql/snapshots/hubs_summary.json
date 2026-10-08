@@ -1,0 +1,29 @@
+{
+ "available": false,
+ "care": {
+  "asOf": null,
+  "clinic": 0,
+  "holidayOpen": 0,
+  "pharmacy": 0
+ },
+ "facilities": {
+  "served": 0,
+  "withSoleFin": 0,
+  "withSoleHub": 0
+ },
+ "meta": {
+  "calcRunId": "<uuid>",
+  "facilityAsOf": "<ts>",
+  "statYear": 2024
+ },
+ "topAreas": [],
+ "totals": {
+  "careDesertPpltn": null,
+  "holidayCareGapPpltn": null,
+  "lifeDesertPpltn": null,
+  "oaPpltn": 450,
+  "popwClinicM": null,
+  "popwPharmacyM": null,
+  "soleHubPpltn": null
+ }
+}

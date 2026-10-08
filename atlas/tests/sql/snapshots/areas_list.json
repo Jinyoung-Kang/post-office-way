@@ -1,0 +1,76 @@
+{
+ "items": [
+  {
+   "admCd": "99040",
+   "admNm": "지역99040",
+   "agedChildIdx": 400,
+   "lat": 37.234,
+   "lon": 127.669,
+   "parentCd": "99",
+   "parentNm": null,
+   "percentile": 100,
+   "rank": 1,
+   "rankOf": 4,
+   "totPpltn": 4000,
+   "value": 6000
+  },
+  {
+   "admCd": "99020",
+   "admNm": "지역99020",
+   "agedChildIdx": 200,
+   "lat": 37.144,
+   "lon": 127.669,
+   "parentCd": "99",
+   "parentNm": null,
+   "percentile": 66.7,
+   "rank": 2,
+   "rankOf": 4,
+   "totPpltn": 2000,
+   "value": 4000
+  },
+  {
+   "admCd": "99010",
+   "admNm": "지역99010",
+   "agedChildIdx": 100,
+   "lat": 37.144,
+   "lon": 127.556,
+   "parentCd": "99",
+   "parentNm": null,
+   "percentile": 33.3,
+   "rank": 3,
+   "rankOf": 4,
+   "totPpltn": 1000,
+   "value": 3000
+  },
+  {
+   "admCd": "99030",
+   "admNm": "지역99030",
+   "agedChildIdx": 300,
+   "lat": 37.234,
+   "lon": 127.556,
+   "parentCd": "99",
+   "parentNm": null,
+   "percentile": 0,
+   "rank": 4,
+   "rankOf": 4,
+   "totPpltn": 3000,
+   "value": 1000
+  }
+ ],
+ "meta": {
+  "calcRunId": "<uuid>",
+  "facilityAsOf": "<ts>",
+  "level": 2,
+  "parent": null,
+  "statYear": 2024
+ },
+ "metric": {
+  "code": "NEAREST_FIN_DIST_M",
+  "higherIsWorse": true,
+  "name": "최근접 금융 가능 우체국 거리",
+  "unit": "m"
+ },
+ "page": 1,
+ "size": 50,
+ "total": 4
+}

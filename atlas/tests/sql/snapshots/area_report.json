@@ -1,0 +1,160 @@
+{
+ "area": {
+  "admCd": "99010",
+  "admNm": "지역99010",
+  "aged65Ppltn": null,
+  "aged65Ratio": null,
+  "areaKm2": 100,
+  "bbox": [
+   127.5,
+   37.099,
+   127.613,
+   37.189
+  ],
+  "emdCount": 0,
+  "kosisPeriod": null,
+  "parentCd": "99",
+  "parentNm": null,
+  "totPpltn": 1000
+ },
+ "banks": {
+  "branches": 1,
+  "byGrade": {
+   "HIGH": 1,
+   "LOW": 0,
+   "MID": 0
+  },
+  "lostPpltn": 350,
+  "top": [
+   {
+    "brand": "KB국민은행",
+    "catchPpltn": 450,
+    "grade": "HIGH",
+    "lostPpltn": 350,
+    "name": "K1",
+    "placeId": "K1",
+    "reasons": [
+     "NO_ALT_2KM",
+     "NO_ALT_WALK30",
+     "SAME_BANK_10KM",
+     "AGED_20"
+    ],
+    "walkLostPpltn": 50
+   }
+  ]
+ },
+ "emds": [],
+ "facilities": {
+  "all": 1,
+  "c365": 0,
+  "fin": 1
+ },
+ "meta": {
+  "calcRunId": "<uuid>",
+  "facilityAsOf": "<ts>",
+  "generatedFor": "99010",
+  "statYear": 2024
+ },
+ "metrics": [
+  {
+   "code": "POPW_FIN_DIST_M",
+   "higherIsWorse": true,
+   "median": 5725.7,
+   "name": "인구 가중 최근접 거리 (집계구)",
+   "percentile": 0,
+   "rank": 1,
+   "rankOf": 1,
+   "unit": "m",
+   "value": 5725.7
+  },
+  {
+   "code": "FAR2KM_SHARE",
+   "higherIsWorse": true,
+   "median": 77.78,
+   "name": "2km 밖 인구 비율 (집계구)",
+   "percentile": 0,
+   "rank": 1,
+   "rankOf": 1,
+   "unit": "%",
+   "value": 77.78
+  },
+  {
+   "code": "POPW_FIN_WALK_M",
+   "higherIsWorse": true,
+   "median": 2556.1,
+   "name": "금융 우체국까지 걷는 거리 (인구 가중)",
+   "percentile": 0,
+   "rank": 1,
+   "rankOf": 1,
+   "unit": "m",
+   "value": 2556.1
+  },
+  {
+   "code": "WALK30_NO_FIN_SHARE",
+   "higherIsWorse": true,
+   "median": 77.8,
+   "name": "걸어서 30분 안에 금융 우체국이 없는 인구 비율",
+   "percentile": 0,
+   "rank": 1,
+   "rankOf": 1,
+   "unit": "%",
+   "value": 77.8
+  },
+  {
+   "code": "WALK30_NO_CASH_PPLTN",
+   "higherIsWorse": true,
+   "median": 300,
+   "name": "걸어서 30분 안에 대면 금융 창구가 없는 인구",
+   "percentile": 0,
+   "rank": 1,
+   "rankOf": 1,
+   "unit": "명",
+   "value": 300
+  },
+  {
+   "code": "FIN_DESERT_PPLTN",
+   "higherIsWorse": true,
+   "median": 1500,
+   "name": "금융 공백 인구",
+   "percentile": 33.3,
+   "rank": 3,
+   "rankOf": 4,
+   "unit": "명",
+   "value": 1000
+  },
+  {
+   "code": "ACCESS_GAP_SCORE",
+   "higherIsWorse": true,
+   "median": 38,
+   "name": "접근성 취약 점수",
+   "percentile": 0,
+   "rank": 4,
+   "rankOf": 4,
+   "unit": "점",
+   "value": 24
+  }
+ ],
+ "posts": [
+  {
+   "financeTime": "09:00~16:30",
+   "has365": false,
+   "histId": 1,
+   "lat": 37.117,
+   "lon": 127.556,
+   "name": "F1",
+   "postDiv": 1,
+   "servedPpltn": null,
+   "soleFinPpltn": null,
+   "soleHubPpltn": null
+  }
+ ],
+ "visit": {
+  "admCd": "99010",
+  "admNm": "지역99010",
+  "days": [],
+  "ruleVersion": "VISIT-1"
+ },
+ "walk": {
+  "finishedAt": "<ts>"
+ }
+}

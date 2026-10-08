@@ -1,0 +1,276 @@
+{
+ "admCd": "99010",
+ "admNm": "지역99010",
+ "areaKm2": 100,
+ "bbox": [
+  127.5,
+  37.099,
+  127.613,
+  37.189
+ ],
+ "facilities": [
+  {
+   "count": 1,
+   "divLabel": "소속 우체국",
+   "finCount": 1,
+   "postDiv": 1
+  }
+ ],
+ "level": 2,
+ "meta": {
+  "calcRunId": "<uuid>",
+  "facilityAsOf": "<ts>",
+  "statYear": 2024
+ },
+ "metrics": [
+  {
+   "code": "NEAREST_FIN_DIST_M",
+   "higherIsWorse": true,
+   "name": "최근접 금융 가능 우체국 거리",
+   "percentile": 33.3,
+   "rank": 3,
+   "rankOf": 4,
+   "unit": "m",
+   "value": 3000
+  },
+  {
+   "code": "POPW_FIN_DIST_M",
+   "higherIsWorse": true,
+   "name": "인구 가중 최근접 거리 (집계구)",
+   "percentile": 0,
+   "rank": 1,
+   "rankOf": 1,
+   "unit": "m",
+   "value": 5725.7
+  },
+  {
+   "code": "FAR2KM_PPLTN",
+   "higherIsWorse": true,
+   "name": "2km 밖 인구 (집계구)",
+   "percentile": 0,
+   "rank": 1,
+   "rankOf": 1,
+   "unit": "명",
+   "value": 350
+  },
+  {
+   "code": "FAR2KM_SHARE",
+   "higherIsWorse": true,
+   "name": "2km 밖 인구 비율 (집계구)",
+   "percentile": 0,
+   "rank": 1,
+   "rankOf": 1,
+   "unit": "%",
+   "value": 77.78
+  },
+  {
+   "code": "POPW_FIN_WALK_M",
+   "higherIsWorse": true,
+   "name": "금융 우체국까지 걷는 거리 (인구 가중)",
+   "percentile": 0,
+   "rank": 1,
+   "rankOf": 1,
+   "unit": "m",
+   "value": 2556.1
+  },
+  {
+   "code": "WALK30_NO_FIN_PPLTN",
+   "higherIsWorse": true,
+   "name": "걸어서 30분 안에 금융 우체국이 없는 인구",
+   "percentile": 0,
+   "rank": 1,
+   "rankOf": 1,
+   "unit": "명",
+   "value": 350
+  },
+  {
+   "code": "WALK30_NO_FIN_SHARE",
+   "higherIsWorse": true,
+   "name": "걸어서 30분 안에 금융 우체국이 없는 인구 비율",
+   "percentile": 0,
+   "rank": 1,
+   "rankOf": 1,
+   "unit": "%",
+   "value": 77.8
+  },
+  {
+   "code": "WALK30_NO_CASH_PPLTN",
+   "higherIsWorse": true,
+   "name": "걸어서 30분 안에 대면 금융 창구가 없는 인구",
+   "percentile": 0,
+   "rank": 1,
+   "rankOf": 1,
+   "unit": "명",
+   "value": 300
+  },
+  {
+   "code": "FAC_CNT_R1KM",
+   "higherIsWorse": false,
+   "name": "반경 1km 안 금융 가능 우체국 수",
+   "percentile": 0,
+   "rank": 2,
+   "rankOf": 4,
+   "unit": "개",
+   "value": 0
+  },
+  {
+   "code": "FAC_CNT_R2KM",
+   "higherIsWorse": false,
+   "name": "반경 2km 안 금융 가능 우체국 수",
+   "percentile": 0,
+   "rank": 2,
+   "rankOf": 4,
+   "unit": "개",
+   "value": 0
+  },
+  {
+   "code": "FAC_CNT_R5KM",
+   "higherIsWorse": false,
+   "name": "반경 5km 안 금융 가능 우체국 수",
+   "percentile": 33.3,
+   "rank": 1,
+   "rankOf": 4,
+   "unit": "개",
+   "value": 1
+  },
+  {
+   "code": "HAS_365",
+   "higherIsWorse": false,
+   "name": "365코너 존재 여부",
+   "percentile": 0,
+   "rank": 2,
+   "rankOf": 4,
+   "unit": "0/1",
+   "value": 0
+  },
+  {
+   "code": "LUNCH_CLOSED_RATIO",
+   "higherIsWorse": true,
+   "name": "점심 휴무 우체국 비율",
+   "percentile": null,
+   "rank": null,
+   "rankOf": null,
+   "unit": "%",
+   "value": null
+  },
+  {
+   "code": "ACCESS_GAP_SCORE",
+   "higherIsWorse": true,
+   "name": "접근성 취약 점수",
+   "percentile": 0,
+   "rank": 4,
+   "rankOf": 4,
+   "unit": "점",
+   "value": 24
+  },
+  {
+   "code": "NEAREST_BANK_DIST_M",
+   "higherIsWorse": true,
+   "name": "최근접 은행·금고 지점 거리",
+   "percentile": 0,
+   "rank": 4,
+   "rankOf": 4,
+   "unit": "m",
+   "value": 3605.55
+  },
+  {
+   "code": "POST_ONLY_PPLTN",
+   "higherIsWorse": true,
+   "name": "우체국만 있는 인구",
+   "percentile": 0,
+   "rank": 2,
+   "rankOf": 4,
+   "unit": "명",
+   "value": 0
+  },
+  {
+   "code": "FIN_DESERT_PPLTN",
+   "higherIsWorse": true,
+   "name": "금융 공백 인구",
+   "percentile": 33.3,
+   "rank": 3,
+   "rankOf": 4,
+   "unit": "명",
+   "value": 1000
+  }
+ ],
+ "nearest": [
+  {
+   "addr": null,
+   "distM": 3000,
+   "driveMin": null,
+   "finAvailable": true,
+   "financeTime": "09:00~16:30",
+   "histId": 1,
+   "lat": 37.117,
+   "lon": 127.556,
+   "name": "F1",
+   "rank": 1,
+   "roadM": null
+  },
+  {
+   "addr": null,
+   "distM": 10770.33,
+   "driveMin": null,
+   "finAvailable": true,
+   "financeTime": "09:00~16:30",
+   "histId": 2,
+   "lat": 37.18,
+   "lon": 127.669,
+   "name": "F2",
+   "rank": 2,
+   "roadM": null
+  },
+  {
+   "addr": null,
+   "distM": 11000,
+   "driveMin": null,
+   "finAvailable": true,
+   "financeTime": "09:00~16:30",
+   "histId": 3,
+   "lat": 37.243,
+   "lon": 127.556,
+   "name": "F3",
+   "rank": 3,
+   "roadM": null
+  }
+ ],
+ "nearestBanks": [
+  {
+   "addr": null,
+   "distM": 3605.6,
+   "lat": 37.162,
+   "lon": 127.523,
+   "name": "K1"
+  },
+  {
+   "addr": null,
+   "distM": 5060.6,
+   "lat": 37.172,
+   "lon": 127.511,
+   "name": "M1"
+  },
+  {
+   "addr": null,
+   "distM": 18384.8,
+   "lat": 37.261,
+   "lon": 127.703,
+   "name": "S1"
+  }
+ ],
+ "parentCd": "99",
+ "parentNm": null,
+ "population": {
+  "agedChildIdx": 100,
+  "avgAge": null,
+  "loadedAt": "<ts>",
+  "ppltnDnsty": null,
+  "totPpltn": 1000
+ },
+ "repPoint": {
+  "lat": 37.144,
+  "lon": 127.556
+ },
+ "residentPop": null,
+ "statYear": 2024
+}
