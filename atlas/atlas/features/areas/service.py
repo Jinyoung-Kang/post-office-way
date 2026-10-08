@@ -19,7 +19,7 @@ from atlas.features.areas import queries as q
 
 DEFAULT_SIMPLIFY = {2: 200.0, 3: 50.0}
 GEO_TTL = 24 * 3600          # 계산이 바뀌면 키(calc_run)가 바뀌지만, 쓰이지 않는 키가 남지 않게 만료도 둠
-_PARENT = re.compile(r"^\d{2}(\d{3})?$")
+_PARENT = re.compile(r"[0-9]{2}(?:[0-9]{3})?")   # ASCII 숫자만 — \d 는 아랍·전각 숫자도, $ 는 끝 줄바꿈도 받음
 
 
 def metric_row(c: Connection, code: str) -> dict[str, Any]:
@@ -32,14 +32,18 @@ def metric_row(c: Connection, code: str) -> dict[str, Any]:
 def _check_parent(parent: str | None) -> None:
     # 시도 2자리·시군구 5자리만 — 자유 문자열이면 LIKE 와일드카드('%')로 level=3 의 parent 필수 제한을 피해
     # 전국 읍면동을 받거나, 값마다 만료 없는 캐시 키가 생겼음 (S3)
-    if parent is not None and not _PARENT.match(parent):
+    if parent is not None and not _PARENT.fullmatch(parent):
         raise Invalid("parent 는 시도 2자리 또는 시군구 5자리 숫자입니다.")
 
 
 def simplify_step(v: float | None) -> float | None:
     """단순화 허용 오차를 10m 단위로 묶음 — 임의 실수마다 전국 경계 단순화(최대 수 초)와 캐시 키가 새로 생기지 않게.
+    0 은 원본 그대로, 0 보다 크면 최소 10m (예전에는 0~5 가 0 으로 반올림돼 가장 무거운 원본 경계가 나갔음).
     값을 거부하지 않으므로 기존 요청은 그대로 동작."""
-    return None if v is None else float(round(v / 10) * 10)
+    if v is None:
+        return None
+    return 0.0 if v <= 0 else max(10.0, float(round(v / 10) * 10))
+
 
 def _check_level(level: int, parent: str | None, run: dict[str, Any]) -> None:
     if level not in (2, 3):

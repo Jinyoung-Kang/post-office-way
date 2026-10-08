@@ -86,7 +86,7 @@ def test_geojson_free_inputs_are_bounded(client):
     from atlas.features.areas.service import simplify_step
 
     assert simplify_step(123.4567) == simplify_step(120.0) == 120.0
-    assert simplify_step(0) == 0.0 and simplify_step(None) is None and simplify_step(4.9) == 0.0
+    assert simplify_step(0) == 0.0 and simplify_step(None) is None and simplify_step(4.9) == 10.0   # 0 초과는 최소 10m
     assert client.get("/api/v1/visit/conditions", params={"sido": "%"}).status_code == 400   # 값마다 판정 300ms 방지
 
 
