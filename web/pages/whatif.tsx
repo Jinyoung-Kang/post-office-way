@@ -83,7 +83,7 @@ export default function WhatIfPage() {
 
   return (
     <Layout title="What-if">
-      <Hero wide title="What-if — 우체국이 문을 닫는다면" sub="우체국 1~5곳이 문을 닫는다고 하면, 그 우체국이 가장 가까웠던 지역의 거리가 얼마나 늘어나는지 계산합니다." />
+      <Hero wide title="What-if" sub="우체국 1~5곳이 문을 닫는다고 하면, 그 우체국이 가장 가까웠던 지역의 거리가 얼마나 늘어나는지 계산합니다." />
       <div className="mx-auto grid max-w-wide grid-cols-1 gap-5 px-4 pb-20 lg:grid-cols-[360px_minmax(0,1fr)]">
         <div className="space-y-5">
           <Card title="우체국 고르기">

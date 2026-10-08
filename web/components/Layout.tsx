@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { useEffect, useState, type ReactNode } from "react";
 import { cachedApi, type CalendarDay } from "@/lib/api";
-import { dt, short } from "@/lib/format";
+import { dt, sentences, short } from "@/lib/format";
 
 const NAV = [
   { href: "/overview", label: "한눈에" },
@@ -97,16 +97,17 @@ export default function Layout({ children, full, title }: { children: ReactNode;
   );
 }
 
-// 화면 머리 — 왼쪽 정렬, 본문 틀과 같은 폭(wide = 넓은 화면)이라 왼쪽 끝이 아래 카드와 맞음.
-// 큰 제목 문장은 두지 않고, 메뉴 이름을 화면 낭독기·검색용 제목(h1)으로만 남김 (페이지마다 h1 하나 — 접근성)
-export function Hero({ eyebrow, title, sub, children, wide }: {
-  eyebrow?: string; title: string; sub?: ReactNode; children?: ReactNode; wide?: boolean;
-}) {
+// 화면 머리 — 메뉴 이름(h1)과 설명. 왼쪽 정렬, 본문 틀과 같은 폭(wide = 넓은 화면)이라 왼쪽 끝이 아래 카드와 맞음.
+// 설명은 문장마다 줄을 바꿔 구절 중간에서 끊기지 않게 (좁은 화면에서는 어절 단위로만 줄바꿈)
+export function Hero({ title, sub, children, wide }: { title: string; sub?: string; children?: ReactNode; wide?: boolean }) {
   return (
     <section className={`rise mx-auto px-4 pb-6 pt-8 md:pt-10 ${wide ? "max-w-wide" : "max-w-page"}`}>
-      <h1 className="sr-only">{title}</h1>
-      {eyebrow && <p className="eyebrow mb-2">{eyebrow}</p>}
-      {sub && <p className="hero-sub max-w-3xl">{sub}</p>}
+      <h1 className="page-name">{title}</h1>
+      {sub && (
+        <p className="page-desc mt-2">
+          {sentences(sub).map((s) => <span key={s} className="block">{s}</span>)}
+        </p>
+      )}
       {children && <div className="mt-5 flex flex-wrap items-center gap-3">{children}</div>}
     </section>
   );

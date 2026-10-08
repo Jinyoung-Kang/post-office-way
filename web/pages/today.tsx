@@ -67,7 +67,7 @@ export default function TodayPage() {
   return (
     <Layout title="방문 여건">
       <MapWarmup />
-      <Hero eyebrow="오늘의 방문 여건" title="방문 여건"
+      <Hero title="오늘의 방문 여건"
         sub="기상청 단기예보와 에어코리아 미세먼지 예보로 시군구마다 창구 운영 시간(09~18시)의 방문 부담을 판정하고, 우체국에서 멀리 사는 고령인구와 함께 보여 줍니다." />
 
       <div className="mx-auto max-w-page space-y-5 px-4 pb-20">

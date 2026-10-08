@@ -120,3 +120,6 @@ export function groupMetrics<T extends { code: string }>(items: T[]): { label: s
   items.forEach((m) => { const g = METRIC_GROUP[m.code] || "기타"; by.set(g, [...(by.get(g) || []), m]); });
   return GROUP_ORDER.filter((g) => by.has(g)).map((g) => ({ label: g, items: by.get(g)! }));
 }
+
+// '…니다. …' → 문장 배열 (마침표·물음표 뒤 공백에서 나눔). 화면 머리 설명을 문장마다 한 줄로 보이는 데 씀
+export const sentences = (text: string) => text.split(/(?<=[.?!])\s+/).filter(Boolean);

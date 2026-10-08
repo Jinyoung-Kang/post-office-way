@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classOf, dist, groupMetrics, num, quantileBreaks, SEQ, shortSido, walkMin, withUnit } from "./format";
+import { classOf, dist, groupMetrics, num, quantileBreaks, sentences, SEQ, shortSido, walkMin, withUnit } from "./format";
 
 describe("quantileBreaks", () => {
   it("값이 고르게 퍼지면 단계 수 - 1 개의 경계", () => {
@@ -58,5 +58,13 @@ describe("groupMetrics", () => {
   it("주제 순서대로 묶고 모르는 코드는 기타", () => {
     const g = groupMetrics([{ code: "POST_SOLE_HUB_PPLTN" }, { code: "NEAREST_FIN_DIST_M" }, { code: "NEW_ONE" }]);
     expect(g.map((x) => x.label)).toEqual(["우체국 거리", "생활 거점", "기타"]);
+  });
+});
+
+describe("sentences", () => {
+  it("마침표 뒤 공백에서만 나눔 — 숫자 속 점·괄호는 그대로", () => {
+    expect(sentences("집계구(평균 약 500명)마다 판정합니다. 0.8m/s 로 걷습니다.")).toEqual(["집계구(평균 약 500명)마다 판정합니다.", "0.8m/s 로 걷습니다."]);
+    expect(sentences("한 문장입니다.")).toEqual(["한 문장입니다."]);
+    expect(sentences("2026년 개정된 절차를 참고합니다. 분석용입니다. ")).toHaveLength(2);
   });
 });
