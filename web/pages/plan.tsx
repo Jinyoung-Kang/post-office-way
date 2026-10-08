@@ -20,7 +20,7 @@ type Mode = "close" | "open";
 export default function PlanPage() {
   const regions = useApi<{ items: Region[] }>("/meta/regions", { cacheMs: 600_000 }).data?.items ?? [];
   // 조건은 주소에 (?mode=open&scope=37520&k=4&weight=pop) — 결과 화면을 그대로 공유
-  const [mode, setMode] = useQueryState<Mode>("mode", "close", ["close", "open"]);
+  const [mode, setMode, ready] = useQueryState<Mode>("mode", "close", ["close", "open"]);
   const [scopeQ, setScopeQ] = useQueryState<string>("scope", "");
   const [kStr, setKStr] = useQueryState<string>("k", "3");
   const k = Math.min(7, Math.max(1, Number(kStr) || 3));
@@ -41,7 +41,7 @@ export default function PlanPage() {
 
   // 범위의 읍면동 지도 (현재 최근접 거리) — 결과 위치를 보는 바탕
   // 시도·시군구를 빠르게 바꾸면 느린 이전 응답이 나중에 도착할 수 있어, 현재 범위의 응답만 반영 (useApi)
-  const fc = useApi<AreaFC>(scope ? `/areas/geojson${qs({ level: 3, metric: "NEAREST_FIN_DIST_M", parent: scope })}` : null,
+  const fc = useApi<AreaFC>(ready && scope ? `/areas/geojson${qs({ level: 3, metric: "NEAREST_FIN_DIST_M", parent: scope })}` : null,
     { cacheMs: 60_000 }).data;
 
   async function run() {

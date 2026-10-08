@@ -20,19 +20,23 @@ function replaceQuery(router: ReturnType<typeof useRouter>, patch: Record<string
   }, 0);
 }
 
-export function useQueryState<T extends string>(key: string, def: T, allowed?: readonly T[]): [T, (v: T) => void] {
+// 세 번째 값 ready = 주소 값을 상태에 반영한 뒤 — 그 전에 기본값으로 조회하면 주소에 조건이 있는 화면(?sido=47)이
+// 기본 조건으로 한 번, 주소 조건으로 또 한 번 요청함. 같은 화면의 useQueryState 들은 같은 커밋에서 함께 ready 가 됨
+export function useQueryState<T extends string>(key: string, def: T, allowed?: readonly T[]): [T, (v: T) => void, boolean] {
   const router = useRouter();
   const [value, setValue] = useState<T>(def);
+  const [ready, setReady] = useState(false);
   const raw = router.query[key];
   useEffect(() => {
     if (!router.isReady) return;
     const v = typeof raw === "string" ? (raw as T) : def;
     setValue(allowed && !allowed.includes(v) ? def : v);
+    setReady(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router.isReady, raw]);
   const set = useCallback((v: T) => {
     setValue(v);
     replaceQuery(router, { [key]: v === def ? undefined : v });
   }, [router, key, def]);
-  return [value, set];
+  return [value, set, ready];
 }

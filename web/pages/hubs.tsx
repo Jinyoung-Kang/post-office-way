@@ -17,12 +17,12 @@ export default function HubsPage() {
   const sumQ = useApi<HubSummary>("/hubs/summary", { cacheMs: 60_000 });
   const sum = sumQ.data;
   const regions = useApi<{ items: Region[] }>("/meta/regions", { cacheMs: 600_000 }).data?.items ?? [];
-  const [sido, setSido] = useQueryState<string>("sido", "");
+  const [sido, setSido, ready] = useQueryState<string>("sido", "");
   const [sort, setSort] = useQueryState<Sort>("sort", "soleHub", ["soleHub", "soleFin", "served"]);
   const [pageStr, setPageStr] = useQueryState<string>("page", "1");
   const page = Math.max(1, Number(pageStr) || 1);
-  const listQ = useApi<Page<HubFacility>>(`/hubs/facilities${qs({ sido: sido || undefined, sort, page, size: SIZE })}`);
-  const list = listQ.data, loadingList = listQ.loading;
+  const listQ = useApi<Page<HubFacility>>(ready ? `/hubs/facilities${qs({ sido: sido || undefined, sort, page, size: SIZE })}` : null);
+  const list = listQ.data, loadingList = !ready || listQ.loading;   // 주소 값 반영 전에도 받는 중으로 (자리 표시 유지)
   const err = (sumQ.error ?? listQ.error)?.message ?? null;
 
   const noData = isNoData(sumQ.error ?? listQ.error);

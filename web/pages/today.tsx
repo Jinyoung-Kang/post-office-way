@@ -20,11 +20,11 @@ type P = AreaProps & { visit?: VisitItem };
 
 export default function TodayPage() {
   const router = useRouter();
-  const [date, setDate] = useQueryState<string>("date", "");   // 비우면 서버가 오늘(운영 끝났으면 내일)을 고름
+  const [date, setDate, ready] = useQueryState<string>("date", "");   // 비우면 서버가 오늘(운영 끝났으면 내일)을 고름
   const [all, setAll] = useState(false);
 
   const fc = useApi<AreaFC>(`/areas/geojson${qs({ level: 2, metric: "AGED65_FAR_PPLTN" })}`, { cacheMs: 60_000 }).data;
-  const { data: d, error } = useApi<VisitConditions>(`/visit/conditions${qs({ date: date || undefined })}`);
+  const { data: d, error } = useApi<VisitConditions>(ready ? `/visit/conditions${qs({ date: date || undefined })}` : null);
   const err = error ? { code: (error as ApiError).code as string | undefined, message: error.message } : null;
 
   const byCd = useMemo(() => new Map((d?.items || []).map((x) => [x.admCd, x])), [d]);

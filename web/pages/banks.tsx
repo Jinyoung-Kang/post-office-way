@@ -33,7 +33,7 @@ const ALT_BANDS = [
 
 export default function BanksPage() {
   const regions = useApi<{ items: Region[] }>("/meta/regions", { cacheMs: 600_000 }).data?.items ?? [];
-  const [sido, setSido] = useQueryState<string>("sido", "");
+  const [sido, setSido, ready] = useQueryState<string>("sido", "");
   const [grade, setGrade] = useQueryState<Grade>("grade", "", ["", "HIGH", "MID", "LOW"]);
   const [sort, setSort] = useQueryState<Sort>("sort", "lost", ["lost", "catch", "aged", "walk", "far"]);
   const [pageStr, setPageStr] = useQueryState<string>("page", "1");
@@ -41,8 +41,8 @@ export default function BanksPage() {
   const page = Math.max(1, Number(pageStr) || 1);
   const detailRef = useRef<HTMLDivElement>(null);
   // 조건을 빠르게 바꿀 때 이전 응답이 덮어쓰지 않게 (useApi 가 이전 요청을 취소)
-  const listQ = useApi<BankImpactList>(`/banks/impact${qs({ sido: sido || undefined, grade: grade || undefined, sort, page, size: SIZE })}`);
-  const list = listQ.data, loading = listQ.loading;
+  const listQ = useApi<BankImpactList>(ready ? `/banks/impact${qs({ sido: sido || undefined, grade: grade || undefined, sort, page, size: SIZE })}` : null);
+  const list = listQ.data, loading = !ready || listQ.loading;   // 주소 값 반영 전에도 받는 중으로 (자리 표시 유지)
   const err = listQ.error?.message ?? null;
 
   // 지점을 고르지 않았으면 목록 1위를 보여 줌(주소에는 남기지 않음). 상세와 이용 주민 지도는 둘 다 와야 표시

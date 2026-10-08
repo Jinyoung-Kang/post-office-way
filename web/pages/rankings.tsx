@@ -17,7 +17,7 @@ export default function Rankings() {
   const metrics = (useApi<{ items: MetricDef[] }>("/metrics", { cacheMs: 600_000 }).data?.items ?? []).filter((m) => m.available);
   const regions = useApi<{ items: Region[] }>("/meta/regions", { cacheMs: 600_000 }).data?.items ?? [];
   // 모든 조건을 주소에 반영 (?metric=&level=3&sido=37&sort=asc) — 공유·새로고침에도 같은 순위
-  const [metric, setMetric] = useQueryState<string>("metric", "ACCESS_GAP_SCORE");
+  const [metric, setMetric, ready] = useQueryState<string>("metric", "ACCESS_GAP_SCORE");
   const [levelStr, setLevelStr] = useQueryState<"2" | "3">("level", "2", ["2", "3"]);
   const level = Number(levelStr) as 2 | 3;
   const setLevel = (l: 2 | 3) => setLevelStr(String(l) as "2" | "3");
@@ -27,7 +27,7 @@ export default function Rankings() {
 
   // 시군구 순위는 시도와 무관 — 시도 목록이 늦게 와 기본 시도가 정해져도 다시 요청하지 않게 요청에 쓰는 값만 의존
   const parent = level === 3 ? sido : "";
-  const { data, error } = useApi<Resp>(level === 3 && !parent ? null
+  const { data, error } = useApi<Resp>(!ready || (level === 3 && !parent) ? null
     : `/areas${qs({ level, metric, parent: parent || undefined, sort, size: 20 })}`);
   const err = error?.message ?? null;
 
