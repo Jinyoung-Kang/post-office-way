@@ -402,3 +402,23 @@ def test_csp_report_not_recorded_without_redis(client, engine, monkeypatch):
     client.post("/api/v1/csp-report", json=_csp("cdn.example"), headers={"Content-Type": "application/csp-report"})
     with engine.connect() as c:
         assert c.execute(text("SELECT count(*) FROM ops.app_error WHERE source = 'csp'")).scalar() == 0
+
+
+def test_reap_closes_orphan_runs_so_retry_works(fake_jobs, engine):
+    """워커가 죽어 작업을 정리(reap)하면 그 작업이 연 실행 기록도 닫혀야 재시도가 '이미 실행 중'으로 실패하지 않음 (R1)."""
+    from atlas.collector import runs
+    from atlas.core.jobctx import current_job_id
+
+    jid = queue.enqueue("okjob")
+    job = queue.claim("w1")
+    tok = current_job_id.set(job["job_id"])
+    try:
+        rid = runs.start_run("POST_AREA")              # 수집 도중 워커가 죽음 → RUNNING 으로 남음
+    finally:
+        current_job_id.reset(tok)
+    with engine.begin() as c:
+        c.execute(text("UPDATE ops.job SET heartbeat_at = now() - interval '1 hour' WHERE job_id = :j"), {"j": jid})
+    queue.reap()
+    with engine.connect() as c:
+        assert c.execute(text("SELECT status FROM ops.collect_run WHERE collect_run_id = :r"), {"r": rid}).scalar() == "FAILED"
+    runs.start_run("POST_AREA")                          # 재시도가 막히지 않음

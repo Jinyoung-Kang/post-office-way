@@ -120,17 +120,24 @@ def finish(job_id: int, ok: bool, result: dict[str, Any] | None = None, error: s
 
 
 def reap(engine: Engine | None = None) -> dict[str, int]:
-    """하트비트가 끊긴 RUNNING 작업 — 시도 횟수가 남았으면 다시 대기열로, 아니면 FAILED."""
+    """하트비트가 끊긴 RUNNING 작업 — 시도 횟수가 남았으면 다시 대기열로, 아니면 FAILED.
+    그 작업이 연 실행 기록(수집·계산·도보)도 FAILED 로 닫음 — 남으면 재시도가 '이미 실행 중'으로 실패 (R1)."""
     with (engine or get_engine()).begin() as c:
-        requeued = c.execute(text(f"""
+        requeued = [r[0] for r in c.execute(text(f"""
             UPDATE ops.job SET status = 'QUEUED', worker = NULL, error = '워커 응답 없음 — 다시 대기열로'
              WHERE status = 'RUNNING' AND heartbeat_at < now() - interval '{STALE_MIN} minutes'
-               AND attempts < max_attempts""")).rowcount
-        failed = c.execute(text(f"""
+               AND attempts < max_attempts RETURNING job_id"""))]
+        failed = [r[0] for r in c.execute(text(f"""
             UPDATE ops.job SET status = 'FAILED', finished_at = now(), error = '워커 응답 없음 — 재시도 횟수 초과'
-             WHERE status = 'RUNNING' AND heartbeat_at < now() - interval '{STALE_MIN} minutes'""")).rowcount
+             WHERE status = 'RUNNING' AND heartbeat_at < now() - interval '{STALE_MIN} minutes'
+            RETURNING job_id"""))]
+        if ids := requeued + failed:
+            for table in ("ops.collect_run", "mart.calc_run", "mart.walk_run"):
+                c.execute(text(f"""UPDATE {table} SET status = 'FAILED', finished_at = now(),
+                                          error = '워커 응답 없음 — 작업이 중단되어 닫음'
+                                    WHERE status = 'RUNNING' AND job_id = ANY(CAST(:ids AS bigint[]))"""), {"ids": ids})
         c.execute(text("DELETE FROM ops.worker WHERE last_seen < now() - interval '1 day'"))   # 꺼진 워커 흔적
-    return {"requeued": requeued, "failed": failed}
+    return {"requeued": len(requeued), "failed": len(failed)}
 
 
 def cancel(job_id: int, engine: Engine | None = None) -> bool:

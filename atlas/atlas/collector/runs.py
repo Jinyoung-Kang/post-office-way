@@ -8,6 +8,7 @@ from typing import Any
 from sqlalchemy import text
 
 from atlas.core.db import begin
+from atlas.core.jobctx import current_job_id
 from atlas.core.masking import safe_error
 
 # RUNNING 인 채로 이 시간이 지나면 죽은 실행으로 보고 새 실행을 막지 않습니다.
@@ -33,9 +34,9 @@ def start_run(kind: str, scope: str | None = None, check_running: bool = True) -
     if check_running and (rid := running_run(kind)):
         raise RunInProgress(kind, rid)
     with begin() as c:
-        rid = c.execute(text("""INSERT INTO ops.collect_run (kind, status, scope, stats)
-                                VALUES (:k, 'RUNNING', :s, '{}'::jsonb) RETURNING collect_run_id"""),
-                        {"k": kind, "s": scope}).scalar_one()
+        rid = c.execute(text("""INSERT INTO ops.collect_run (kind, status, scope, stats, job_id)
+                                VALUES (:k, 'RUNNING', :s, '{}'::jsonb, :j) RETURNING collect_run_id"""),
+                        {"k": kind, "s": scope, "j": current_job_id.get()}).scalar_one()
     return rid
 
 
@@ -58,8 +59,9 @@ def reopen_run(run_id: uuid.UUID, kind: str) -> dict[str, Any]:
                           {"k": kind, "t": r.started_at}).first()
         if newer:
             raise ValueError("재개할 수 없습니다: 같은 종류의 더 최근 실행이 있습니다 — 새로 수집하세요.")
-        st = c.execute(text("""UPDATE ops.collect_run SET status = 'RUNNING', finished_at = NULL, error = NULL
-                               WHERE collect_run_id = :id RETURNING stats, scope"""), {"id": run_id}).first()
+        st = c.execute(text("""UPDATE ops.collect_run SET status = 'RUNNING', finished_at = NULL, error = NULL, job_id = :j
+                               WHERE collect_run_id = :id RETURNING stats, scope"""),
+                       {"id": run_id, "j": current_job_id.get()}).first()
     return {"kind": kind, "stats": st[0] or {}, "scope": st[1]}
 
 

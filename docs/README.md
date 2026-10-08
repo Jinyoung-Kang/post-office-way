@@ -82,6 +82,7 @@
 | V19 | 집계구별 가장 가까운 은행 지점·대체 창구 거리(`oa_bank`) |
 | V20 | 오류 로그 출처에 `csp`(CSP 위반 보고) |
 | V21 | `ops.error_ack` — 오류 로그 지우기(확인 표시, API 역할은 INSERT 만) |
+| V22 | 실행 기록(`collect_run`·`calc_run`·`walk_run`)에 작업 id — 워커가 죽어 작업을 정리할 때 그 실행 기록도 닫음 |
 
 - 지표 계산 SQL: `atlas/atlas/sql/calc/00_snapshot.sql` ~ `11_bank_impact.sql` (계산 실행 `calc_run` 단위로 결과 보존)
 - 판정 규칙: 금융 가능 `R-FIN-01` (`domain/rules.py`), 방문 여건 `VISIT-1` (`domain/visit.py`), 영업일 (`domain/calendar.py`),

@@ -18,6 +18,7 @@ import psycopg
 import sqlalchemy.exc
 
 from atlas.core.clock import now_kst
+from atlas.core.jobctx import current_job_id
 from atlas.core.config import get_settings
 from atlas.jobs import queue, registry, scheduler
 
@@ -44,9 +45,11 @@ def execute(job: dict[str, Any], worker: str | None = None, lane: str | None = N
     t.start()
     t0 = time.monotonic()
     log.info("job start", extra={"jobId": jid, "kind": kind, "attempt": job["attempts"]})
+    ctx = current_job_id.set(jid)                 # 이 작업이 여는 실행 기록에 작업 id 를 남김 (reap 때 닫기, R1)
     try:
         spec = registry.get(kind)
-        result = run_isolated(kind, job["params"] or {}) if spec.isolate else registry.run(kind, job["params"] or {})
+        result = (run_isolated(kind, job["params"] or {}, jid) if spec.isolate
+                  else registry.run(kind, job["params"] or {}))
         if spec.recalc and (job["params"] or {}).get("recalc", True):
             try:
                 result["chainedCalcJobId"] = queue.enqueue("calc", source="chain", requested_by=f"job:{jid}")
@@ -68,17 +71,19 @@ def execute(job: dict[str, Any], worker: str | None = None, lane: str | None = N
                                         "trace": traceback.format_exc(limit=3)})
         return False
     finally:
+        current_job_id.reset(ctx)
         stop.set()
 
 
-def _child(kind: str, params: dict[str, Any]) -> dict[str, Any]:
+def _child(kind: str, params: dict[str, Any], job_id: int | None = None) -> dict[str, Any]:
     from atlas.core.logging import setup_logging
 
     setup_logging()
+    current_job_id.set(job_id)
     return registry.run(kind, params)
 
 
-def run_isolated(kind: str, params: dict[str, Any]) -> dict[str, Any]:
+def run_isolated(kind: str, params: dict[str, Any], job_id: int | None = None) -> dict[str, Any]:
     """새 프로세스(spawn)에서 작업 하나 — 파이썬은 쓴 메모리를 OS 에 잘 돌려주지 않아, 도보 그래프(수 GB)를
     워커 프로세스에서 돌리면 끝난 뒤에도 1GB 넘게 남았음. 자식 프로세스가 끝나면 모두 반환되고, 자식이 죽어도 워커는 남음.
     fork 대신 spawn — 워커의 스레드·DB 연결을 물려받지 않게."""
@@ -86,7 +91,7 @@ def run_isolated(kind: str, params: dict[str, Any]) -> dict[str, Any]:
     from concurrent.futures import ProcessPoolExecutor
 
     with ProcessPoolExecutor(max_workers=1, mp_context=mp.get_context("spawn")) as ex:
-        return ex.submit(_child, kind, params).result()
+        return ex.submit(_child, kind, params, job_id).result()
 
 
 def _listen_conn() -> psycopg.Connection:

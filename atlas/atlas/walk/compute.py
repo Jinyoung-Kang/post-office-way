@@ -19,6 +19,7 @@ from sqlalchemy import text
 
 from atlas.core.config import get_settings
 from atlas.core.db import get_engine
+from atlas.core.jobctx import current_job_id
 from atlas.core.masking import safe_error
 
 log = logging.getLogger(__name__)
@@ -94,12 +95,13 @@ def run_walk(calc_run_id: str | None = None, graph=None) -> dict[str, Any]:
     within = float(s.walk_speed_mps) * s.walk_minutes * 60          # 0.8m/s × 30분 = 1,440m
     t0 = time.monotonic()
     with eng.begin() as c:
-        c.execute(text("""INSERT INTO mart.walk_run (calc_run_id, status, speed_mps, limit_m, graph)
-                          VALUES (:r, 'RUNNING', :sp, :lim, CAST(:g AS jsonb))
+        c.execute(text("""INSERT INTO mart.walk_run (calc_run_id, status, speed_mps, limit_m, graph, job_id)
+                          VALUES (:r, 'RUNNING', :sp, :lim, CAST(:g AS jsonb), :j)
                           ON CONFLICT (calc_run_id) DO UPDATE SET status = 'RUNNING', speed_mps = EXCLUDED.speed_mps,
                               limit_m = EXCLUDED.limit_m, graph = EXCLUDED.graph, stats = '{}', error = NULL,
-                              started_at = now(), finished_at = NULL"""),
-                  {"r": rid, "sp": s.walk_speed_mps, "lim": limit, "g": json.dumps(graph.meta, ensure_ascii=False)})
+                              started_at = now(), finished_at = NULL, job_id = EXCLUDED.job_id"""),
+                  {"r": rid, "sp": s.walk_speed_mps, "lim": limit, "g": json.dumps(graph.meta, ensure_ascii=False),
+                   "j": current_job_id.get()})
     try:
         with eng.connect() as c:
             oa = c.execute(text("""

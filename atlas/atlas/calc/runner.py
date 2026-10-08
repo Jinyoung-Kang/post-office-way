@@ -18,6 +18,7 @@ from atlas.collector.dq.rules import CALC_RULES, DQRecorder
 from atlas.core.config import get_settings
 from atlas.core.db import get_engine, run_sql_file
 from atlas.domain.rules import RULE_VERSION
+from atlas.core.jobctx import current_job_id
 from atlas.core.masking import safe_error
 
 log = logging.getLogger(__name__)
@@ -53,10 +54,10 @@ def create_calc_run(stat_year: int | None = None, levels: list[int] | None = Non
     p["levels"] = sorted(levels or p.get("levels") or s.levels)
     p["ruleVersion"] = RULE_VERSION
     with eng.begin() as c:
-        return c.execute(text("""INSERT INTO mart.calc_run (stat_year, facility_as_of, params, status)
-                                 VALUES (:y, :asof, CAST(:p AS jsonb), 'RUNNING') RETURNING calc_run_id"""),
+        return c.execute(text("""INSERT INTO mart.calc_run (stat_year, facility_as_of, params, status, job_id)
+                                 VALUES (:y, :asof, CAST(:p AS jsonb), 'RUNNING', :j) RETURNING calc_run_id"""),
                          {"y": stat_year or s.stat_year, "asof": facility_as_of or datetime.now(timezone.utc),
-                          "p": json.dumps(p)}).scalar_one()
+                          "p": json.dumps(p), "j": current_job_id.get()}).scalar_one()
 
 
 def execute_calc_run(calc_run_id: uuid.UUID, engine: Engine | None = None) -> dict[str, Any]:
