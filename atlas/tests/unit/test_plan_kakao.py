@@ -1,7 +1,7 @@
 """⑤ 배치 제안 탐욕 알고리즘 · ③④ 카카오 보조 함수 — 손 계산 기대값."""
 import pytest
 
-from atlas.api.services.plan import Area, greedy_close, greedy_open
+from atlas.domain.placement import Area, greedy_close, greedy_open
 from atlas.collector.kakao.client import classify_bank, clean_addr, haversine_m
 
 
@@ -65,7 +65,7 @@ def test_clean_addr_and_haversine():
 
 def test_single_impacts_matches_greedy_one_step():
     """단독 영향(한 번에 계산)이 탐욕법 1단계를 시설마다 따로 돌린 결과와 같아야 함."""
-    from atlas.api.services.plan import single_impacts
+    from atlas.domain.placement import single_impacts
 
     areas = [Area("X", 10, [(1, 100), (2, 300), (3, 900)]), Area("Y", 1, [(2, 100), (1, 2500)]),
              Area("Z", 5, [(3, 1800), (1, 2600)])]
