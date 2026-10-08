@@ -127,8 +127,15 @@ def run_whatif(c: Connection, calc_run_id: str | None, remove_ids: list[int], le
         summary.update(_oa_impact(c, run, ids, far_m))
         sid = c.execute(text("""INSERT INTO mart.whatif_scenario (calc_run_id, level, removed_hist_ids, status, summary)
                                 VALUES (:run, :lvl, CAST(:ids AS bigint[]), 'DONE', CAST(:s AS jsonb))
+                                ON CONFLICT (calc_run_id, level, removed_hist_ids) DO NOTHING
                                 RETURNING scenario_id"""),
-                        {"run": run["calc_run_id"], "lvl": lvl, "ids": ids, "s": json.dumps(jsonable(summary))}).scalar_one()
+                        {"run": run["calc_run_id"], "lvl": lvl, "ids": ids, "s": json.dumps(jsonable(summary))}).scalar()
+        if sid is None:
+            # 같은 시나리오를 다른 요청(동시 요청·더블클릭)이 먼저 저장함 — 그것을 돌려줌 (예전에는 고유 제약 위반으로 500, R3)
+            existing = c.execute(text("""SELECT scenario_id FROM mart.whatif_scenario
+                                         WHERE calc_run_id = :run AND level = :lvl AND removed_hist_ids = CAST(:ids AS bigint[])"""),
+                                 {"run": run["calc_run_id"], "lvl": lvl, "ids": ids}).scalar_one()
+            return get_scenario(c, str(existing))
         for r in results:
             c.execute(text("""INSERT INTO mart.whatif_result (scenario_id, adm_cd, affected_ppltn, affected_aged65,
                                      dist_before_m, dist_after_m, new_nearest_hist_id, nearest_bank_m)

@@ -90,3 +90,40 @@ def test_partial_equals_full_random(clean, engine):
             full = recompute_all(c, run, 2, removed)
             merged = {**base, **partial}
             assert merged == full, f"trial {trial} removed={removed}"
+
+
+def test_concurrent_same_scenario_returns_existing(terrain, engine, monkeypatch):
+    """같은 What-if 요청이 동시에 오면(더블클릭) 두 번째가 고유 제약 위반(500)이 아니라 먼저 저장된 시나리오를 받음 (R3)."""
+    import threading
+
+    from atlas.api import cache
+
+    monkeypatch.setattr(cache, "get", lambda k: None)          # 캐시를 거치지 않고 DB 경쟁만
+
+    run_calc(stat_year=2024, levels=[2])
+    ids = [terrain["F1"]]
+    first_inserted, release = threading.Event(), threading.Event()
+    out: dict[str, object] = {}
+
+    def first():
+        with engine.begin() as c:
+            out["a"] = run_whatif(c, None, ids, 2)
+            first_inserted.set()
+            release.wait(10)                                   # 커밋 전에 두 번째 요청이 들어옴
+
+    def second():
+        first_inserted.wait(10)
+        try:
+            with engine.begin() as c:
+                out["b"] = run_whatif(c, None, ids, 2)          # 첫 번째 커밋까지 INSERT 가 기다림
+        except Exception as e:  # noqa: BLE001
+            out["b_error"] = e
+
+    ta, tb = threading.Thread(target=first), threading.Thread(target=second)
+    ta.start(); tb.start()
+    first_inserted.wait(10)
+    import time; time.sleep(0.5)                               # 두 번째가 INSERT 에서 기다리는 중
+    release.set()
+    ta.join(15); tb.join(15)
+    assert "b_error" not in out, out.get("b_error")
+    assert out["b"]["scenarioId"] == out["a"]["scenarioId"]
