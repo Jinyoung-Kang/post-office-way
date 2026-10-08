@@ -57,9 +57,8 @@ export default function Layout({ children, full, title }: { children: ReactNode;
       <a href="#main" className="skip-link">본문으로 건너뛰기</a>
       <header className="gnav">
         <div className="mx-auto flex h-full max-w-wide items-center gap-2 px-4">
-          <Link href="/overview" className="mr-2 flex shrink-0 items-center gap-2 text-ink no-underline" aria-label="우체국 가는 길 홈">
-            <Logo />
-            <span className="hidden text-[14px] font-semibold tracking-tight sm:inline">우체국 가는 길</span>
+          <Link href="/overview" className="mr-2 shrink-0 text-[14px] font-semibold tracking-tight text-ink no-underline" aria-label="우체국 가는 길 홈">
+            우체국 가는 길
           </Link>
           <nav className="-mx-1 flex flex-1 items-center justify-start gap-0.5 overflow-x-auto md:justify-center">
             {NAV.map((n) => {
@@ -98,23 +97,17 @@ export default function Layout({ children, full, title }: { children: ReactNode;
   );
 }
 
-function Logo() {
+// 화면 머리 — 왼쪽 정렬, 본문 틀과 같은 폭(wide = 넓은 화면)이라 왼쪽 끝이 아래 카드와 맞음.
+// 큰 제목 문장은 두지 않고, 메뉴 이름을 화면 낭독기·검색용 제목(h1)으로만 남김 (페이지마다 h1 하나 — 접근성)
+export function Hero({ eyebrow, title, sub, children, wide }: {
+  eyebrow?: string; title: string; sub?: ReactNode; children?: ReactNode; wide?: boolean;
+}) {
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
-      <rect x="2" y="2" width="20" height="20" rx="6" fill="#1d1d1f" />
-      <path d="M12 6.2a4.3 4.3 0 0 0-4.3 4.3c0 3.2 4.3 7.3 4.3 7.3s4.3-4.1 4.3-7.3A4.3 4.3 0 0 0 12 6.2Z" fill="#fff" />
-      <circle cx="12" cy="10.5" r="1.6" fill="#1d1d1f" />
-    </svg>
-  );
-}
-
-export function Hero({ eyebrow, title, sub, children }: { eyebrow?: string; title: ReactNode; sub?: ReactNode; children?: ReactNode }) {
-  return (
-    <section className="rise mx-auto max-w-page px-4 pb-8 pt-14 text-center md:pt-20">
+    <section className={`rise mx-auto px-4 pb-6 pt-8 md:pt-10 ${wide ? "max-w-wide" : "max-w-page"}`}>
+      <h1 className="sr-only">{title}</h1>
       {eyebrow && <p className="eyebrow mb-2">{eyebrow}</p>}
-      <h1 className="hero-title">{title}</h1>
-      {sub && <p className="hero-sub mx-auto mt-4 max-w-2xl">{sub}</p>}
-      {children && <div className="mt-6 flex flex-wrap items-center justify-center gap-3">{children}</div>}
+      {sub && <p className="hero-sub max-w-3xl">{sub}</p>}
+      {children && <div className="mt-5 flex flex-wrap items-center gap-3">{children}</div>}
     </section>
   );
 }

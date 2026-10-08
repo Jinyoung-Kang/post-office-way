@@ -86,7 +86,7 @@ export default function BanksPage() {
   return (
     <Layout title="은행 지점">
       <MapWarmup />
-      <Hero eyebrow="은행 지점 영향평가" title={<>은행이<br className="hidden sm:block" /> 문을 닫으면</>}
+      <Hero wide eyebrow="은행 지점 영향평가" title="은행 지점"
         sub="은행 지점마다 그 지점이 가장 가까운 주민을 찾고, 문을 닫으면 다른 은행이나 은행 업무를 하는 우체국까지 얼마나 멀어지는지 계산합니다. 2026년 개정된 은행 점포폐쇄 공동절차를 참고한 분석용 평가입니다." />
 
       <div className="mx-auto max-w-wide space-y-5 px-4 pb-20">
