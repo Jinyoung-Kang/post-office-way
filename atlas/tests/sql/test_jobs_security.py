@@ -567,3 +567,20 @@ def test_scheduler_survives_unexpected_error(monkeypatch):
     t.start()
     t.join(5)
     assert not t.is_alive() and len(calls) == 2
+
+
+def test_isolated_job_timeout_closes_its_runs(fake_jobs, engine, monkeypatch):
+    """격리 작업이 시간 초과·비정상 종료로 끝나면 자식의 정리 코드가 돌지 않아 그 작업이 연 실행 기록이 RUNNING 으로 남고,
+    다시 실행하면 '이미 실행 중'(6시간)으로 막혔음 — 작업이 실패로 끝날 때 그 작업의 RUNNING 기록을 닫음."""
+    from tests.unit import isolate_targets as t
+
+    real = worker.run_isolated
+    monkeypatch.setitem(registry.JOBS, "isojob", JobSpec("isojob", "격리", lambda p: {}, isolate=True, timeout_s=3))
+    monkeypatch.setattr(worker, "run_isolated", lambda kind, params, jid, timeout_s=None:
+                        real(kind, {"s": 30}, jid, timeout_s=timeout_s, target=t.open_run_and_sleep))
+    queue.enqueue("isojob")
+    job = queue.claim("w-long", kinds=["isojob"])
+    assert worker.execute(job) is False
+    with engine.connect() as c:
+        rows = c.execute(text("SELECT status, error FROM ops.collect_run WHERE job_id = :j"), {"j": job["job_id"]}).all()
+    assert rows and all(r[0] == "FAILED" for r in rows), rows

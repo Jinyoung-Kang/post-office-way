@@ -133,6 +133,22 @@ def finish(job_id: int, ok: bool, result: dict[str, Any] | None = None, error: s
     return bool(n)
 
 
+def _close_runs(c: Any, job_ids: list[int], reason: str) -> int:
+    """작업이 연 채 남은 실행 기록(수집·계산·도보)을 FAILED 로 — 남으면 다음 실행이 '이미 실행 중'으로 막힘."""
+    n = 0
+    for table in ("ops.collect_run", "mart.calc_run", "mart.walk_run"):
+        n += c.execute(text(f"""UPDATE {table} SET status = 'FAILED', finished_at = now(), error = :e
+                                 WHERE status = 'RUNNING' AND job_id = ANY(CAST(:ids AS bigint[]))"""),
+                       {"ids": job_ids, "e": reason}).rowcount
+    return n
+
+
+def close_runs(job_id: int, reason: str, engine: Engine | None = None) -> int:
+    """끝난(실패한) 작업의 RUNNING 실행 기록을 닫음 — 격리 작업이 시간 초과·비정상 종료로 끝나면 자식의 정리 코드가 돌지 않음."""
+    with (engine or get_engine()).begin() as c:
+        return _close_runs(c, [job_id], reason)
+
+
 def reap(engine: Engine | None = None) -> dict[str, int]:
     """하트비트가 끊긴 RUNNING 작업 — 시도 횟수가 남았으면 다시 대기열로, 아니면 FAILED.
     그 작업이 연 실행 기록(수집·계산·도보)도 FAILED 로 닫음 — 남으면 재시도가 '이미 실행 중'으로 실패 (R1)."""
@@ -151,10 +167,7 @@ def reap(engine: Engine | None = None) -> dict[str, int]:
             UPDATE ops.job j SET status = 'FAILED', finished_at = now(), error = '워커 응답 없음 — 재시도 횟수 초과'
              WHERE {stale} RETURNING job_id"""))]
         if ids := requeued + failed:
-            for table in ("ops.collect_run", "mart.calc_run", "mart.walk_run"):
-                c.execute(text(f"""UPDATE {table} SET status = 'FAILED', finished_at = now(),
-                                          error = '워커 응답 없음 — 작업이 중단되어 닫음'
-                                    WHERE status = 'RUNNING' AND job_id = ANY(CAST(:ids AS bigint[]))"""), {"ids": ids})
+            _close_runs(c, ids, "워커 응답 없음 — 작업이 중단되어 닫음")
         c.execute(text("DELETE FROM ops.worker WHERE last_seen < now() - interval '1 day'"))   # 꺼진 워커 흔적
     return {"requeued": len(requeued), "failed": len(failed)}
 
