@@ -30,6 +30,8 @@
 | [ADR-020](adr/ADR-020-region-report.md) | 지역 한 장 보고서 — 서버에서 묶기·계산 버전 캐시·SVG 작은 지도·인쇄 |
 | [ADR-021](adr/ADR-021-tailwind4.md) | Tailwind CSS 4 전환 — 빌드 도구 취약점 해소, 전후 픽셀 비교, cascade layer 함정, 모바일 가로 넘침 |
 | [ADR-022](adr/ADR-022-next16.md) | Next.js 16·React 19 전환 — CSP(인라인 스크립트 금지)를 지키려고 webpack 빌드 |
+| [ADR-023](adr/ADR-023-collector-data-guards.md) | 수집이 기존 자료를 지우지 않게 — 완전성 확인·대량 변경 상한·범위를 좁힌 삭제 |
+| [ADR-024](adr/ADR-024-code-layers.md) | 코드 계층 — 라우터(HTTP)·기능 모듈(흐름·조회)·도메인(순수 규칙), 화면은 Hook 과 순수 모듈 |
 
 ## API (`http://localhost:8100/api/v1`, 자동 문서 `/docs`)
 
@@ -59,7 +61,8 @@
 | `POST /admin/collect/{kind}` · `POST /admin/calc` | 이전 경로 호환 — 작업 큐로 넣음 |
 | `GET /metrics` (8100 직접) | Prometheus 지표 — 경로별 응답 시간·속도 제한·캐시 적중·304 |
 
-오류는 `{code, message, traceId}` 형식입니다(예: `CALC_RUN_NOT_FOUND`, `VISIT_NO_DATA`, `VALIDATION_ERROR`, `RATE_LIMITED`, `JOB_IN_PROGRESS`).
+오류는 `{code, message, traceId}` 형식입니다(예: `CALC_RUN_NOT_FOUND`, `VISIT_NO_DATA`, `VALIDATION_ERROR`, `RATE_LIMITED`, `JOB_IN_PROGRESS`,
+본문 64KB 초과 `PAYLOAD_TOO_LARGE`(413)). 규칙·조회 계층은 HTTP 를 모르고 도메인 오류만 던지며, 상태 코드는 `api/errors.py` 에서 정합니다.
 조회 응답에는 `ETag`(조건부 GET → 304), 모든 응답에 `X-Trace-Id`·`Server-Timing`·`X-RateLimit-*` 가 붙습니다.
 
 ## 데이터 구조 (`db/migrations`)
@@ -87,8 +90,10 @@
 | V23 | 같은 종류 작업은 '대기 중' 하나만(실행 중 하나 + 대기 중 하나) — 계산 중에 끝난 수집의 재계산이 빠지지 않게 |
 
 - 지표 계산 SQL: `atlas/atlas/sql/calc/00_snapshot.sql` ~ `11_bank_impact.sql` (계산 실행 `calc_run` 단위로 결과 보존)
-- 판정 규칙: 금융 가능 `R-FIN-01` (`domain/rules.py`), 방문 여건 `VISIT-1` (`domain/visit.py`), 영업일 (`domain/calendar.py`),
-  약국·병의원 행 해석 (`domain/care.py`)
+- 판정 규칙: 금융 가능 `R-FIN-01` (`domain/rules.py`), 방문 여건 `VISIT-1` (`domain/visit.py`), 영업일·영업 상태 (`domain/calendar.py`),
+  약국·병의원 행 해석 (`domain/care.py`), 배치 제안 탐욕 알고리즘 (`domain/placement.py`), What-if 요약 (`domain/whatif.py`),
+  개요 집계 (`domain/overview.py`), 파라미터 해석·'먼 거리' (`domain/params.py`)
+- API 기능 모듈: `features/<기능>` — 큰 기능은 `service.py`(흐름·캐시) + `queries.py`(SQL), 계산 실행 조회는 `calc/runs.py`
 - 도보: 그래프 `walk/graph.py` · k-최근접 탐색 `walk/ksource.py` · OSM 내려받기 `walk/osm.py` · 계산 `walk/compute.py`
 - 작업: 종류 목록·차선 `jobs/registry.py` · 큐·생존 신호 `jobs/queue.py` · 스케줄 `jobs/scheduler.py` · 워커(차선별 스레드) `jobs/worker.py`
 

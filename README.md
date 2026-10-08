@@ -17,9 +17,9 @@
 무거운 작업은 **자식 프로세스**(끝나면 메모리 반환), 워커 생존 신호·DB 끊김 자동 복구 · **k-최근접 다중 출발 다익스트라**(OSM 447만 꼭짓점,
 집계구 10만 곳 51초) · 사분할 격자 **전수 수집** · 마이그레이션 전용 단계 · 최소 권한 DB 역할 · 속도 제한·CSP(+위반 보고 수집)·
 비루트/읽기 전용 컨테이너 · 측정 기반 최적화(`make bench`, 주요 경로 p50 2.6~16배 개선) · Prometheus 지표 · 백업/복원 ·
-CI(테스트 200개, pip-audit·npm audit·gitleaks·이미지 빌드).
+CI(테스트 306개·React Hook 린트, pip-audit·npm audit·gitleaks·이미지 빌드).
 
-**품질 검증**: API 퍼징 654건 5xx 0 · 11개 화면 상호작용 크롤링 오류 0 · axe-core 접근성 위반 0 · Lighthouse 모바일 중앙값 ·
+**품질 검증**: API 퍼징 658건 5xx 0 · 실패 주입 7개 상황 · 11개 화면 상호작용 크롤링 오류 0 · axe-core 접근성 위반 0 · Lighthouse 모바일 중앙값 ·
 `make qa` 로 다시 돌림 — 결과와 찾아서 고친 문제는 [품질 검증](docs/quality.md).
 
 문서: [아키텍처](docs/architecture.md) · [설계 결정·API·데이터 구조](docs/README.md) · [품질 검증](docs/quality.md) ·
@@ -135,7 +135,7 @@ API 문서: http://localhost:8100/docs · Prometheus 지표: http://localhost:81
 | `make bench` | API 부하 측정(p50/p95·처리량) + 누적 시간 상위 SQL | 약 1분 |
 | `make migrate` | 스키마 마이그레이션 + API 역할 비밀번호 설정 (`make up` 이 자동 실행) | — |
 | `make backup` · `make restore FILE=…` · `make restore-undo` | DB 백업(`backups/`, `LITE=1` 은 원본 응답 제외) · 임시 DB 에 복원해 검증한 뒤 교체(이전 DB 는 `atlas_prev`) · 복원 되돌리기 | 백업 14초(경량 113MB) · 복원 약 50초 |
-| `make test` | Python 테스트 189개 (단위·계약·PostGIS SQL·What-if 동등성·k-최근접 정답 비교·은행 지점 영향·도보·작업 큐·권한·보안) | 약 20초 |
+| `make test` | Python 테스트 269개 (단위·계약·PostGIS SQL·응답 스냅숏·계층 의존 방향·What-if 동등성·k-최근접 정답 비교·은행 지점 영향·도보·수집 보호·작업 큐·권한·보안) | 약 30초 |
 | `make qa` · `make qa-lh` | 띄운 서비스 점검 — API 퍼징·11개 화면 크롤링·네트워크(중복·평문·CSP)·접근성·설명 줄바꿈 / Lighthouse 3회 중앙값 | 약 5분 · 약 20분 |
 | `make prune` | 오래된 원문·스냅샷은 종류별 최근 `KEEP=3` 수집만, 계산 결과는 최근 `KEEP_CALC=5` 만 | — |
 
@@ -185,7 +185,7 @@ VISIT-1(09~18시 비·눈·더위·추위·바람·미세먼지 → 좋음/주�
 | 분석 | SQL 지표 계산(calc_run 단위) · numpy · scipy(KD-tree) · pyosmium(OSM) · k-최근접 다중 출발 다익스트라(직접 구현) |
 | 프론트엔드 | Next.js 16.4(pages router, webpack 빌드 — [ADR-022](docs/adr/ADR-022-next16.md)) · React 19 · TypeScript 5.9 · Tailwind CSS 4.3 · Recharts · Kakao 지도 Web API · SVG(보고서 지도) |
 | 운영·보안 | Docker Compose(Debian 13 기반 이미지·비루트·읽기 전용 FS·`cap_drop: ALL`) · Prometheus 지표 · GitHub Actions · CodeQL · Dependabot · gitleaks · pip-audit · npm audit |
-| 검증 | pytest(PostGIS 테스트 DB) · Vitest · Playwright · axe-core · Lighthouse (`make test` · `make qa`) |
+| 검증 | pytest(PostGIS 테스트 DB) · Vitest · ESLint(React Hook 규칙) · Playwright · axe-core · Lighthouse (`make test` · `make qa`) |
 
 ```
 브라우저 ─▶ web (Next.js 16, CSP, 비루트) ─ /api/v1 ─▶ api (FastAPI, uvicorn×2, 읽기 전용 FS)
@@ -198,13 +198,17 @@ VISIT-1(09~18시 비·눈·더위·추위·바람·미세먼지 → 좋음/주�
                                     Redis (캐시 — 키에 데이터 버전 · 속도 제한)          (LISTEN · FOR UPDATE SKIP LOCKED · 생존 신호)
 ```
 
+- **코드 계층 (ADR-024)** — 라우터는 HTTP 만(SQL 없음), `features/<기능>` 이 흐름·캐시와 SQL(`queries.py`), `domain` 은 DB·웹 없는 순수 규칙.
+  의존은 바깥 → 안쪽으로만이고 테스트가 import 를 읽어 막음. 화면은 상태·부수효과를 Hook(`useApi`·`useBboxLayer`)으로, 규칙·변환은 순수 함수(`lib/choropleth`·`rules`·`mapGeom`)로.
+- **수집 보호 (ADR-023)** — 빈·일부 응답으로 기존 자료를 지우지 않게 완전성 확인, 한 번에 닫거나 지우는 양에 상한, 삭제는 실제로 받은 범위만.
 - 다이어그램과 흐름: [docs/architecture.md](docs/architecture.md). 지도 표시 방식은 [ADR-016](docs/adr/ADR-016-map-display.md). 모든 포트는 `127.0.0.1` 에만 바인딩합니다.
 - **작업 큐 (ADR-012)** — API 는 `ops.job` 에 넣고 알리기만, 워커가 `SKIP LOCKED` 로 가져가 실행. 같은 종류 중복 방지, 하트비트·재시도,
   수집 뒤 재계산 자동 연결, 스케줄 슬롯 고유키로 한 번만.
 - **차선·생존 신호 (ADR-017)** — short·long 차선 스레드가 자기 종류만 가져가 25분짜리 도로 거리 수집 중에도 예보가 제때 갱신.
   차선마다 30초 간격 생존 신호(`ops.worker`) → `/health`·데이터·운영 배지·compose healthcheck. DB 가 끊기면 차선이 스스로 다시 연결.
   `/health/live`(생존)와 `/health`(준비) 분리, `make backup`/`restore`.
-- **웹** — 조회 요청 메모리 캐시(같은 요청 합치기, 메뉴 이동 때 재요청 없음), 지도 폴리곤을 12ms 조각으로 나눠 만들기, 카카오 SDK 조기 로드·preconnect.
+- **웹** — 조회 요청 메모리 캐시(같은 요청 합치기, 메뉴 이동 때 재요청 없음), 조건이 바뀌면 진행 중 요청 취소, 지도 폴리곤을 12ms 조각으로 나눠 만들기,
+  지도 레이어는 옮길 때 바뀐 점만 갱신(서울 중구 263 → 20개), 카카오 SDK 조기 로드·preconnect.
 - **은행 지점 영향 (ADR-018)** — 카카오 범주 검색을 사분할 격자로 전수 수집(45곳 넘는 칸만 나눔, 4,800회·실패 0), 마지막 전수 수집에서 사라진
   지점은 폐점 가능성으로 제외하는 뷰 하나를 계산·API 가 함께 씀. 은행대리업 대상은 코드가 아닌 표(`bank_brand`).
 - **도보 (ADR-019)** — OSM 을 두 번 읽어(교차점 세기 → 디스크 좌표 캐시로 간선 만들기) 꼭짓점 447만 그래프를 `.npz` 로. 시설에서 동시에 퍼지며
@@ -269,8 +273,9 @@ gzip 캐시 + ETag 304, 순위 사전 계산, `json`→`text` 전달, 입력 버
 
 | 점검 | 결과 |
 |---|---|
-| 테스트 | Python 189 (k-최근접 정답 비교·은행 지점 영향·도보·CSP 보고·워커 차선·DB 끊김 복구·최소 권한 포함) · 웹 14 |
-| API 퍼징 (경계값·비정상 입력 654건) | 5xx 4건(09-26) · 1건(10-08 CSP 보고) → **0건** |
+| 테스트 | Python 269 (응답 스냅숏·계층 의존 방향·수집 보호·k-최근접 정답 비교·은행 지점 영향·도보·CSP 보고·워커 차선·DB 끊김 복구·최소 권한 포함) · 웹 37 · 린트 0 |
+| API 퍼징 (경계값·비정상 입력 658건) | 5xx 4건(09-26) · 1건(10-08 CSP 보고) → **0건** |
+| 실패 주입 (API 를 500·404 로 바꿔 응답, 7개 상황) | 오류·준비 안내 표시, 자리 표시 종료, 처리되지 않은 예외 0 |
 | 11개 화면 상호작용 크롤링 · 네트워크(22개 상태) | 콘솔·페이지·HTTP 오류 0 · 중복 요청·평문 외부 요청·CSP 위반 0 |
 | 접근성 (axe-core, WCAG 2.1 AA) · 모바일 가로 넘침 | 위반 0 · 0 (11개 화면, 375px 실제 폭 기준 — 이전 검사가 놓친 넘침 5곳 수정) |
 | Lighthouse 모바일 (3회 중앙값) | 성능 100: 한눈에·생활 거점·은행 지점·What-if·배치 제안·데이터·운영, 92~98: 지역 순위·보고서·지표 정의, 지도·방문 여건 88. 접근성·SEO 모두 100, CLS 0~0.009 |
@@ -294,12 +299,12 @@ gzip 캐시 + ETag 304, 순위 사전 계산, `json`→`text` 전달, 입력 버
 ```bash
 make api-dev     # 호스트에서 FastAPI (--reload, 소유자 역할로 접속해 기동 때 마이그레이션)
 make web-dev     # 호스트에서 Next.js dev 서버 :3100
-make test        # Python 189개 (PostGIS 테스트 DB)
-cd web && npm test   # 웹 단위 테스트 14개 (vitest)
+make test        # Python 269개 (PostGIS 테스트 DB)
+cd web && npm test && npm run lint   # 웹 단위 테스트 37개 (vitest) + React Hook 린트
 make qa          # 띄운 서비스 점검 (scripts/qa — 퍼징·크롤링·네트워크·접근성, 설치된 Chrome 사용)
 ```
 
-CI(GitHub Actions): Python(pyflakes·pip-audit·pytest + PostGIS 서비스) · 웹(npm audit·타입 검사·vitest·빌드) · 비밀값(gitleaks 전체 이력) ·
+CI(GitHub Actions): Python(pyflakes·pip-audit·pytest + PostGIS·Redis 서비스) · 웹(npm audit·타입 검사·린트·vitest·빌드) · 비밀값(gitleaks 전체 이력) ·
 이미지(api·worker·web 빌드, 비루트 확인). Dependabot 이 pip·npm·Actions·Docker 를 매주 확인합니다.
 
 ## 출처

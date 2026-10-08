@@ -57,8 +57,23 @@ flowchart LR
 - **차선**: 워커는 short·long 차선마다 스레드를 두고 자기 차선 종류만 가져갑니다. 도로 거리(25분)가 도는 동안에도 예보가 제때 갱신됩니다.
   차선 스레드는 30초마다 `ops.worker` 에 신호를 남기고, `/health`·데이터·운영 화면·compose healthcheck 가 이를 봅니다([ADR-017](adr/ADR-017-worker-lanes-ops.md)).
 - **웹 캐시**: 지표 정의·지역 목록·GeoJSON 같은 조회는 브라우저 메모리 캐시(`cachedApi`, 1~10분)로 메뉴 이동 때 다시 받지 않고,
-  서버는 ETag 로 한 번 더 막습니다.
+  서버는 ETag 로 한 번 더 막습니다. 조건이 바뀌면 진행 중인 요청을 취소하고(`useApi`), 주소의 조건을 반영한 뒤에만 요청합니다.
+  지도 레이어는 옮길 때 화면 밖으로 나간 점만 지우고 새로 들어온 점만 만듭니다.
 - **권한**: api 는 `atlas_api`(조회·What-if·작업 요청), worker·collector·migrate 는 소유자. raw(원본 응답)는 api 가 읽을 수 없습니다.
+
+## 코드 계층 ([ADR-024](adr/ADR-024-code-layers.md))
+
+```
+api/routers (HTTP: 입력·상태 코드·헤더, SQL 없음)          web/pages·components (그리기)
+      ↓                                                       ↓
+features/<기능> (흐름·검증·캐시 + queries.py 의 SQL)          hooks/useApi·useKakaoMap·useBboxLayer (상태·부수효과)
+      ↓                                                       ↓
+domain (순수 규칙) · calc/runs · core · ops                   lib/api (클라이언트) · lib/choropleth·rules·mapGeom (순수 함수)
+```
+
+- 의존은 바깥 → 안쪽으로만 — `tests/unit/test_layers.py` 가 import 를 읽어 거꾸로 된 의존과 라우터 안 SQL 을 막습니다.
+- 도메인 오류(`Invalid`·`NotFound`·`Conflict`)를 HTTP 상태로 바꾸는 곳은 `api/errors.py` 하나입니다.
+- 수집기는 기존 자료를 지우기 전에 완전성을 확인하고, 한 번에 닫거나 지우는 양에 상한을 둡니다([ADR-023](adr/ADR-023-collector-data-guards.md)).
 
 ## 데이터 계층
 
