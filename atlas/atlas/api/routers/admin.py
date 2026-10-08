@@ -12,13 +12,13 @@ from typing import Annotated
 from fastapi import APIRouter, Header, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, StringConstraints
-from sqlalchemy import text
 
 from atlas.core.serial import jsonable
 from atlas.api.errors import ApiError
 from atlas.api.security import client_ip
 from atlas.core.config import get_settings
 from atlas.core.db import get_engine
+from atlas.features import error_log
 from atlas.jobs import queue, registry
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -100,9 +100,6 @@ def ack_errors(req: ErrorAckRequest, request: Request, x_admin_token: str | None
     _auth(x_admin_token)
     ip = client_ip(request)
     with get_engine().begin() as c:
-        n = c.execute(text("""
-            INSERT INTO ops.error_ack (entry_id, acked_by)
-            SELECT DISTINCT unnest(CAST(:ids AS text[])), :ip
-            ON CONFLICT (entry_id) DO NOTHING"""), {"ids": req.ids, "ip": ip[:64]}).rowcount
+        n = error_log.ack(c, req.ids, ip)
     log.info("admin error ack", extra={"count": n, "ip": ip})
     return {"acked": n, "requested": len(req.ids)}
