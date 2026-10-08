@@ -128,19 +128,39 @@ def test_concurrent_same_scenario_returns_existing(terrain, engine, monkeypatch)
 
 
 @pytest.mark.skipif(not __import__("os").environ.get("TEST_REDIS_URL"), reason="캐시 동작은 Redis 필요 (make test 는 켬)")
-def test_whatif_cached_only_after_commit(terrain, engine):
-    """저장 트랜잭션이 롤백되면 캐시에 남지 않아야 함 — 남으면 없는 시나리오 id 를 1시간 동안 돌려줌."""
+def test_whatif_cached_only_after_commit(terrain, engine, monkeypatch):
+    """저장이 커밋되지 않으면(롤백·COMMIT 실패) 캐시에 남지 않아야 함 — 남으면 없는 시나리오 id 를 1시간 동안 돌려줌.
+    SQLAlchemy 의 commit 이벤트는 DB COMMIT '직전'에 불려, 이벤트로 캐시하던 방식은 COMMIT 이 실패하면 남았음."""
+    from fastapi.testclient import TestClient
+
+    from atlas.api.main import app
     from atlas.core import cache
     from atlas.features.whatif.service import _key
 
     rid = run_calc(stat_year=2024, levels=[2])
+    key = _key(rid, 2, [terrain["F1"]])
     with pytest.raises(RuntimeError):
         with engine.begin() as c:
             run_whatif(c, None, [terrain["F1"]], 2)
             raise RuntimeError("저장 실패 → 롤백")
-    assert cache.get(_key(rid, 2, [terrain["F1"]])) is None
-    with engine.begin() as c:
-        out = run_whatif(c, None, [terrain["F1"]], 2)
-    assert cache.get(_key(rid, 2, [terrain["F1"]])) is not None
+    assert cache.get(key) is None
+
+    fail = {"on": True}
+    real_commit = engine.dialect.do_commit
+
+    def flaky_commit(dbapi_conn):
+        if fail["on"]:
+            raise RuntimeError("COMMIT 실패 (연결 끊김 등)")
+        return real_commit(dbapi_conn)
+
+    monkeypatch.setattr(engine.dialect, "do_commit", flaky_commit)
+    with pytest.raises(Exception):
+        with engine.begin() as c:
+            run_whatif(c, None, [terrain["F1"]], 2)
+    fail["on"] = False
+    assert cache.get(key) is None
+
+    out = TestClient(app).post("/api/v1/whatif", json={"removeHistIds": [terrain["F1"]], "level": 2}).json()
+    assert cache.get(key) is not None                          # 커밋이 끝난 뒤 라우터가 캐시
     with engine.connect() as c:
         assert get_scenario(c, out["scenarioId"])["scenarioId"] == out["scenarioId"]

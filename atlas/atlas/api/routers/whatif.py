@@ -18,7 +18,9 @@ class WhatIfRequest(BaseModel):
 @router.post("", summary="시설 제외(문 닫음 가정) 시뮬레이션 (FR-401)")
 def create(req: WhatIfRequest):
     with get_engine().begin() as c:
-        return svc.run_whatif(c, req.calcRunId, req.removeHistIds, req.level)
+        out = svc.run_whatif(c, req.calcRunId, req.removeHistIds, req.level)
+    svc.remember(out)                     # 커밋이 끝난 뒤에만 캐시
+    return out
 
 
 @router.get("/{scenario_id}", summary="What-if 결과 재조회 (FR-402)")

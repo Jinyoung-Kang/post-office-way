@@ -10,7 +10,6 @@ import hashlib
 import json
 from typing import Any
 
-from sqlalchemy import event
 from sqlalchemy.engine import Connection
 
 from atlas.calc.runs import meta_of, resolve_calc_run
@@ -83,16 +82,14 @@ def run_whatif(c: Connection, calc_run_id: str | None, remove_ids: list[int], le
             return get_scenario(c, str(existing))
         q.insert_results(c, sid, results, pops, aged, bank)
         out = get_scenario(c, str(sid))
-    _cache_after_commit(c, key, json.dumps(out, ensure_ascii=False))
     return out
 
 
-def _cache_after_commit(c: Connection, key: str, body: str) -> None:
-    """저장 트랜잭션이 커밋된 뒤에만 캐시 — 롤백되면 없는 시나리오 id 를 1시간 동안 돌려주게 됨."""
-    if c.in_transaction():
-        event.listen(c, "commit", lambda _conn: cache.set(key, body, ttl=TTL_S), once=True)
-    else:
-        cache.set(key, body, ttl=TTL_S)
+def remember(out: dict[str, Any]) -> None:
+    """결과 캐시 — 저장 트랜잭션이 커밋된 '뒤에' 부르는 쪽(라우터)이 부름. 커밋되지 않은 시나리오 id 를 1시간 동안 돌려주지 않게
+    (SQLAlchemy 의 commit 이벤트는 DB COMMIT 직전에 불려, 이벤트로 캐시하면 COMMIT 이 실패해도 남았음)."""
+    key = _key(out["meta"]["calcRunId"], out["level"], sorted(r["histId"] for r in out["removed"]))
+    cache.set(key, json.dumps(out, ensure_ascii=False), ttl=TTL_S)
 
 
 def _oa_impact(c: Connection, run: dict[str, Any], ids: list[int], far_m: float) -> dict[str, Any]:
