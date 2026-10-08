@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Card } from "@/components/Layout";
 import { TableSkeleton } from "@/components/Skeleton";
+import { poll } from "@/lib/poller";
 import { api, type Job, type ScheduleItem } from "@/lib/api";
 import { dt, num } from "@/lib/format";
 import Sents from "@/components/Sents";
@@ -23,29 +24,23 @@ export default function JobsPanel() {
 
   useEffect(() => {
     let alive = true;
-    let timer: ReturnType<typeof setTimeout> | null = null;
     const load = async () => {
       const [j, s, h] = await Promise.all([
         api<{ items: Job[] }>("/meta/jobs?limit=15").catch(() => null),
         api<{ groups: string; items: ScheduleItem[]; titles: Record<string, string> }>("/meta/schedule").catch(() => null),
         fetch("/api/v1/health").then((r) => r.json() as Promise<Health>).catch(() => null),
       ]);
-      if (!alive) return;
+      if (!alive) return false;
       if (j) setJobs(j.items);
       if (s) setSched(s);
       if (h) setHealth(h);
-      const busy = j?.items.some((x) => x.status === "QUEUED" || x.status === "RUNNING");
-      if (busy && document.visibilityState === "visible") timer = setTimeout(load, 10_000);
+      return !!j?.items.some((x) => x.status === "QUEUED" || x.status === "RUNNING");   // 대기·실행 중이면 10초마다
     };
-    // 탭이 숨겨지면 새로 고침을 멈추고, 다시 보이면 바로 한 번 받아 이어감 (예전에는 멈춘 채로 있었음)
-    const onVisible = () => {
-      if (document.visibilityState !== "visible") return;
-      if (timer) clearTimeout(timer);
-      load();
-    };
-    load();
+    // 탭이 숨겨지면 새로 고침을 멈추고, 다시 보이면 바로 한 번 받아 이어감. 받는 중에 돌아와도 사슬은 하나 (lib/poller)
+    const p = poll(load, 10_000, () => document.visibilityState === "visible");
+    const onVisible = () => { if (document.visibilityState === "visible") p.kick(); };
     document.addEventListener("visibilitychange", onVisible);
-    return () => { alive = false; if (timer) clearTimeout(timer); document.removeEventListener("visibilitychange", onVisible); };
+    return () => { alive = false; p.stop(); document.removeEventListener("visibilitychange", onVisible); };
   }, []);
 
   const stale = (health?.queue?.oldestQueuedS ?? 0) > 600;
