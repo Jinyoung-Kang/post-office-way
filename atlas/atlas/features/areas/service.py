@@ -80,16 +80,6 @@ def geojson_payload(c: Connection, level: int, metric: str, parent: str | None, 
     return gz, tag
 
 
-def geojson(c: Connection, level: int, metric: str, parent: str | None, calc_run_id: str | None,
-            simplify: float | None) -> str:
-    _check_parent(parent)
-    run = resolve_calc_run(c, calc_run_id)
-    _check_level(level, parent, run)
-    if simplify is not None and not 0 <= simplify <= 5000:
-        raise Invalid("simplify 는 0~5000(m) 입니다.")
-    return _geojson_text(c, run, level, metric, parent, simplify_step(simplify))
-
-
 def _geojson_text(c: Connection, run: dict[str, Any], level: int, metric: str, parent: str | None,
                   simplify: float | None) -> str:
     """검증을 마친 뒤 — 캐시 키를 만든 그 계산 실행(run)으로 그림 (예전에는 안에서 다시 정해, 그 사이 새 계산이
