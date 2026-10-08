@@ -15,12 +15,23 @@ X0, Y0 = 1_000_000.0, 1_900_000.0   # UTM-K 기준 충북 부근
 YEAR = 2024
 
 
+def is_test_db(url: str) -> bool:
+    """스키마를 지워도 되는 테스트 DB 인지 — URL 의 DB 이름이 정확히 atlas_test 일 때만.
+    (예전 부분 문자열 검사는 사용자명·쿼리 문자열에 'atlas_test' 가 있어도 통과해 운영 DB 를 지울 여지가 있었음)"""
+    from sqlalchemy.engine import make_url
+
+    try:
+        return make_url(url).database == "atlas_test"
+    except Exception:
+        return False
+
+
 @pytest.fixture(scope="session")
 def engine():
     if not TEST_URL:
         pytest.skip("TEST_DATABASE_URL 없음 — make test 로 실행하세요")
-    if "atlas_test" not in TEST_URL:
-        pytest.exit("안전장치: TEST_DATABASE_URL 의 DB 이름에 'atlas_test' 가 있어야 합니다.")
+    if not is_test_db(TEST_URL):
+        pytest.exit("안전장치: TEST_DATABASE_URL 의 DB 이름이 정확히 'atlas_test' 여야 합니다.")
     os.environ["DATABASE_URL"] = TEST_URL
     # make test 는 compose 의 redis 15번 DB 로 캐시·속도 제한까지 시험, TEST_REDIS_URL 이 없으면 캐시 없이(Redis 실패 경로)
     os.environ["REDIS_URL"] = os.environ.get("TEST_REDIS_URL", "redis://127.0.0.1:1/0")
