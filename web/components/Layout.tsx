@@ -137,9 +137,10 @@ export function Card({ title, children, className, right, pad = true }: {
 
 export function Stat({ label, value, note, tone }: { label: string; value: ReactNode; note?: ReactNode; tone?: "bad" | "good" }) {
   return (
-    <div className="card p-5">
+    <div className="card @container p-5">
       <div className="text-[13px] font-medium text-ink-2">{label}</div>
-      <div className={`tnum mt-1 text-[28px] font-semibold leading-tight tracking-tight ${tone === "bad" ? "text-[#d70015]" : ""}`}>{value}</div>
+      {/* 글자 크기를 카드 폭에 맞춤(최대 28px) — 375px 두 칸·768px 네 칸에서도 '2,517,187명'이 한 줄에 들어가게 */}
+      <div className={`tnum mt-1 text-[clamp(18px,15cqi,28px)] font-semibold leading-tight tracking-tight ${tone === "bad" ? "text-[#d70015]" : ""}`}>{value}</div>
       {note && <div className="mt-1 text-[12px] text-ink-3">{note}</div>}
     </div>
   );

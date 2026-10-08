@@ -62,7 +62,7 @@ export default function HubsPage() {
               <Stat label="우체국이 마지막 생활 거점인 인구" value={`${num(t.soleHubPpltn)}명`} tone="bad"
                 note="2km 안 은행·약국·의원 없이 우체국만" />
               <Stat label="대체할 곳이 없는 우체국" value={`${num(sum.facilities.withSoleHub)}곳`}
-                note={`닫히면 생활 거점이 사라지는 주민이 있음 · 담당 ${num(sum.facilities.served)}곳 중`} />
+                note={`닫히면 생활 거점이 사라지는 주민이 있음 · 담당 ${num(sum.facilities.served)}곳\u00a0중`} />   {/* '중'만 다음 줄로 가지 않게 붙임 */}
               <Stat label="의료 공백 인구" value={`${num(t.careDesertPpltn)}명`} note="2km 안 약국·의원·보건소 모두 없음" />
               <Stat label="공휴일 의료 공백 인구" value={`${num(t.holidayCareGapPpltn)}명`}
                 note="2km 안 공휴일 진료시간이 등록된 약국·의원 없음" />

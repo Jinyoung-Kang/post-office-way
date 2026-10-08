@@ -48,6 +48,9 @@
     font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Apple SD Gothic Neo",
       "Pretendard", "Noto Sans KR", "Helvetica Neue", sans-serif;
     -webkit-font-smoothing: antialiased; font-size: 15px; letter-spacing: -0.01em; line-height: 1.47;
+    /* 한국어는 어절(띄어쓰기) 단위로 줄바꿈 — '없/음'·'강원특별자치/도'처럼 낱글자가 다음 줄로 가지 않게.
+       칸보다 긴 한 낱말만 넘칠 때 끊음 */
+    word-break: keep-all; overflow-wrap: break-word;
   }
   ::selection { background: rgba(0, 113, 227, 0.2); }
   a { color: var(--link); }
@@ -122,7 +125,7 @@ select.field { appearance: none; padding-right: 32px;
 .tbl th { text-align: left; font-weight: 500; color: var(--text-3); font-size: 12px; padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
 .tbl td { padding: 11px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
 .tbl tr:last-child td { border-bottom: 0; }
-.tbl td.num, .tbl th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.tbl td.num, .tbl th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }   /* '70.6/점' 처럼 수와 단위가 갈라지지 않게 */
 .tbl tr.clickable:hover td { background: rgba(0, 0, 0, 0.025); cursor: pointer; }
 
 /* 배지 */
