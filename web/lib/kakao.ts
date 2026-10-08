@@ -11,14 +11,19 @@ export function loadKakao(): Promise<any> {
   if (window.kakao?.maps?.LatLng) return Promise.resolve(window.kakao);
   if (loading) return loading;
   loading = (async () => {
-    const cfg = await fetch("/api/config").then((r) => r.json());
+    const res = await fetch("/api/config");
+    if (!res.ok) throw new Error(`지도 설정을 받지 못했습니다 (HTTP ${res.status}).`);
+    const cfg = await res.json();
     if (!cfg.kakaoJsKey) throw new Error("NEXT_PUBLIC_KAKAO_JS_KEY 가 .env 에 없습니다.");
     await new Promise<void>((resolve, reject) => {
       const s = document.createElement("script");
       s.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(cfg.kakaoJsKey)}&autoload=false`;
       s.async = true;
       s.onload = () => resolve();
-      s.onerror = () => reject(new Error("카카오 지도 SDK 를 불러오지 못했습니다. 플랫폼 도메인(http://localhost:3100)과 카카오맵 사용 설정(ON)을 확인하세요."));
+      s.onerror = () => {
+        s.remove();                    // 다시 시도할 때 실패한 script 태그가 쌓이지 않게
+        reject(new Error("카카오 지도 SDK 를 불러오지 못했습니다. 플랫폼 도메인(http://localhost:3100)과 카카오맵 사용 설정(ON)을 확인하세요."));
+      };
       document.head.appendChild(s);
     });
     await new Promise<void>((resolve) => window.kakao.maps.load(() => resolve()));
