@@ -10,6 +10,7 @@ import { api, cachedApi, qs, type BankImpact, type BankImpactDetail, type BankIm
   type Feature, type Region } from "@/lib/api";
 import { BANK_REASON_SHORT, dist, dt, GRADE_BADGE, GRADE_LABEL, num, shortSido, walkMin } from "@/lib/format";
 import { useQueryState } from "@/lib/useQueryState";
+import Sents from "@/components/Sents";
 
 const AtlasMap = dynamic(() => import("@/components/AtlasMap"), { ssr: false }) as typeof AtlasMapType;
 
@@ -166,15 +167,15 @@ export default function BanksPage() {
         {list && (
           <Card title="이렇게 판정합니다">
             <ol className="list-decimal space-y-2 pl-5 text-[14px] text-ink-2">
-              <li>집계구(평균 약 500명)마다 가장 가까운 <b className="text-ink">은행 지점</b>을 찾아, 그 지점의 이용 주민으로 봅니다.</li>
-              <li>그 지점이 닫히면 <b className="text-ink">다음으로 가까운 다른 은행 지점</b>과 <b className="text-ink">은행 업무를 하는 우체국</b> 중 가까운 곳이 대체 창구입니다.</li>
-              <li><b className="text-ink">잃는 주민</b>: 지금은 2km 안에 이 지점이 있는데, 닫히면 2km 안에 대체 창구가 없는 주민. 걸어서는 고령자 속도로 30분.</li>
+              <li><Sents>집계구(평균 약 500명)마다 가장 가까운 <b className="text-ink">은행 지점</b>을 찾아, 그 지점의 이용 주민으로 봅니다.</Sents></li>
+              <li><Sents>그 지점이 닫히면 <b className="text-ink">다음으로 가까운 다른 은행 지점</b>과 <b className="text-ink">은행 업무를 하는 우체국</b> 중 가까운 곳이 대체 창구입니다.</Sents></li>
+              <li><Sents><b className="text-ink">잃는 주민</b>: 지금은 2km 안에 이 지점이 있는데, 닫히면 2km 안에 대체 창구가 없는 주민. 걸어서는 고령자 속도로 30분.</Sents></li>
             </ol>
             <ul className="mt-3 space-y-1 text-[13px] text-ink-2">
-              {Object.entries(list.reasons).map(([k, v]) => <li key={k}><span className="badge badge-info mr-2">{BANK_REASON_SHORT[k] || k}</span>{v}</li>)}
+              {Object.entries(list.reasons).map(([k, v]) => <li key={k}><span className="badge badge-info mr-2">{BANK_REASON_SHORT[k] || k}</span><Sents>{v}</Sents></li>)}
             </ul>
-            <p className="mt-4 text-[12px] leading-relaxed text-ink-3">⚠ {list.rule} {list.banks.assumption}
-              {" "}은행 지점은 카카오 장소 전수 수집 기준이며 공식 점포 목록이 아닙니다. 고령 인구는 읍면동 고령 비율로 추정했습니다.</p>
+            <p className="mt-4 text-[12px] leading-relaxed text-ink-3"><Sents>⚠ {list.rule} {list.banks.assumption}
+              {" "}은행 지점은 카카오 장소 전수 수집 기준이며 공식 점포 목록이 아닙니다. 고령 인구는 읍면동 고령 비율로 추정했습니다.</Sents></p>
           </Card>
         )}
       </div>

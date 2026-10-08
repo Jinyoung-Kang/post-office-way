@@ -4,6 +4,7 @@ import { useRouter } from "next/router";
 import { useEffect, useState, type ReactNode } from "react";
 import { cachedApi, type CalendarDay } from "@/lib/api";
 import { dt, sentences, short } from "@/lib/format";
+import Sents from "@/components/Sents";
 
 const NAV = [
   { href: "/overview", label: "한눈에" },
@@ -86,8 +87,8 @@ export default function Layout({ children, full, title }: { children: ReactNode;
       {!full && (
         <footer className="border-t border-line bg-surface">
           <div className="mx-auto max-w-page space-y-2 px-4 py-6 text-[12px] leading-relaxed text-ink-2">
-            <p>이 서비스의 지표는 분석용으로 정의한 값이며 공식 통계가 아닙니다. 거리는 직선거리(EPSG:5179)이고, ‘걸어서’ 지표는
-              OpenStreetMap 보행 도로망 최단 경로(고령자 0.8m/s)입니다.</p>
+            <p><Sents>이 서비스의 지표는 분석용으로 정의한 값이며 공식 통계가 아닙니다. 거리는 직선거리(EPSG:5179)이고, ‘걸어서’ 지표는
+              OpenStreetMap 보행 도로망 최단 경로(고령자 0.8m/s)입니다.</Sents></p>
             <p>데이터 기준 — {basisText(calc)}</p>
             <p className="text-ink-3">출처: 우정사업본부 「우체국 찾기」 · 통계청 SGIS(총조사 주요지표·행정구역·집계구 경계) · KOSIS 주민등록인구(행정안전부) · 카카오(지도·로컬·모빌리티) · 기상청 단기예보 · 한국환경공단 에어코리아 · 국립중앙의료원 약국·병의원 · 한국천문연구원 특일 정보 · 도보 도로망 © OpenStreetMap 기여자(ODbL)</p>
           </div>

@@ -121,5 +121,8 @@ export function groupMetrics<T extends { code: string }>(items: T[]): { label: s
   return GROUP_ORDER.filter((g) => by.has(g)).map((g) => ({ label: g, items: by.get(g)! }));
 }
 
-// '…니다. …' → 문장 배열 (마침표·물음표 뒤 공백에서 나눔). 화면 머리 설명을 문장마다 한 줄로 보이는 데 씀
-export const sentences = (text: string) => text.split(/(?<=[.?!])\s+/).filter(Boolean);
+// 문장 사이 — 마침표·물음표 뒤 공백. 숫자 속 점(0.8m/s)은 뒤가 공백이 아니라 걸리지 않고,
+// 공백·여는 괄호 뒤의 숫자만 있는 조각('1. 광화문우체국' 순번, '2026. 10. 08.' 날짜)은 나누지 않음
+export const SENTENCE_GAP = /(?<=(?:[^\s\d]|[^\s(\d]\d+)[.?!])\s+/;
+// '…니다. …' → 문장 배열. 화면 머리 설명·<Sents> 가 문장마다 줄을 바꾸는 데 씀
+export const sentences = (text: string) => text.split(SENTENCE_GAP).filter(Boolean);

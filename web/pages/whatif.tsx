@@ -6,6 +6,7 @@ import Layout, { Card, Empty, ErrorBox, Hero, Segmented, Stat } from "@/componen
 import type { MapLabel, Marker } from "@/components/AtlasMap";
 import { api, qs, type Facility, type Feature, type Page, type WhatIf } from "@/lib/api";
 import { dist, num } from "@/lib/format";
+import Sents from "@/components/Sents";
 
 const AtlasMap = dynamic(() => import("@/components/AtlasMap"), { ssr: false }) as typeof AtlasMapType;
 
@@ -113,7 +114,7 @@ export default function WhatIfPage() {
                     <button className="link shrink-0 text-[13px]" onClick={() => setPicked(picked.filter((x) => x.histId !== p.histId))}>빼기</button>
                   </div>
                 ))}
-                {!picked.length && <div className="row text-[13px] text-ink-3">검색해서 우체국을 추가하세요. 지도에서 시설을 눌러도 됩니다.</div>}
+                {!picked.length && <div className="row text-[13px] text-ink-3"><Sents>검색해서 우체국을 추가하세요. 지도에서 시설을 눌러도 됩니다.</Sents></div>}
               </div>
             </div>
             <div className="mt-5 flex items-center justify-between gap-3">
@@ -170,7 +171,7 @@ export default function WhatIfPage() {
                     </table>
                   </div>
                 ) : <div className="px-6 pb-6"><Empty>이 우체국이 가장 가까운(1순위) 지역이 없어 영향이 없습니다.</Empty></div>}
-                <p className="px-6 pb-5 text-[12px] text-ink-3">⚠ {result.caveat}</p>
+                <p className="px-6 pb-5 text-[12px] text-ink-3"><Sents>⚠ {result.caveat}</Sents></p>
               </Card>
             </>
           ) : (

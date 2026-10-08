@@ -51,6 +51,7 @@
     /* 한국어는 어절(띄어쓰기) 단위로 줄바꿈 — '없/음'·'강원특별자치/도'처럼 낱글자가 다음 줄로 가지 않게.
        칸보다 긴 한 낱말만 넘칠 때 끊음 */
     word-break: keep-all; overflow-wrap: break-word;
+    text-wrap: pretty;   /* 문단 마지막 줄에 낱말 하나만 남지 않게 고르게 (지원하지 않는 브라우저는 보통 줄바꿈) */
   }
   ::selection { background: rgba(0, 113, 227, 0.2); }
   a { color: var(--link); }

@@ -11,6 +11,7 @@ import { api, cachedApi, qs, type AreaFC, type AreaProps, type VisitConditions, 
 import { dist, dt, num, NO_DATA, REASON_LABEL, shortSido, VISIT_FILL, VISIT_LABEL } from "@/lib/format";
 import { StatSkeletons } from "@/components/Skeleton";
 import { useQueryState } from "@/lib/useQueryState";
+import Sents from "@/components/Sents";
 
 const AtlasMap = dynamic(() => import("@/components/AtlasMap"), { ssr: false }) as typeof AtlasMapType;
 type P = AreaProps & { visit?: VisitItem };
@@ -90,9 +91,9 @@ export default function TodayPage() {
                 <span className="badge badge-warn shrink-0 self-start sm:self-center">창구 휴무</span>
                 <div className="min-w-0 flex-1 text-[14px]">
                   <p className="text-[17px] font-semibold">{d.meta.closedReason} — 우체국 금융 창구가 쉽니다</p>
-                  <p className="mt-1 text-ink-2">이날은 365코너(ATM)와 공휴일에 여는 약국·의원이 생활 거점입니다.
+                  <p className="mt-1 text-ink-2"><Sents>이날은 365코너(ATM)와 공휴일에 여는 약국·의원이 생활 거점입니다.
                     365코너가 없는 읍면동 <b className="whitespace-nowrap text-ink">{num(d.summary.emdWithout365)}곳</b>
-                    {d.summary.holidayCareGapPpltn !== null && <>, 2km 안에 공휴일 진료처가 없는 인구 <b className="whitespace-nowrap text-ink">{num(d.summary.holidayCareGapPpltn)}명</b></>}.</p>
+                    {d.summary.holidayCareGapPpltn !== null && <>, 2km 안에 공휴일 진료처가 없는 인구 <b className="whitespace-nowrap text-ink">{num(d.summary.holidayCareGapPpltn)}명</b></>}.</Sents></p>
                 </div>
                 <Link href="/hubs" className="btn-ghost shrink-0 self-start whitespace-nowrap no-underline sm:self-center">생활 거점 보기 ›</Link>
               </div>
@@ -162,10 +163,10 @@ export default function TodayPage() {
                 <p><b className="text-ink">미세먼지</b> — PM10·PM2.5 예보 ‘나쁨’ 주의, ‘매우나쁨’ 나쁨 (권역 예보)</p>
               </div>
               <p className="mt-4 text-[12px] leading-relaxed text-ink-3">
-                ⚠ {d.meta.note} 날씨는 시군구 대표점이 있는 5km 격자 한 곳의 예보입니다. 규칙 {d.meta.ruleVersion} ·
+                <Sents>⚠ {d.meta.note} 날씨는 시군구 대표점이 있는 5km 격자 한 곳의 예보입니다. 규칙 {d.meta.ruleVersion} ·
                 기상청 발표 {dt(d.meta.weatherBaseAt)} · {d.meta.airAnnouncedAt ? `에어코리아 발표 ${dt(d.meta.airAnnouncedAt)}` : "미세먼지 예보는 아직 이 날짜까지 발표되지 않음"} · 먼 곳 고령인구는 calcRun 기준
                 {" "}<Link href="/about/metrics" className="link text-[12px]">지표 정의 ›</Link>
-              </p>
+              </Sents></p>
             </Card>
           </>
         )}

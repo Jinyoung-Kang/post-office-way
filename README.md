@@ -136,7 +136,7 @@ API 문서: http://localhost:8100/docs · Prometheus 지표: http://localhost:81
 | `make migrate` | 스키마 마이그레이션 + API 역할 비밀번호 설정 (`make up` 이 자동 실행) | — |
 | `make backup` · `make restore FILE=…` | DB 백업(`backups/`, `LITE=1` 은 원본 응답 제외) · 확인 후 복원 | 14초(경량 113MB) |
 | `make test` | Python 테스트 189개 (단위·계약·PostGIS SQL·What-if 동등성·k-최근접 정답 비교·은행 지점 영향·도보·작업 큐·권한·보안) | 약 20초 |
-| `make qa` · `make qa-lh` | 띄운 서비스 점검 — API 퍼징·11개 화면 크롤링·네트워크(중복·평문·CSP)·접근성 / Lighthouse 3회 중앙값 | 약 4분 · 약 20분 |
+| `make qa` · `make qa-lh` | 띄운 서비스 점검 — API 퍼징·11개 화면 크롤링·네트워크(중복·평문·CSP)·접근성·설명 줄바꿈 / Lighthouse 3회 중앙값 | 약 5분 · 약 20분 |
 | `make prune` | 오래된 원문·스냅샷은 종류별 최근 `KEEP=3` 수집만, 계산 결과는 최근 `KEEP_CALC=5` 만 | — |
 
 관리 API: `POST /api/v1/admin/jobs {"kind": "care"}` (헤더 `X-Admin-Token`) → 202 + `jobId`. 실행은 워커가 합니다.
@@ -269,7 +269,7 @@ gzip 캐시 + ETag 304, 순위 사전 계산, `json`→`text` 전달, 입력 버
 
 | 점검 | 결과 |
 |---|---|
-| 테스트 | Python 189 (k-최근접 정답 비교·은행 지점 영향·도보·CSP 보고·워커 차선·DB 끊김 복구·최소 권한 포함) · 웹 12 |
+| 테스트 | Python 189 (k-최근접 정답 비교·은행 지점 영향·도보·CSP 보고·워커 차선·DB 끊김 복구·최소 권한 포함) · 웹 14 |
 | API 퍼징 (경계값·비정상 입력 654건) | 5xx 4건(09-26) · 1건(10-08 CSP 보고) → **0건** |
 | 11개 화면 상호작용 크롤링 · 네트워크(22개 상태) | 콘솔·페이지·HTTP 오류 0 · 중복 요청·평문 외부 요청·CSP 위반 0 |
 | 접근성 (axe-core, WCAG 2.1 AA) · 모바일 가로 넘침 | 위반 0 · 0 (11개 화면, 375px 실제 폭 기준 — 이전 검사가 놓친 넘침 5곳 수정) |
@@ -295,7 +295,7 @@ gzip 캐시 + ETag 304, 순위 사전 계산, `json`→`text` 전달, 입력 버
 make api-dev     # 호스트에서 FastAPI (--reload, 소유자 역할로 접속해 기동 때 마이그레이션)
 make web-dev     # 호스트에서 Next.js dev 서버 :3100
 make test        # Python 189개 (PostGIS 테스트 DB)
-cd web && npm test   # 웹 단위 테스트 12개 (vitest)
+cd web && npm test   # 웹 단위 테스트 14개 (vitest)
 make qa          # 띄운 서비스 점검 (scripts/qa — 퍼징·크롤링·네트워크·접근성, 설치된 Chrome 사용)
 ```
 

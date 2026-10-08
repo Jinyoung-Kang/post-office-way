@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Card } from "@/components/Layout";
 import { Skeleton } from "@/components/Skeleton";
 import { api, ApiError } from "@/lib/api";
+import Sents from "@/components/Sents";
 
 type Entry = { id?: string; at: string; source: string; ref: string; title: string; message: string; line: string };
 const SOURCES = ["전체", "API", "보안 정책", "작업", "수집", "계산", "품질", "화면"] as const;
@@ -120,7 +121,7 @@ export default function ErrorLog({ clientErrors = [] }: { clientErrors?: string[
           </button>
         </div>
       }>
-      <p className="-mt-2 px-6 pb-3 text-[13px] text-ink-2">최근 14일 · API 예외, 작업·수집·계산 실패, 품질 ERROR 규칙, 이 화면의 요청 실패를 시간순으로 모았습니다. 키 값은 가려져 있습니다. 지운 항목은 이 로그에서만 빠지고 작업·품질 이력에는 남습니다.</p>
+      <p className="-mt-2 px-6 pb-3 text-[13px] text-ink-2"><Sents>최근 14일 · API 예외, 작업·수집·계산 실패, 품질 ERROR 규칙, 이 화면의 요청 실패를 시간순으로 모았습니다. 키 값은 가려져 있습니다. 지운 항목은 이 로그에서만 빠지고 작업·품질 이력에는 남습니다.</Sents></p>
 
       {pending && (
         <form className="mx-6 mb-3 flex flex-wrap items-end gap-2 rounded-[12px] bg-surface p-3"

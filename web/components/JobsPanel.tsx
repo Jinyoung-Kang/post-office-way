@@ -3,6 +3,7 @@ import { Card } from "@/components/Layout";
 import { TableSkeleton } from "@/components/Skeleton";
 import { api, type Job, type ScheduleItem } from "@/lib/api";
 import { dt, num } from "@/lib/format";
+import Sents from "@/components/Sents";
 
 type Health = { status: string; schema: { upToDate: boolean; pending: string[] } | null;
   queue: { queued: number; running: number; oldestQueuedS: number | null } | null; redis: boolean;
@@ -61,9 +62,9 @@ export default function JobsPanel() {
         </span>
       )}>
       <p className="-mt-2 px-6 pb-3 text-[13px] text-ink-2">
-        관리 API·스케줄이 넣은 작업을 워커가 실행합니다(Postgres 작업 큐). 오래 걸리는 도로 거리·영업점 수집과 예보 같은 짧은 작업은
+        <Sents>관리 API·스케줄이 넣은 작업을 워커가 실행합니다(Postgres 작업 큐). 오래 걸리는 도로 거리·영업점 수집과 예보 같은 짧은 작업은
         차선을 나눠 서로 막지 않고, 수집이 끝나면 지표 재계산이 자동으로 이어집니다.
-      </p>
+      </Sents></p>
       <div className="grid grid-cols-1 gap-5 px-3 pb-3 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="overflow-x-auto">
           {!jobs ? <TableSkeleton rows={5} /> : jobs.length ? (
@@ -83,7 +84,7 @@ export default function JobsPanel() {
                 );
               })}</tbody>
             </table>
-          ) : <p className="px-3 py-4 text-[14px] text-ink-2">아직 실행한 작업이 없습니다. <code>make enqueue KIND=calc</code> 또는 관리 API 로 요청하세요.</p>}
+          ) : <p className="px-3 py-4 text-[14px] text-ink-2"><Sents>아직 실행한 작업이 없습니다. <code>make enqueue KIND=calc</code> 또는 관리 API 로 요청하세요.</Sents></p>}
         </div>
         <div>
           <p className="group-label">자동 실행 (ATLAS_SCHEDULE={sched?.groups || "—"})</p>

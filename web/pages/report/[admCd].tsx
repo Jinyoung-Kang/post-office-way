@@ -6,6 +6,7 @@ import MiniMap, { type MiniFeature } from "@/components/MiniMap";
 import { StatSkeletons, TableSkeleton } from "@/components/Skeleton";
 import { api, cachedApi, type RegionReport, type Region, type ReportMetric } from "@/lib/api";
 import { BANK_REASON_SHORT, dt, GRADE_BADGE, GRADE_LABEL, num, VISIT_BADGE, withUnit } from "@/lib/format";
+import Sents from "@/components/Sents";
 
 // 읍면동 작은 지도에서 고를 수 있는 지표 — 단계(5칸)는 지표 성격에 맞춘 고정 경계(지역 사이 비교가 되도록)
 const EMD_VIEWS = [
@@ -114,8 +115,8 @@ export default function ReportPage() {
                   })}</tbody>
                 </table>
               </div>
-              <p className="mt-3 text-[12px] text-ink-3">빨간 값은 전국 시군구 중앙값보다 나쁜 쪽. 막대는 값의 백분위(오른쪽일수록 큼).
-                {r.walk ? " ‘걸어서’ 지표는 OSM 보행 도로망 · 고령자 0.8m/s." : " 도보 지표는 아직 계산 전입니다."}</p>
+              <p className="mt-3 text-[12px] text-ink-3"><Sents>빨간 값은 전국 시군구 중앙값보다 나쁜 쪽. 막대는 값의 백분위(오른쪽일수록 큼).
+                {r.walk ? " ‘걸어서’ 지표는 OSM 보행 도로망 · 고령자 0.8m/s." : " 도보 지표는 아직 계산 전입니다."}</Sents></p>
             </Card>
 
             <Card title="읍면동" right={<div className="no-print min-w-0 max-w-full"><Segmented ariaLabel="읍면동 지표" value={view} onChange={setView}
@@ -183,8 +184,8 @@ export default function ReportPage() {
                   </table>
                 </div>
               ) : <p className="text-[14px] text-ink-2">이 지역에 평가한 은행 지점이 없습니다.</p>}
-              <p className="mt-3 text-[12px] text-ink-3">잃는 주민 = 지금은 2km 안에 그 지점이 있는데, 닫히면 2km 안에 다른 은행도 은행 업무를 하는 우체국도 없는 주민
-                (지점마다 따로 닫힌다고 가정). 분석용 기준이며 공식 사전영향평가가 아닙니다.</p>
+              <p className="mt-3 text-[12px] text-ink-3"><Sents>잃는 주민 = 지금은 2km 안에 그 지점이 있는데, 닫히면 2km 안에 다른 은행도 은행 업무를 하는 우체국도 없는 주민
+                (지점마다 따로 닫힌다고 가정). 분석용 기준이며 공식 사전영향평가가 아닙니다.</Sents></p>
             </Card>
 
             {r.visit && r.visit.days.length > 0 && (
@@ -202,8 +203,8 @@ export default function ReportPage() {
             )}
 
             <section className="text-[12px] leading-relaxed text-ink-3">
-              <p>⚠ 이 보고서의 값은 공개 자료로 계산한 분석용 지표이며 공식 통계가 아닙니다. 거리는 직선거리(EPSG:5179) 기준이고, ‘걸어서’ 지표는
-                OpenStreetMap 보행 도로망 최단 경로(고령자 0.8m/s, 경사·신호 대기 미반영)입니다. 고령 인구는 KOSIS 주민등록인구, 인구는 통계청 SGIS {r.meta.statYear}년 기준.</p>
+              <p><Sents>⚠ 이 보고서의 값은 공개 자료로 계산한 분석용 지표이며 공식 통계가 아닙니다. 거리는 직선거리(EPSG:5179) 기준이고, ‘걸어서’ 지표는
+                OpenStreetMap 보행 도로망 최단 경로(고령자 0.8m/s, 경사·신호 대기 미반영)입니다. 고령 인구는 KOSIS 주민등록인구, 인구는 통계청 SGIS {r.meta.statYear}년 기준.</Sents></p>
               <p className="mt-1">자료: 우정사업본부 · 통계청 SGIS·KOSIS · 카카오 로컬(은행 지점) · 국립중앙의료원 · 기상청·에어코리아 · OpenStreetMap 기여자(ODbL)</p>
               <p className="no-print mt-2"><Link href={`/?adm=${admCd}`} className="link">지도에서 보기 ›</Link></p>
             </section>

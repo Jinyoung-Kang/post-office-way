@@ -23,7 +23,7 @@
 #   make calc      지표 계산 (calc_run) + 도보 거리(OSM 그래프가 있으면)
 #   make all-data  discover(필요 시) → collect → sgis → kosis → extras(oa·banks·road·geocheck·care·holidays) → calc → weather
 #   make test      단위·계약·SQL 테스트 (PostGIS 테스트 DB 사용)
-#   make qa        띄운 서비스 전수 점검 — API 퍼징 · 9개 메뉴 크롤링 · 네트워크(중복·평문·CSP) · 접근성 (약 4분)
+#   make qa        띄운 서비스 전수 점검 — API 퍼징 · 11개 화면 크롤링 · 네트워크(중복·평문·CSP) · 접근성 · 설명 줄바꿈 (약 5분)
 #   make qa-lh     Lighthouse 모바일 9개 화면 × 3회 중앙값 표 (약 15분)
 #   make status    수집·계산 현황   make logs / make psql / make down
 #   make prune     오래된 원문·스냅샷·계산 결과 정리 (KEEP=3 수집 run, KEEP_CALC=5 계산 run)
@@ -203,7 +203,7 @@ $(QA_PY): scripts/qa/requirements.txt
 
 qa: $(QA_PY)
 	@test -f web/node_modules/axe-core/axe.min.js || (cd web && npm ci --silent)
-	@status=0; for s in fuzz crawl requests_check a11y; do $(QA_PY) scripts/qa/$$s.py || status=1; done; exit $$status
+	@status=0; for s in fuzz crawl requests_check a11y sentences; do $(QA_PY) scripts/qa/$$s.py || status=1; done; exit $$status
 
 qa-lh: $(QA_PY)
 	$(QA_PY) scripts/qa/lighthouse.py $(or $(N),3)

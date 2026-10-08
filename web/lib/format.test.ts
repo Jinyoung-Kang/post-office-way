@@ -66,5 +66,11 @@ describe("sentences", () => {
     expect(sentences("집계구(평균 약 500명)마다 판정합니다. 0.8m/s 로 걷습니다.")).toEqual(["집계구(평균 약 500명)마다 판정합니다.", "0.8m/s 로 걷습니다."]);
     expect(sentences("한 문장입니다.")).toEqual(["한 문장입니다."]);
     expect(sentences("2026년 개정된 절차를 참고합니다. 분석용입니다. ")).toHaveLength(2);
+    expect(sentences("같은 범위 안에서 0~100. 순위 비교용")).toEqual(["같은 범위 안에서 0~100.", "순위 비교용"]);
+  });
+
+  it("순번·날짜 표기는 나누지 않음", () => {
+    expect(sentences("1. 광화문우체국")).toEqual(["1. 광화문우체국"]);
+    expect(sentences("자료 2026. 09. 25. 오후 02:41 기준")).toHaveLength(1);
   });
 });

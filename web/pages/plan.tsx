@@ -8,6 +8,7 @@ import MapWarmup from "@/components/MapWarmup";
 import type { MapLabel, Marker } from "@/components/AtlasMap";
 import { api, cachedApi, qs, type AreaFC, type AreaProps, type PlanClose, type PlanOpen, type Region } from "@/lib/api";
 import { classOf, dist, NO_DATA, num, quantileBreaks, SEQ } from "@/lib/format";
+import Sents from "@/components/Sents";
 
 const AtlasMap = dynamic(() => import("@/components/AtlasMap"), { ssr: false }) as typeof AtlasMapType;
 
@@ -112,9 +113,9 @@ export default function PlanPage() {
           </Card>
           <Card title="이렇게 계산합니다">
             <ul className="space-y-2 text-[13px] leading-relaxed text-ink-2">
-              <li><b className="text-ink">닫을 곳 찾기</b> — 범위 안 금융 우체국 중, 닫았을 때 ‘가중 인구 × 늘어나는 거리’가 가장 적게 늘어나는 곳을 하나씩 고릅니다(앞서 고른 곳이 닫힌 상태를 반영). 수요는 집계구(평균 약 500명) 단위로 셉니다.</li>
-              <li><b className="text-ink">열 곳 찾기</b> — 범위 안 읍면동 대표점을 후보지로, ‘가중 인구 × 줄어드는 거리’가 가장 큰 곳부터 고릅니다.</li>
-              <li>단위 <b className="text-ink">명·km</b> = 사람 수 × 늘거나 준 거리. 직선거리·읍면동 대표점 기준.</li>
+              <li><Sents><b className="text-ink">닫을 곳 찾기</b> — 범위 안 금융 우체국 중, 닫았을 때 ‘가중 인구 × 늘어나는 거리’가 가장 적게 늘어나는 곳을 하나씩 고릅니다(앞서 고른 곳이 닫힌 상태를 반영). 수요는 집계구(평균 약 500명) 단위로 셉니다.</Sents></li>
+              <li><Sents><b className="text-ink">열 곳 찾기</b> — 범위 안 읍면동 대표점을 후보지로, ‘가중 인구 × 줄어드는 거리’가 가장 큰 곳부터 고릅니다.</Sents></li>
+              <li><Sents>단위 <b className="text-ink">명·km</b> = 사람 수 × 늘거나 준 거리. 직선거리·읍면동 대표점 기준.</Sents></li>
             </ul>
           </Card>
           {err && <ErrorBox error={err} />}
@@ -141,7 +142,7 @@ export default function PlanPage() {
             <AtlasMap<AreaProps> className="h-[460px]" features={fc?.features || []} styleOf={styleOf} tooltipOf={tooltipOf}
               markers={markers} labels={res ? undefined : farLabels} geomKey={String(fc?.meta.parent ?? scope)} />
           </div>
-          {!res && <Empty>조건을 고르고 ‘제안 받기’를 누르세요. 지도는 지금의 최근접 금융 우체국 거리입니다(진할수록 멂).</Empty>}
+          {!res && <Empty><Sents>조건을 고르고 ‘제안 받기’를 누르세요. 지도는 지금의 최근접 금융 우체국 거리입니다(진할수록 멂).</Sents></Empty>}
           {res?.mode === "close" && (
             <>
               <Card title="닫는다면 이 순서로" pad={false}
@@ -203,7 +204,7 @@ export default function PlanPage() {
                   ))}</tbody>
                 </table>
               </div>
-              <p className="px-6 pb-5 text-[12px] text-ink-3">⚠ {res.caveat}</p>
+              <p className="px-6 pb-5 text-[12px] text-ink-3"><Sents>⚠ {res.caveat}</Sents></p>
             </Card>
           )}
         </div>

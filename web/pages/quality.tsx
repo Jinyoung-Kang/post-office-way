@@ -4,6 +4,7 @@ import { api, cachedApi, qs, type Page } from "@/lib/api";
 import { dt, num, short } from "@/lib/format";
 import JobsPanel from "@/components/JobsPanel";
 import ErrorLog from "@/components/ErrorLog";
+import Sents from "@/components/Sents";
 
 type Check = { code: string; severity: string; count: number; description: string };
 type Block = { scope: string; runId: string; kind: string; status: string; checkedAt: string; checks: Check[] };
@@ -90,7 +91,7 @@ export default function Quality() {
             </Card>
           ))}
         </div>
-        {sum && !sum.runs.length && <Empty>아직 수집 기록이 없습니다. <code>make all-data</code> 를 실행하세요.</Empty>}
+        {sum && !sum.runs.length && <Empty><Sents>아직 수집 기록이 없습니다. <code>make all-data</code> 를 실행하세요.</Sents></Empty>}
 
         <Card title="이슈" pad={false} right={
           <div className="flex flex-wrap items-center gap-2">

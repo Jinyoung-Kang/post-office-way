@@ -5,6 +5,7 @@ import { StatSkeletons, TableSkeleton } from "@/components/Skeleton";
 import { api, cachedApi, qs, type HubFacility, type HubSummary, type Page, type Region } from "@/lib/api";
 import { dist, dt, num, shortSido } from "@/lib/format";
 import { useQueryState } from "@/lib/useQueryState";
+import Sents from "@/components/Sents";
 
 type Sort = "soleHub" | "soleFin" | "served";
 const SORTS: { value: Sort; label: string }[] = [
@@ -147,9 +148,9 @@ export default function HubsPage() {
               <li>그 우체국이 가장 가깝고 두 번째 우체국도 2km 밖이면, 닫혔을 때 그 주민은 생활 거점을 모두 잃습니다 → <b className="text-ink">대체 불가</b>.</li>
             </ol>
             <p className="mt-4 text-[12px] leading-relaxed text-ink-3">
-              ⚠ 직선거리·집계구 대표점 기준 분석값이며 공식 통계가 아닙니다. 치과·한의원·요양병원은 1차 진료 접근성에서 제외했습니다.
+              <Sents>⚠ 직선거리·집계구 대표점 기준 분석값이며 공식 통계가 아닙니다. 치과·한의원·요양병원은 1차 진료 접근성에서 제외했습니다.
               공휴일 진료는 등록된 진료시간 기준이라 당번 약국과 다를 수 있습니다.
-            </p>
+            </Sents></p>
           </Card>
         </div>
       </div>
