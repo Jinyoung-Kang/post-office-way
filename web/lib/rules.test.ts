@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { careHoursText, isBankEvaluable, rankText, worstFirst } from "./rules";
-import { bboxParam, declutter, labelSize } from "./mapGeom";
+import { bboxParam, declutter, diffKeys, labelSize } from "./mapGeom";
 
 describe("화면 규칙", () => {
   const areas = [{ id: "a", value: 5, lat: 1, lon: 1 }, { id: "b", value: 9, lat: 1, lon: 1 },
@@ -35,5 +35,10 @@ describe("지도 기하", () => {
     const boxes = [{ x: 0, y: 0, w: 50, h: 20 }, { x: 40, y: 5, w: 50, h: 20 }, { x: 200, y: 0, w: 50, h: 20 },
       { x: 52, y: 0, w: 10, h: 10 }];   // 첫 상자와 4px 간격 안 → 겹침
     expect(declutter(boxes)).toEqual([true, false, true, false]);
+  });
+  it("레이어 갱신 — 화면 밖으로 나간 것만 지우고 새로 들어온 것만 만듦", () => {
+    expect(diffKeys(["a", "b", "c"], ["b", "c", "d"])).toEqual({ remove: ["a"], add: ["d"] });
+    expect(diffKeys([], ["x"])).toEqual({ remove: [], add: ["x"] });
+    expect(diffKeys(["x"], ["x"])).toEqual({ remove: [], add: [] });
   });
 });

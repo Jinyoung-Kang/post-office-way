@@ -21,3 +21,8 @@ export function declutter(boxes: Box[], gapX = 4, gapY = 2): boolean[] {
   });
 }
 
+/** 지금 보이는 키와 새로 받은 키 비교 → 지울 것(화면 밖으로 나감)·만들 것(새로 들어옴) */
+export function diffKeys(current: Iterable<string>, next: Iterable<string>): { remove: string[]; add: string[] } {
+  const cur = new Set(current), nxt = new Set(next);
+  return { remove: [...cur].filter((k) => !nxt.has(k)), add: [...nxt].filter((k) => !cur.has(k)) };
+}

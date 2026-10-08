@@ -1,9 +1,10 @@
 import { useEffect, useRef, type RefObject } from "react";
 import { api } from "@/lib/api";
-import { bboxParam } from "@/lib/mapGeom";
+import { bboxParam, diffKeys } from "@/lib/mapGeom";
 
 // 화면 범위 지도 레이어(시설·은행·약국) — 지도를 옮기거나 확대할 때마다 범위 안 항목을 받아 점으로 그림.
-// 이전 요청은 취소하고, 응답이 오면 이전 점을 지우고 새로 그림.
+// 이전 요청은 취소하고, 받은 목록과 비교해 화면 밖으로 나간 점만 지우고 새로 들어온 점만 만듦
+// (예전에는 조금만 옮겨도 모든 점을 지우고 다시 만들었음 — 서울 중구 286개).
 export type LayerSpec<T, R> = {
   enabled: boolean;
   maxLevel: number;                     // 이보다 넓게 보면(카카오 level 이 크면) 지우고 onTooFar
@@ -44,9 +45,12 @@ export function useBboxLayer<T extends { lat: number; lon: number }, R>(
       try {
         const res = await api<R>(s.current.path(bboxParam(sw.getLng(), sw.getLat(), ne.getLng(), ne.getLat())), { signal: ctl.signal });
         if (my !== seq) return;
-        clear();
-        for (const it of s.current.items(res)) {
-          shown.set(s.current.keyOf(it), new kakao.maps.CustomOverlay({ map, position: new kakao.maps.LatLng(it.lat, it.lon),
+        const next = new Map(s.current.items(res).map((it) => [s.current.keyOf(it), it]));
+        const { remove, add } = diffKeys(shown.keys(), next.keys());
+        for (const k of remove) { shown.get(k).setMap(null); shown.delete(k); }
+        for (const k of add) {
+          const it = next.get(k)!;
+          shown.set(k, new kakao.maps.CustomOverlay({ map, position: new kakao.maps.LatLng(it.lat, it.lon),
             content: s.current.draw(it), zIndex: s.current.zIndex, clickable: !!s.current.clickable }));
         }
         s.current.onLoaded?.(res, shown.size);
