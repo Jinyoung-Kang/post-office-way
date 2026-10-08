@@ -3,7 +3,7 @@
 ```mermaid
 flowchart LR
   subgraph Browser["브라우저"]
-    UI["Next.js 15 화면 · CSP · 같은 출처 호출"]
+    UI["Next.js 16 화면 · CSP · 같은 출처 호출"]
   end
   subgraph web["web · Next.js standalone · 비루트"]
     RW["/api/v1 → api 프록시"]

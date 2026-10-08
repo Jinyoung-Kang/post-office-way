@@ -183,12 +183,12 @@ VISIT-1(09~18시 비·눈·더위·추위·바람·미세먼지 → 좋음/주�
 | 백엔드 | Python 3.11 · FastAPI 0.141 · SQLAlchemy 2.0 · psycopg 3 · Pydantic 2 · uvicorn |
 | 데이터 | PostgreSQL 16 + PostGIS 3.6(공간 조인·KNN·GiST) · Redis 7(캐시·속도 제한) · Postgres 작업 큐(`SKIP LOCKED`·`LISTEN/NOTIFY`) |
 | 분석 | SQL 지표 계산(calc_run 단위) · numpy · scipy(KD-tree) · pyosmium(OSM) · k-최근접 다중 출발 다익스트라(직접 구현) |
-| 프론트엔드 | Next.js 15.5(pages router) · React 18 · TypeScript 5.9 · Tailwind CSS 4.3 · Recharts · Kakao 지도 Web API · SVG(보고서 지도) |
+| 프론트엔드 | Next.js 16.4(pages router, webpack 빌드 — [ADR-022](docs/adr/ADR-022-next16.md)) · React 19 · TypeScript 5.9 · Tailwind CSS 4.3 · Recharts · Kakao 지도 Web API · SVG(보고서 지도) |
 | 운영·보안 | Docker Compose(비루트·읽기 전용 FS·`cap_drop: ALL`) · Prometheus 지표 · GitHub Actions · CodeQL · Dependabot · gitleaks · pip-audit · npm audit |
 | 검증 | pytest(PostGIS 테스트 DB) · Vitest · Playwright · axe-core · Lighthouse (`make test` · `make qa`) |
 
 ```
-브라우저 ─▶ web (Next.js 15, CSP, 비루트) ─ /api/v1 ─▶ api (FastAPI, uvicorn×2, 읽기 전용 FS)
+브라우저 ─▶ web (Next.js 16, CSP, 비루트) ─ /api/v1 ─▶ api (FastAPI, uvicorn×2, 읽기 전용 FS)
                                                         │  atlas_api 역할: 조회 · What-if 저장 · 작업 INSERT + NOTIFY
                                                         ▼
             migrate(1회, 소유자) ─▶ PostgreSQL 16 + PostGIS ◀── worker (소유자) ─▶ 외부 API · OSM
