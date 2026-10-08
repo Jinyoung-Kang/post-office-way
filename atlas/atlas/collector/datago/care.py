@@ -2,6 +2,8 @@
 
 - 약국 getParmacyFullDown(약 2.5만 곳), 병의원 getHsptlMdcncFullDown(약 7.9만 곳 중 종합병원·병원·의원·보건소)
 - 종류별로 모든 페이지를 받았을 때만, 이번에 안 보인 곳(폐업)을 지웁니다 — 일부만 받으면 기존 자료 유지
+- '모두 받았다'는 응답의 전체 건수(totalCount)만큼 실제 항목을 받았을 때만. 빈 응답·건수 누락은 미완료로 보고,
+  모두 받았더라도 기존 행의 큰 비율이 한꺼번에 사라지면 응답 이상으로 보고 삭제를 보류 (ADR-023)
 """
 from __future__ import annotations
 
@@ -21,6 +23,8 @@ from atlas.domain.care import to_row
 
 log = logging.getLogger(__name__)
 PAGE_ROWS = 1000
+# 한 번에 지울 수 있는 기존 행의 상한 — 매주 폐업은 많아야 수백 곳(약국 약 2.5만 곳 중)이라 10%·최소 50곳이면 여유가 있음
+MAX_REMOVE_RATIO, MIN_REMOVE_GUARD = 0.10, 50
 SOURCES = (("PHARMACY", "NMC_PHARMACY", "pharmacy_url", "getParmacyFullDown"),
            ("CLINIC", "NMC_HOSPITAL", "hospital_url", "getHsptlMdcncFullDown"))
 
@@ -61,7 +65,19 @@ def collect_kind(fetcher, run_id: uuid.UUID, kind: str, source: str, url: str) -
         if not items or page * PAGE_ROWS >= st["total"]:
             break
         page += 1
+    # 전국 자료라 전체 건수가 0 이거나 받은 항목이 건수에 못 미치면 '모두 받음'이 아님 → 기존 자료 유지
+    seen = st["rows"] + st["skipped"]
+    if not st["total"] or seen < st["total"]:
+        st["incomplete"] = f"받은 항목 {seen} / 전체 건수 {st['total']}"
+        return st
     with begin() as c:
+        existing = c.execute(text("SELECT count(*) FROM mart.care_place WHERE kind = :k"), {"k": kind}).scalar_one()
+        unseen = c.execute(text("SELECT count(*) FROM mart.care_place WHERE kind = :k AND last_seen < to_timestamp(:t)"),
+                           {"k": kind, "t": started}).scalar_one()
+        if unseen > max(MAX_REMOVE_RATIO * existing, MIN_REMOVE_GUARD):
+            st["removeHeld"] = unseen          # 응답 이상 — 지우지 않고 미완료로 (다음 수집에서 다시 판단)
+            log.warning("care removal held", extra={"kind": kind, "unseen": unseen, "existing": existing})
+            return st
         st["removed"] = c.execute(text("""DELETE FROM mart.care_place WHERE kind = :k AND last_seen < to_timestamp(:t)"""),
                                   {"k": kind, "t": started}).rowcount
     st["complete"] = True
