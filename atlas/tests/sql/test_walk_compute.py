@@ -107,7 +107,17 @@ def test_walk_failure_keeps_previous_results(terrain, engine, monkeypatch):
         before = count()
     assert before > 0
 
+    from atlas.calc.runs import data_version
+
+    state = lambda: c2.execute(text("SELECT status, finished_at FROM mart.walk_run WHERE calc_run_id = :r"),  # noqa: E731
+                               {"r": rid}).one()
+    with engine.connect() as c2:
+        done_before, version_before = state(), data_version(c2, {"calc_run_id": rid})
+    seen = []
+
     def boom(*a, **k):
+        with engine.connect() as c3:                        # 계산하는 동안에도 이전 결과의 상태가 그대로여야 함
+            seen.append(c3.execute(text("SELECT status FROM mart.walk_run WHERE calc_run_id = :r"), {"r": rid}).scalar())
         raise RuntimeError("적재 단계 실패")
 
     monkeypatch.setattr(compute, "_copy_rows", boom)
@@ -115,7 +125,28 @@ def test_walk_failure_keeps_previous_results(terrain, engine, monkeypatch):
         compute.run_walk(str(rid), graph=g)
     with engine.connect() as c2:
         assert count() == before
-        assert c2.execute(text("SELECT status FROM mart.walk_run WHERE calc_run_id = :r"), {"r": rid}).scalar() == "FAILED"
+        # 상태도 이전 결과(DONE·완료 시각)를 가리켜야 화면 메타·캐시 키(data_version)가 남은 데이터와 맞음
+        # (예전에는 시작할 때 RUNNING, 실패하면 FAILED 로 바뀌어 '도보 계산 전'으로 보였음)
+        assert seen == ["DONE"]
+        assert state() == done_before and data_version(c2, {"calc_run_id": rid}) == version_before
+
+
+def test_first_walk_failure_is_recorded(terrain, engine, monkeypatch):
+    """이전 결과가 없는 첫 계산이 실패하면 FAILED 로 남김."""
+    from atlas.walk import compute
+
+    with engine.begin() as c:
+        add_oa(c, "99010010000001", 5_000, 3_000, 100)
+    rid = run_calc(stat_year=2024, levels=[2])
+
+    def boom(*a, **k):
+        raise RuntimeError("적재 단계 실패")
+
+    monkeypatch.setattr(compute, "_copy_rows", boom)
+    with pytest.raises(RuntimeError):
+        compute.run_walk(str(rid), graph=grid_graph(engine))
+    with engine.connect() as c:
+        assert c.execute(text("SELECT status FROM mart.walk_run WHERE calc_run_id = :r"), {"r": rid}).scalar() == "FAILED"
 
 
 def test_stale_graph_version_is_not_used(terrain, engine, monkeypatch, tmp_path):

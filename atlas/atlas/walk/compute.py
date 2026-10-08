@@ -98,14 +98,17 @@ def run_walk(calc_run_id: str | None = None, graph=None) -> dict[str, Any]:
     limit, snap_max = float(s.walk_limit_m), float(s.walk_snap_max_m)
     within = float(s.walk_speed_mps) * s.walk_minutes * 60          # 0.8m/s × 30분 = 1,440m
     t0 = time.monotonic()
+    meta = {"r": rid, "sp": s.walk_speed_mps, "lim": limit, "g": json.dumps(graph.meta, ensure_ascii=False),
+            "j": current_job_id.get()}
+    # 이미 끝난 도보 결과가 있으면 상태 행은 마지막 트랜잭션에서만 바꿈 — 시작할 때 RUNNING 으로 덮으면 계산하는 동안과
+    # 실패한 뒤에 데이터는 이전 결과인데 메타·캐시 키(data_version)는 '도보 없음'이 됐음. 처음 계산이면 RUNNING 으로 남겨 진행을 보임
     with eng.begin() as c:
         c.execute(text("""INSERT INTO mart.walk_run (calc_run_id, status, speed_mps, limit_m, graph, job_id)
                           VALUES (:r, 'RUNNING', :sp, :lim, CAST(:g AS jsonb), :j)
                           ON CONFLICT (calc_run_id) DO UPDATE SET status = 'RUNNING', speed_mps = EXCLUDED.speed_mps,
                               limit_m = EXCLUDED.limit_m, graph = EXCLUDED.graph, stats = '{}', error = NULL,
-                              started_at = now(), finished_at = NULL, job_id = EXCLUDED.job_id"""),
-                  {"r": rid, "sp": s.walk_speed_mps, "lim": limit, "g": json.dumps(graph.meta, ensure_ascii=False),
-                   "j": current_job_id.get()})
+                              started_at = now(), finished_at = NULL, job_id = EXCLUDED.job_id
+                           WHERE walk_run.status <> 'DONE'"""), meta)
     try:
         with eng.connect() as c:
             oa = c.execute(text("""
@@ -153,16 +156,18 @@ def run_walk(calc_run_id: str | None = None, graph=None) -> dict[str, Any]:
             c.execute(text("ANALYZE mart.bank_impact"))
             _metrics(c, rid, levels, limit, within)
             _bank_impact(c, rid, within)
-            c.execute(text("""UPDATE mart.walk_run SET status = 'DONE', stats = CAST(:s AS jsonb), finished_at = now()
+            c.execute(text("""UPDATE mart.walk_run SET status = 'DONE', stats = CAST(:s AS jsonb), finished_at = now(),
+                                     speed_mps = :sp, limit_m = :lim, graph = CAST(:g AS jsonb), error = NULL, job_id = :j
                               WHERE calc_run_id = :r"""),
-                      {"r": rid, "s": json.dumps({**stats, "timingsMs": timings,
-                                                  "elapsedMs": int((time.monotonic() - t0) * 1000)})})
+                      {**meta, "s": json.dumps({**stats, "timingsMs": timings,
+                                                "elapsedMs": int((time.monotonic() - t0) * 1000)})})
         log.info("walk done", extra={"calcRunId": str(rid), **stats, "timingsMs": timings})
         return {"calcRunId": str(rid), **stats, "timingsMs": timings}
     except Exception as e:
-        with eng.begin() as c:
+        with eng.begin() as c:   # 이전 결과(DONE)가 있으면 그대로 — 실패는 작업 기록·로그에
             c.execute(text("""UPDATE mart.walk_run SET status = 'FAILED', error = :e, finished_at = now()
-                              WHERE calc_run_id = :r"""), {"r": rid, "e": safe_error(f"{type(e).__name__}: {e}")})
+                              WHERE calc_run_id = :r AND status <> 'DONE'"""), {"r": rid, "e": safe_error(f"{type(e).__name__}: {e}")})
+        log.warning("walk failed — previous result kept", extra={"calcRunId": str(rid), "error": safe_error(str(e))[:200]})
         raise
 
 
