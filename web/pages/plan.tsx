@@ -82,7 +82,7 @@ export default function PlanPage() {
   return (
     <Layout title="배치 제안">
       <MapWarmup />
-      <Hero title="어디를, 어떻게." sub="범위를 고르면 ‘닫아도 영향이 가장 작은 우체국 조합’과 ‘새로 열면 효과가 가장 큰 자리’를 계산합니다. 탐욕법 근사이며 결정 근거가 아닌 검토용입니다." />
+      <Hero title="어디를, 어떻게" sub="범위를 고르면 ‘닫아도 영향이 가장 작은 우체국 조합’과 ‘새로 열면 효과가 가장 큰 자리’를 계산합니다. 탐욕법 근사이며 결정 근거가 아닌 검토용입니다." />
       <div className="mx-auto grid max-w-wide grid-cols-1 gap-5 px-4 pb-20 lg:grid-cols-[360px_minmax(0,1fr)]">
         <div className="space-y-5">
           <Card title="조건">

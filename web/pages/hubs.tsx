@@ -42,7 +42,7 @@ export default function HubsPage() {
 
   return (
     <Layout title="생활 거점">
-      <Hero eyebrow="생활 거점" title={<>우체국이 마지막으로<br className="hidden sm:block" /> 남은 동네.</>}
+      <Hero eyebrow="생활 거점" title={<>우체국이 마지막으로<br className="hidden sm:block" /> 남은 동네</>}
         sub="약국·의원·은행 지점이 2km 안에 없는 곳에서 우체국은 유일한 생활 거점입니다. 집계구(평균 약 500명)마다 판정해, 닫히면 대신할 곳이 없는 우체국을 찾습니다." />
 
       <div className="mx-auto max-w-page space-y-5 px-4 pb-20">

@@ -57,7 +57,7 @@ export default function Quality() {
 
   return (
     <Layout title="데이터·운영">
-      <Hero title="데이터·운영." sub="작업 큐가 무엇을 언제 실행했는지, 수집·계산마다 어떤 품질 규칙에 걸렸는지 봅니다. 0건인 규칙도 ‘실행했음’으로 기록됩니다." />
+      <Hero title="데이터·운영" sub="작업 큐가 무엇을 언제 실행했는지, 수집·계산마다 어떤 품질 규칙에 걸렸는지 봅니다. 0건인 규칙도 ‘실행했음’으로 기록됩니다." />
       <div className="mx-auto max-w-page space-y-5 px-4 pb-20">
         <ErrorLog clientErrors={err ? [err] : []} />
         <JobsPanel />

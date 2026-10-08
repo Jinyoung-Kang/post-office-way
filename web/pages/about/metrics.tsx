@@ -13,7 +13,7 @@ export default function MetricsAbout() {
 
   return (
     <Layout title="지표 정의">
-      <Hero title="지표 정의." sub="모든 숫자가 어떻게 계산되는지, 어디까지 믿을 수 있는지 적어 둡니다." />
+      <Hero title="지표 정의" sub="모든 숫자가 어떻게 계산되는지, 어디까지 믿을 수 있는지 적어 둡니다." />
       <div className="mx-auto max-w-page space-y-5 px-4 pb-20">
         <div className="card flex gap-3 p-5 text-[14px]">
           <span className="badge badge-warn h-fit">공식 통계 아님</span>

@@ -51,7 +51,7 @@ export default function Rankings() {
 
   return (
     <Layout title="지역 순위">
-      <Hero title="지역 순위." sub="지표를 고르면 전국 시군구(또는 시도 안 읍면동)를 값 순서로 보여 줍니다. 막대나 행을 누르면 지도로 이동합니다." />
+      <Hero title="지역 순위" sub="지표를 고르면 전국 시군구(또는 시도 안 읍면동)를 값 순서로 보여 줍니다. 막대나 행을 누르면 지도로 이동합니다." />
       <div className="mx-auto max-w-page space-y-5 px-4 pb-20">
         <div className="card flex flex-wrap items-center gap-3 p-4">
           <select name="metric" className="field max-w-[280px]" value={metric} onChange={(e) => setMetric(e.target.value)} aria-label="지표">
