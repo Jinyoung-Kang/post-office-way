@@ -68,7 +68,6 @@ export default function MapPage() {
       if (adm.length > 5) { setLevel(3); setParent(adm.slice(0, 5)); } else { setLevel(2); setParent(""); }
       setSelected(adm); setFocusCd(adm); setFacility(null);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router.isReady, router.query.adm, router.query.metric, router.query.in]);
 
   useEffect(() => {

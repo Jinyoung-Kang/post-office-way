@@ -54,6 +54,8 @@ jobs:
       - name: 의존성 취약점 (npm audit, high 이상 실패)
         run: npm audit --audit-level=high
       - run: npm run typecheck
+      - name: 린트 (React Hook 규칙)
+        run: npm run lint
       - run: npm test
       - run: npm run build
 

@@ -1,5 +1,4 @@
 // 카카오 지도 SDK 로더 — 키는 런타임에 /api/config 에서 받아옵니다(재빌드 없이 .env 변경 반영).
-/* eslint-disable @typescript-eslint/no-explicit-any */
 declare global {
   interface Window { kakao: any }
 }

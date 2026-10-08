@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useRef, useState } from "react";
 import { api, qs, type Bank, type CarePlace, type Facility, type Feature, type Page } from "@/lib/api";
 import { loadKakao, toPaths } from "@/lib/kakao";
@@ -110,7 +109,6 @@ export default function AtlasMap<P extends { admCd: string; admNm: string }>(pro
     const onVis = () => { if (document.visibilityState === "visible") redraw(); };
     document.addEventListener("visibilitychange", onVis);
     return () => { ro.disconnect(); document.removeEventListener("visibilitychange", onVis); cancelAnimationFrame(raf); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready]);
 
   // 폴리곤: geomKey 가 같고 지역 목록이 같으면 속성만 바꾸고 다시 칠함
@@ -192,7 +190,7 @@ export default function AtlasMap<P extends { admCd: string; admNm: string }>(pro
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, features, geomKey]);
 
-  useEffect(() => { if (ready) paint(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [styleOf, selected, ready]);
+  useEffect(() => { if (ready) paint(); }, [styleOf, selected, ready]);
 
   // 특정 지역으로 확대 (순위 화면에서 넘어온 경우 등) — 한 번만. 이후 지표를 바꿔도 사용자가 옮긴 화면을 유지
   useEffect(() => {
@@ -326,12 +324,14 @@ export default function AtlasMap<P extends { admCd: string; admNm: string }>(pro
   }, [ready, banks]);
 
   // 약국·의원 레이어 — 확대 수준 7 이하(시군구 안)에서 화면 범위만. 마름모 점, 누르면 진료시간
+  // 부르는 쪽이 매번 새 객체를 넘겨도 다시 받지 않도록 켜짐·공휴일 진료 여부만 의존
+  const careOn = !!care, careHolidayOnly = !!care?.holidayOnly;
   useEffect(() => {
     const kakao = kakaoRef.current;
     if (!ready || !kakao) return;
     let seq = 0;
     const clear = () => { careOverlays.current.forEach((o) => o.setMap(null)); careOverlays.current = []; };
-    if (!care) { clear(); return; }
+    if (!careOn) { clear(); return; }
     const load = async () => {
       const my = ++seq;
       if (map.current.getLevel() > 7) { clear(); setFacNote("확대하면 약국·의원이 보입니다"); return; }
@@ -339,7 +339,7 @@ export default function AtlasMap<P extends { admCd: string; admNm: string }>(pro
       const sw = b.getSouthWest(), ne = b.getNorthEast();
       try {
         const res = await api<{ items: CarePlace[] }>(`/care${qs({ bbox: [sw.getLng(), sw.getLat(), ne.getLng(), ne.getLat()]
-          .map((v: number) => v.toFixed(5)).join(","), holidayOnly: care.holidayOnly || undefined, size: 3000 })}`);
+          .map((v: number) => v.toFixed(5)).join(","), holidayOnly: careHolidayOnly || undefined, size: 3000 })}`);
         if (my !== seq) return;
         clear();
         for (const p of res.items) {
@@ -352,14 +352,14 @@ export default function AtlasMap<P extends { admCd: string; admNm: string }>(pro
           careOverlays.current.push(new kakao.maps.CustomOverlay({ map: map.current, position: new kakao.maps.LatLng(p.lat, p.lon),
             content: div, zIndex: 4 }));
         }
-        setFacNote(`약국·의원 ${res.items.length.toLocaleString()}곳${care.holidayOnly ? " (공휴일 진료)" : ""}`);
+        setFacNote(`약국·의원 ${res.items.length.toLocaleString()}곳${careHolidayOnly ? " (공휴일 진료)" : ""}`);
       } catch (e: any) { setFacNote(e.message); }
     };
     load();
     const h = () => load();
     kakao.maps.event.addListener(map.current, "idle", h);
     return () => { kakao.maps.event.removeListener(map.current, "idle", h); seq++; clear(); setFacNote(null); };
-  }, [ready, care?.holidayOnly, !!care]);
+  }, [ready, careOn, careHolidayOnly]);
 
   // 늘 보이는 라벨 — 순위 상위 지역 등 핵심 값만 (많으면 지도가 가려져 10여 개로 제한하는 건 부르는 쪽 몫)
   useEffect(() => {
