@@ -132,8 +132,24 @@ export class ApiError extends Error {
 // 같은 출처 /api/v1 아래 경로만 — 주소창 값(?scenario= 등)이 섞여도 '..'·'//'·스킴으로 다른 경로를 부르지 못하게
 const SAFE_PATH = /^\/(?!.*\.\.)(?!\/)[A-Za-z0-9_\-./?=&%,:+ ]*$/;
 
+// 퍼센트 인코딩한 점('%2e%2e', '.%2E')도 브라우저 URL 정규화에서 '..'·'.' 경로 조각이 되므로, 조각을 풀어 다시 확인
+function hasDotSegment(path: string): boolean {
+  return path.split(/[?#]/)[0].split("/").some((seg) => {
+    try {
+      const d = decodeURIComponent(seg);
+      return d === "." || d === "..";
+    } catch {
+      return true;                     // 잘못된 퍼센트 인코딩
+    }
+  });
+}
+
+export function isSafePath(path: string): boolean {
+  return SAFE_PATH.test(path) && !hasDotSegment(path);
+}
+
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  if (!SAFE_PATH.test(path)) throw new ApiError(400, "BAD_PATH", `허용되지 않은 요청 경로입니다: ${path.slice(0, 80)}`);
+  if (!isSafePath(path)) throw new ApiError(400, "BAD_PATH", `허용되지 않은 요청 경로입니다: ${path.slice(0, 80)}`);
   const r = await fetch(`/api/v1${path}`, {
     ...init, headers: { "Content-Type": "application/json", ...(init?.headers || {}) },
   });

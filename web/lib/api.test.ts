@@ -5,7 +5,9 @@ describe("api 경로 검사", () => {
   it("다른 경로로 새는 값은 요청 전에 거절", async () => {
     const f = vi.fn();
     vi.stubGlobal("fetch", f);
-    for (const bad of ["/whatif/../admin/jobs", "//evil.example/x", "whatif", "/x\\y", "/a/<script>"]) {
+    for (const bad of ["/whatif/../admin/jobs", "//evil.example/x", "whatif", "/x\\y", "/a/<script>",
+      // 퍼센트 인코딩한 점 — 브라우저 URL 정규화가 '..' 로 해석해 /api/v1/admin/jobs 로 감 (리뷰 S5)
+      "/whatif/%2e%2e/admin/jobs", "/whatif/.%2E/admin/jobs", "/%2e%2e/%2e%2e/api/config", "/whatif/%2E/x"]) {
       await expect(api(bad)).rejects.toMatchObject({ code: "BAD_PATH" });
     }
     expect(f).not.toHaveBeenCalled();
