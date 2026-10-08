@@ -1,7 +1,7 @@
 """API 응답 고정(스냅숏) — 구조 리팩터링(라우터·서비스·쿼리 나누기)이 응답을 바꾸지 않았는지 확인.
 
-소형 지형 + 집계구 + 은행 지점 + 계산 + 도보(500m 격자 그래프)로 주요 엔드포인트를 부르고, 매번 달라지는 값(UUID·시각)만
-바꿔 tests/sql/snapshots/*.json 과 비교합니다. 의도해서 응답을 바꿨다면 UPDATE_SNAPSHOTS=1 로 다시 저장하고 diff 를 검토하세요.
+소형 지형 + 집계구 + 은행 지점 + 계산 + 도보(500m 격자 그래프)로 주요 엔드포인트를 부르고, 매번 달라지는 값(UUID·시각)과
+버전마다 마지막 자리가 다를 수 있는 경계 좌표만 바꿔 tests/sql/snapshots/*.json 과 비교합니다. 의도해서 응답을 바꿨다면 UPDATE_SNAPSHOTS=1 로 다시 저장하고 diff 를 검토하세요.
 """
 from __future__ import annotations
 
@@ -25,6 +25,9 @@ _TS = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}")
 
 def _norm(v):
     if isinstance(v, dict):
+        if isinstance(v.get("coordinates"), list) and "type" in v:
+            # 경계 좌표는 PostGIS·GEOS·PROJ 버전(CI 3.5 · 로컬 3.6)에 따라 마지막 자리가 다를 수 있어 도형 종류만 비교
+            return {"type": v["type"], "coordinates": "<coords>"}
         return {k: _norm(x) for k, x in v.items()}
     if isinstance(v, list):
         return [_norm(x) for x in v]
