@@ -14,6 +14,7 @@ from sqlalchemy import Engine, text
 from sqlalchemy.exc import IntegrityError
 
 from atlas.core.db import get_engine
+from atlas.core.masking import safe_error
 
 CHANNEL = "atlas_jobs"
 STALE_MIN = 10          # 하트비트가 이만큼 끊기면 워커가 죽은 것으로 봄
@@ -115,7 +116,7 @@ def finish(job_id: int, ok: bool, result: dict[str, Any] | None = None, error: s
         c.execute(text("""UPDATE ops.job SET status = :st, result = CAST(:r AS jsonb), error = :e, finished_at = now()
                           WHERE job_id = :id"""),
                   {"st": "DONE" if ok else "FAILED", "r": json.dumps(result or {}, default=str),
-                   "e": (error or "")[:2000] or None, "id": job_id})
+                   "e": safe_error(error) or None, "id": job_id})
 
 
 def reap(engine: Engine | None = None) -> dict[str, int]:

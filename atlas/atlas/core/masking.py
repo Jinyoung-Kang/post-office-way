@@ -37,10 +37,29 @@ def mask_secrets_in(s: str, secrets: list[str]) -> str:
 
 
 # SQLAlchemy 예외 문자열 끝에 붙는 SQL 원문·바인드 값(사용자 입력일 수 있음)·안내 링크
-_SQLA_TAIL = re.compile(r"\n\s*(?:\[SQL:|\[parameters:|\(Background on this error).*", re.S)
+# (보통 줄바꿈 뒤에 오지만, 한 줄로 합쳐 저장된 오류에서도 떼도록 공백 전체를 봄)
+_SQLA_TAIL = re.compile(r"\s*(?:\[SQL:|\[parameters:|\(Background on this error).*", re.S)
 
 
 def brief_error(s: str, limit: int = 300) -> str:
     """오류 로그용 한 줄 — SQL 원문·바인드 값을 떼고 공백을 합친 뒤 limit 자로 자름 (전체 내용은 traceId 로 서버 로그에서)."""
     s = " ".join(_SQLA_TAIL.sub("", s or "").split())
     return s if len(s) <= limit else s[: limit - 1] + "…"
+
+
+def known_secrets() -> list[str]:
+    """설정에 있는 키·비밀번호 원문 — 오류 문자열에 남았으면 지우는 마지막 안전망용."""
+    from atlas.core.config import get_settings
+
+    s = get_settings()
+    return [s.post_service_key, s.sgis_consumer_key, s.sgis_consumer_secret, s.kakao_rest_api_key,
+            s.kosis_api_key, s.data_go_kr_key, s.admin_token, s.api_db_password]
+
+
+def safe_error(s: str | None, limit: int = 1000) -> str | None:
+    """실행 기록(collect_run·calc_run·walk_run·job)에 저장하는 오류 — 키를 가리고 SQL 원문·바인드 값을 뗀 한 줄.
+    이 값은 공개 목록(/meta/*-runs·jobs)에 그대로 나가므로 원문은 서버 로그(traceId·log.exception)에만 (S6)."""
+    if not s:
+        return s
+    return brief_error(mask_secrets_in(mask_text(s), known_secrets()), limit)
+

@@ -18,6 +18,7 @@ from atlas.collector.dq.rules import CALC_RULES, DQRecorder
 from atlas.core.config import get_settings
 from atlas.core.db import get_engine, run_sql_file
 from atlas.domain.rules import RULE_VERSION
+from atlas.core.masking import safe_error
 
 log = logging.getLogger(__name__)
 
@@ -159,7 +160,7 @@ def execute_calc_run(calc_run_id: uuid.UUID, engine: Engine | None = None) -> di
     except Exception as e:
         with eng.begin() as c:
             c.execute(text("""UPDATE mart.calc_run SET status = 'FAILED', error = :e, finished_at = now()
-                              WHERE calc_run_id = :id"""), {"e": f"{type(e).__name__}: {e}"[:2000], "id": calc_run_id})
+                              WHERE calc_run_id = :id"""), {"e": safe_error(f"{type(e).__name__}: {e}"), "id": calc_run_id})
         log.exception("calc failed", extra={"calcRunId": str(calc_run_id)})
         raise
 

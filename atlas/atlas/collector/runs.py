@@ -8,6 +8,7 @@ from typing import Any
 from sqlalchemy import text
 
 from atlas.core.db import begin
+from atlas.core.masking import safe_error
 
 # RUNNING 인 채로 이 시간이 지나면 죽은 실행으로 보고 새 실행을 막지 않습니다.
 STALE_HOURS = 6
@@ -72,4 +73,4 @@ def finish_run(run_id: uuid.UUID, status: str, stats: dict[str, Any], error: str
     with begin() as c:
         c.execute(text("""UPDATE ops.collect_run SET status = :st, stats = CAST(:s AS jsonb),
                                  error = :e, finished_at = now() WHERE collect_run_id = :id"""),
-                  {"st": status, "s": json.dumps(stats, ensure_ascii=False), "e": error, "id": run_id})
+                  {"st": status, "s": json.dumps(stats, ensure_ascii=False), "e": safe_error(error), "id": run_id})

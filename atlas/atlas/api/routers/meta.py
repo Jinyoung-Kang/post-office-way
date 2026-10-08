@@ -6,6 +6,7 @@ from sqlalchemy import text
 from atlas.api.common import jsonable, page_params
 from atlas.core.config import get_settings
 from atlas.core.db import get_engine
+from atlas.core.masking import safe_error
 
 router = APIRouter(prefix="/meta", tags=["meta"])
 
@@ -22,7 +23,7 @@ def collect_runs(kind: str | None = None, page: int = 1, size: int = 20):
                          p).mappings().all()
     items = [jsonable({"collectRunId": r["collect_run_id"], "kind": r["kind"], "status": r["status"],
                        "scope": r["scope"], "startedAt": r["started_at"], "finishedAt": r["finished_at"],
-                       "stats": _brief_stats(r["stats"]), "error": r["error"]}) for r in rows]
+                       "stats": _brief_stats(r["stats"]), "error": safe_error(r["error"], 300)}) for r in rows]
     return {"items": items, "page": page, "size": size, "total": total}
 
 
@@ -45,7 +46,7 @@ def calc_runs(page: int = 1, size: int = 20):
                          {"lim": size, "off": off}).mappings().all()
     items = [jsonable({"calcRunId": r["calc_run_id"], "statYear": r["stat_year"],
                        "facilityAsOf": r["facility_as_of"], "params": r["params"], "status": r["status"],
-                       "stats": r["stats"], "error": r["error"], "createdAt": r["created_at"],
+                       "stats": r["stats"], "error": safe_error(r["error"], 300), "createdAt": r["created_at"],
                        "finishedAt": r["finished_at"]}) for r in rows]
     return {"items": items, "page": page, "size": size, "total": total}
 
@@ -75,7 +76,7 @@ def jobs(limit: int = Query(30, ge=1, le=100)):
     from atlas.jobs import queue
 
     return {"items": [jsonable({"jobId": j["job_id"], "kind": j["kind"], "status": j["status"], "source": j["source"],
-                                "slot": j["slot"], "attempts": j["attempts"], "error": j["error"],
+                                "slot": j["slot"], "attempts": j["attempts"], "error": safe_error(j["error"], 300),
                                 "createdAt": j["created_at"], "startedAt": j["started_at"],
                                 "finishedAt": j["finished_at"], "result": j["result"]})
                       for j in queue.recent(limit)]}
@@ -96,11 +97,9 @@ def schedule():
 
 @router.get("/errors", summary="오류 로그 — API 예외·작업·수집·계산 실패·품질 ERROR 를 시간순 한곳에 (복사용 한 줄 포함, 지운 항목 제외)")
 def errors(days: int = Query(14, ge=1, le=90), limit: int = Query(200, ge=1, le=1000)):
-    from atlas.core.masking import brief_error, mask_secrets_in, mask_text
+    from atlas.core.masking import brief_error, known_secrets, mask_secrets_in, mask_text
 
-    s = get_settings()
-    secrets = [s.post_service_key, s.sgis_consumer_key, s.sgis_consumer_secret, s.kakao_rest_api_key,
-               s.kosis_api_key, s.data_go_kr_key, s.admin_token, s.api_db_password]
+    secrets = known_secrets()
     with get_engine().connect() as c:
         rows = c.execute(text("""
             SELECT id, at, source, ref, title, message FROM (

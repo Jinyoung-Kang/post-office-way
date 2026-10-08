@@ -341,3 +341,26 @@ def test_csp_report_recorded_once_filtered_and_scrubbed(client, engine, monkeypa
     assert rows[0].path == "/banks" and "secret" not in rows[0].message and "token" not in rows[0].path
     errs = client.get("/api/v1/meta/errors").json()["items"]
     assert {e["source"] for e in errs if e["title"].startswith("CSP")} == {"보안 정책"}
+
+
+def test_stored_run_and_job_errors_are_masked(clean, engine):
+    """수집·작업 실패 원문(SQL·바인드 값·키)을 저장 전에 가리고, 공개 목록에도 요약만 (S6)."""
+    from fastapi.testclient import TestClient
+
+    from atlas.api.main import app
+    from atlas.collector import runs as crun
+
+    raw = ("OperationalError: boom serviceKey=SECRETVALUE123 [SQL: SELECT * FROM x WHERE a = %(a)s] "
+           "[parameters: {'a': 'private-input'}] (Background on this error at: https://sqlalche.me/e/20/e3q8)")
+    rid = crun.start_run("POST_AREA", check_running=False)
+    crun.finish_run(rid, "FAILED", {}, error=raw)
+    jid = queue.enqueue("okjob")
+    queue.finish(jid, False, {}, error=raw)
+    with engine.connect() as c:
+        stored = [c.execute(text("SELECT error FROM ops.collect_run WHERE collect_run_id = :r"), {"r": rid}).scalar(),
+                  c.execute(text("SELECT error FROM ops.job WHERE job_id = :j"), {"j": jid}).scalar()]
+    for s in stored:
+        assert "SECRETVALUE123" not in s and "[SQL" not in s and "private-input" not in s and "boom" in s
+    with TestClient(app) as cl:
+        listed = cl.get("/api/v1/meta/collect-runs").json()["items"][0]["error"]
+    assert "[SQL" not in listed and "SECRETVALUE123" not in listed

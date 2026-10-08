@@ -19,6 +19,7 @@ from sqlalchemy import text
 
 from atlas.core.config import get_settings
 from atlas.core.db import get_engine
+from atlas.core.masking import safe_error
 
 log = logging.getLogger(__name__)
 WALK_METRICS = ("POPW_FIN_WALK_M", "WALK30_NO_FIN_PPLTN", "WALK30_NO_FIN_SHARE", "WALK30_NO_CASH_PPLTN")
@@ -156,7 +157,7 @@ def run_walk(calc_run_id: str | None = None, graph=None) -> dict[str, Any]:
     except Exception as e:
         with eng.begin() as c:
             c.execute(text("""UPDATE mart.walk_run SET status = 'FAILED', error = :e, finished_at = now()
-                              WHERE calc_run_id = :r"""), {"r": rid, "e": f"{type(e).__name__}: {e}"[:2000]})
+                              WHERE calc_run_id = :r"""), {"r": rid, "e": safe_error(f"{type(e).__name__}: {e}")})
         raise
 
 
