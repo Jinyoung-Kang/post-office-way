@@ -15,7 +15,7 @@ from sqlalchemy.engine import Connection
 
 from atlas.api import cache
 from atlas.api.common import jsonable
-from atlas.api.errors import ApiError, bad_request
+from atlas.domain.errors import Invalid, NotFound
 from atlas.api.services import calendar as cal
 from atlas.core.clock import now_kst
 from atlas.core.config import get_settings
@@ -117,8 +117,8 @@ def _closed(d: date, hol: dict[date, str]) -> dict[str, Any]:
     return {"closed": st["closed"], "closedReason": st["reason"]}
 
 
-def _no_data() -> ApiError:
-    return ApiError(404, "VISIT_NO_DATA",
+def _no_data() -> NotFound:
+    return NotFound("VISIT_NO_DATA",
                     "방문 여건 예보가 없습니다. .env 에 DATA_GO_KR_KEY 를 넣고 `make weather` 를 실행하세요.")
 
 
@@ -129,7 +129,7 @@ def _pick_date(c: Connection, day: str | None) -> tuple[date, list[date]]:
         try:
             d = date.fromisoformat(day)
         except ValueError as e:
-            raise bad_request("date 는 YYYY-MM-DD 입니다.") from e
+            raise Invalid("date 는 YYYY-MM-DD 입니다.") from e
         return d, dates
     if not dates:
         raise _no_data()
@@ -195,13 +195,13 @@ def area_outlook(c: Connection, adm_cd: str) -> dict[str, Any]:
     """지역 카드용 — 시군구(읍면동이면 상위 시군구)의 오늘~모레 판정."""
     sgg = adm_cd[:5]
     if len(adm_cd) < 5 or not sgg.isdigit():
-        raise bad_request("admCd 는 시군구(5자리) 또는 읍면동 코드입니다.")
+        raise Invalid("admCd 는 시군구(5자리) 또는 읍면동 코드입니다.")
     now = now_kst()
     calc = _latest_calc(c)
     year = calc["stat_year"] if calc else get_settings().stat_year
     areas = _areas(c, year, calc and calc["calc_run_id"], sgg)
     if not areas:
-        raise ApiError(404, "AREA_NOT_FOUND", f"시군구 {sgg} 가 없습니다.")
+        raise NotFound("AREA_NOT_FOUND", f"시군구 {sgg} 가 없습니다.")
     dates = [x for x in available_dates(c, now.date()) if x > now.date() or now.hour < WINDOW_HOURS.stop]
     days = []
     grid = (areas[0]["nx"], areas[0]["ny"]) if areas[0]["nx"] is not None else (-1, -1)

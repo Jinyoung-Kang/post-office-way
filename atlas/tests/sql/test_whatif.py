@@ -47,17 +47,15 @@ def test_non_fin_facility_has_no_effect(terrain, engine):
 
 
 def test_validation(terrain, engine):
-    from atlas.api.errors import ApiError
+    from atlas.domain.errors import Invalid, NotFound
 
     rid = run_calc(stat_year=2024, levels=[2])
     with engine.begin() as c:
-        with pytest.raises(ApiError) as e:
+        with pytest.raises(Invalid):
             run_whatif(c, str(rid), [], level=2)
-        assert e.value.status == 400
-        with pytest.raises(ApiError) as e:
+        with pytest.raises(Invalid):
             run_whatif(c, str(rid), [1, 2, 3, 4, 5, 6], level=2)
-        assert e.value.status == 400
-        with pytest.raises(ApiError) as e:
+        with pytest.raises(NotFound) as e:
             run_whatif(c, str(rid), [987654321], level=2)
         assert e.value.code == "FACILITY_NOT_FOUND"
 

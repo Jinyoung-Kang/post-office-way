@@ -3,7 +3,8 @@ from __future__ import annotations
 from fastapi import APIRouter
 from sqlalchemy import text
 
-from atlas.api.common import bad_request, jsonable, not_found, page_params, parse_uuid
+from atlas.api.common import jsonable, page_params, parse_uuid
+from atlas.domain.errors import Invalid, NotFound
 from atlas.ops.dq import RULES
 from atlas.core.db import get_engine
 
@@ -23,7 +24,7 @@ def summary(collectRunId: str | None = None, calcRunId: str | None = None):
             runs = c.execute(text("""SELECT collect_run_id, kind, status, started_at, finished_at
                                      FROM ops.collect_run WHERE collect_run_id = :id"""), {"id": crid}).mappings().all()
             if not runs:
-                raise not_found("COLLECT_RUN_NOT_FOUND", f"collectRunId {crid} 가 없습니다.")
+                raise NotFound("COLLECT_RUN_NOT_FOUND", f"collectRunId {crid} 가 없습니다.")
         else:  # 종류별 최신 run
             runs = c.execute(text(f"""SELECT collect_run_id, kind, status, started_at, finished_at
                                       FROM ops.collect_run WHERE collect_run_id IN ({_LATEST_COLLECT})
@@ -38,7 +39,7 @@ def summary(collectRunId: str | None = None, calcRunId: str | None = None):
                                  WHERE (CAST(:id AS uuid) IS NULL AND status <> 'RUNNING') OR calc_run_id = CAST(:id AS uuid)
                                  ORDER BY created_at DESC LIMIT 1"""), {"id": calcid}).mappings().first()
         if calcid and not calc:
-            raise not_found("CALC_RUN_NOT_FOUND", f"calcRunId {calcid} 가 없습니다.")
+            raise NotFound("CALC_RUN_NOT_FOUND", f"calcRunId {calcid} 가 없습니다.")
         if calc:
             checks = c.execute(text("""SELECT check_code, severity, issue_count, checked_at FROM ops.dq_check
                                        WHERE calc_run_id = :id ORDER BY check_id"""),
@@ -61,9 +62,9 @@ def issues(collectRunId: str | None = None, calcRunId: str | None = None, checkC
     """scope=latest(기본): run 을 지정하지 않으면 최신 run 들의 이슈만 · scope=all: 과거 run 포함."""
     page, size, off = page_params(page, size)
     if severity is not None and severity not in ("ERROR", "WARN", "INFO"):
-        raise bad_request("severity 는 ERROR · WARN · INFO 중 하나입니다.")
+        raise Invalid("severity 는 ERROR · WARN · INFO 중 하나입니다.")
     if scope not in ("latest", "all"):
-        raise bad_request("scope 는 latest 또는 all 입니다.")
+        raise Invalid("scope 는 latest 또는 all 입니다.")
     p = {"crun": parse_uuid(collectRunId, "collectRunId"), "calc": parse_uuid(calcRunId), "code": checkCode,
          "sev": severity, "lim": size, "off": off}
     latest = ""

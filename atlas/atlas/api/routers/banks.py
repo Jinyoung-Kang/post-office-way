@@ -4,7 +4,8 @@ from fastapi import APIRouter, Path, Query
 from fastapi.responses import Response
 from sqlalchemy import text
 
-from atlas.api.common import bad_request, jsonable
+from atlas.api.common import jsonable
+from atlas.domain.errors import Invalid
 from atlas.api.services import bank_impact as impact
 from atlas.core.db import get_engine
 
@@ -18,9 +19,9 @@ def list_banks(bbox: str = Query(..., description="minLon,minLat,maxLon,maxLat")
     try:
         x1, y1, x2, y2 = (float(v) for v in bbox.split(","))
     except ValueError as e:
-        raise bad_request("bbox 는 minLon,minLat,maxLon,maxLat 입니다.") from e
+        raise Invalid("bbox 는 minLon,minLat,maxLon,maxLat 입니다.") from e
     if not 1 <= size <= 5000:
-        raise bad_request("size 는 1~5000 입니다.")
+        raise Invalid("size 는 1~5000 입니다.")
     with get_engine().connect() as c:
         # 대면 지점은 '지금 영업 중'으로 보는 목록(마지막 전수 수집 기준), ATM 은 수집한 그대로
         rows = c.execute(text("""

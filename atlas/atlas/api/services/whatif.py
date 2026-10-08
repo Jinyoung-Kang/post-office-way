@@ -14,7 +14,8 @@ from sqlalchemy import event, text
 from sqlalchemy.engine import Connection
 
 from atlas.api import cache
-from atlas.api.common import ApiError, bad_request, jsonable, meta_of, not_found, parse_uuid, resolve_calc_run
+from atlas.api.common import jsonable, meta_of, parse_uuid, resolve_calc_run
+from atlas.domain.errors import Conflict, Invalid, NotFound
 
 CAVEAT = "분석 데모 지표이며 공식 통계가 아닙니다. 직선거리 기준이며 도로 거리와 다릅니다."
 TTL_S = 3600
@@ -39,7 +40,7 @@ def _level_for(run: dict[str, Any], level: int | None) -> int:
     levels = [int(x) for x in run["params"].get("levels", [2])]
     lvl = level or max(levels)
     if lvl not in levels:
-        raise bad_request(f"level {lvl} 은 이 calc_run 에서 계산되지 않았습니다 (가능: {levels}).")
+        raise Invalid(f"level {lvl} 은 이 calc_run 에서 계산되지 않았습니다 (가능: {levels}).")
     return lvl
 
 
@@ -86,10 +87,10 @@ def _key(run_id: Any, level: int, ids: list[int]) -> str:
 def run_whatif(c: Connection, calc_run_id: str | None, remove_ids: list[int], level: int | None) -> dict[str, Any]:
     ids = sorted({int(x) for x in remove_ids})
     if not 1 <= len(ids) <= 5:
-        raise bad_request("removeHistIds 는 1~5개여야 합니다.")
+        raise Invalid("removeHistIds 는 1~5개여야 합니다.")
     run = resolve_calc_run(c, calc_run_id, require_done=False)
     if run["status"] != "DONE":
-        raise ApiError(409, "CALC_RUN_NOT_DONE", f"calcRunId {run['calc_run_id']} 상태가 {run['status']} 입니다.")
+        raise Conflict("CALC_RUN_NOT_DONE", f"calcRunId {run['calc_run_id']} 상태가 {run['status']} 입니다.")
     lvl = _level_for(run, level)
     key = _key(run["calc_run_id"], lvl, ids)
     if hit := cache.get(key):
@@ -102,7 +103,7 @@ def run_whatif(c: Connection, calc_run_id: str | None, remove_ids: list[int], le
         {"ids": ids, "asof": run["facility_as_of"]}).mappings().all()
     if len(facs) != len(ids):
         missing = sorted(set(ids) - {f["hist_id"] for f in facs})
-        raise not_found("FACILITY_NOT_FOUND", f"계산 시점에 유효한 시설이 아닙니다: {missing}")
+        raise NotFound("FACILITY_NOT_FOUND", f"계산 시점에 유효한 시설이 아닙니다: {missing}")
 
     existing = c.execute(text("""SELECT scenario_id FROM mart.whatif_scenario
                                  WHERE calc_run_id = :run AND level = :lvl AND removed_hist_ids = CAST(:ids AS bigint[])"""),
@@ -227,7 +228,7 @@ def get_scenario(c: Connection, scenario_id: str) -> dict[str, Any]:
                           JOIN mart.calc_run r ON r.calc_run_id = s.calc_run_id WHERE s.scenario_id = :id"""),
                   {"id": sid}).mappings().first()
     if not s:
-        raise not_found("SCENARIO_NOT_FOUND", f"scenarioId {sid} 가 없습니다.")
+        raise NotFound("SCENARIO_NOT_FOUND", f"scenarioId {sid} 가 없습니다.")
     rows = c.execute(text("""
         SELECT w.adm_cd, a.adm_nm, pa.adm_nm AS parent_nm, w.affected_ppltn, w.affected_aged65,
                w.dist_before_m, w.dist_after_m, w.nearest_bank_m,
@@ -262,7 +263,7 @@ def get_scenario(c: Connection, scenario_id: str) -> dict[str, Any]:
 def scenario_geojson(c: Connection, scenario_id: str) -> dict[str, Any]:
     sid = parse_uuid(scenario_id, "scenarioId")
     if not c.execute(text("SELECT 1 FROM mart.whatif_scenario WHERE scenario_id = :id"), {"id": sid}).first():
-        raise not_found("SCENARIO_NOT_FOUND", f"scenarioId {sid} 가 없습니다.")
+        raise NotFound("SCENARIO_NOT_FOUND", f"scenarioId {sid} 가 없습니다.")
     fc = c.execute(text("""
         SELECT json_build_object('type', 'FeatureCollection', 'features', coalesce(json_agg(json_build_object(
                  'type', 'Feature', 'id', a.adm_cd,

@@ -9,7 +9,7 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
 
-from atlas.api.errors import ApiError, bad_request, not_found
+from atlas.domain.errors import Conflict, Invalid, NotFound
 from atlas.domain.rules import POST_DIV_LABEL
 
 MAX_SIZE = 200
@@ -37,7 +37,7 @@ def parse_uuid(v: str | None, what: str = "calcRunId") -> uuid.UUID | None:
     try:
         return uuid.UUID(v)
     except ValueError as e:
-        raise bad_request(f"{what} 형식이 잘못되었습니다: {v}") from e
+        raise Invalid(f"{what} 형식이 잘못되었습니다: {v}") from e
 
 
 def resolve_calc_run(c: Connection, calc_run_id: str | None, require_done: bool = True) -> dict[str, Any]:
@@ -47,15 +47,15 @@ def resolve_calc_run(c: Connection, calc_run_id: str | None, require_done: bool 
         r = c.execute(text("""SELECT calc_run_id, stat_year, facility_as_of, params, status, created_at, finished_at
                               FROM mart.calc_run WHERE calc_run_id = :id"""), {"id": rid}).mappings().first()
         if not r:
-            raise not_found("CALC_RUN_NOT_FOUND", f"calcRunId {rid} 가 없습니다.")
+            raise NotFound("CALC_RUN_NOT_FOUND", f"calcRunId {rid} 가 없습니다.")
         if require_done and r["status"] != "DONE":
-            raise ApiError(409, "CALC_RUN_NOT_DONE", f"calcRunId {rid} 상태가 {r['status']} 입니다.")
+            raise Conflict("CALC_RUN_NOT_DONE", f"calcRunId {rid} 상태가 {r['status']} 입니다.")
     else:
         r = c.execute(text("""SELECT calc_run_id, stat_year, facility_as_of, params, status, created_at, finished_at
                               FROM mart.calc_run WHERE status = 'DONE'
                               ORDER BY finished_at DESC NULLS LAST, created_at DESC LIMIT 1""")).mappings().first()
         if not r:
-            raise not_found("CALC_RUN_NOT_FOUND", "완료된 계산 실행이 없습니다. 수집 후 `make calc` 를 실행하세요.")
+            raise NotFound("CALC_RUN_NOT_FOUND", "완료된 계산 실행이 없습니다. 수집 후 `make calc` 를 실행하세요.")
     return dict(r)
 
 
@@ -75,16 +75,16 @@ def meta_of(run: dict[str, Any], **extra: Any) -> dict[str, Any]:
 
 def page_params(page: int, size: int, cap: int = MAX_SIZE) -> tuple[int, int, int]:
     if not 1 <= page <= MAX_PAGE:
-        raise bad_request(f"page 는 1~{MAX_PAGE} 이어야 합니다.")
+        raise Invalid(f"page 는 1~{MAX_PAGE} 이어야 합니다.")
     if not 1 <= size <= cap:
-        raise bad_request(f"size 는 1~{cap} 이어야 합니다.")
+        raise Invalid(f"size 는 1~{cap} 이어야 합니다.")
     return page, size, (page - 1) * size
 
 
 def metric_row(c: Connection, code: str) -> dict[str, Any]:
     r = c.execute(text("SELECT * FROM mart.metric_def WHERE metric_code = :c"), {"c": code}).mappings().first()
     if not r:
-        raise not_found("METRIC_NOT_FOUND", f"지표 {code} 가 없습니다.")
+        raise NotFound("METRIC_NOT_FOUND", f"지표 {code} 가 없습니다.")
     return dict(r)
 
 

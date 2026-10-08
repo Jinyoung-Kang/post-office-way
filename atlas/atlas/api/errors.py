@@ -9,6 +9,8 @@ from fastapi.responses import JSONResponse
 from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from atlas.domain.errors import Conflict, DomainError, Invalid, NotFound
+
 log = logging.getLogger(__name__)
 
 
@@ -18,12 +20,8 @@ class ApiError(Exception):
         self.status, self.code, self.message = status, code, message
 
 
-def not_found(code: str, message: str) -> ApiError:
-    return ApiError(404, code, message)
-
-
-def bad_request(message: str) -> ApiError:
-    return ApiError(400, "VALIDATION_ERROR", message)
+# 도메인 오류 → HTTP 상태. 서비스·조회 계층은 상태 코드를 모름
+_DOMAIN_STATUS: dict[type[DomainError], int] = {Invalid: 400, NotFound: 404, Conflict: 409}
 
 
 def _body(request: Request, code: str, message: str) -> dict:
@@ -34,6 +32,10 @@ def install(app: FastAPI) -> None:
     @app.exception_handler(ApiError)
     async def _api(request: Request, exc: ApiError):
         return JSONResponse(_body(request, exc.code, exc.message), status_code=exc.status)
+
+    @app.exception_handler(DomainError)
+    async def _domain(request: Request, exc: DomainError):
+        return JSONResponse(_body(request, exc.code, exc.message), status_code=_DOMAIN_STATUS.get(type(exc), 400))
 
     @app.exception_handler(RequestValidationError)
     async def _val(request: Request, exc: RequestValidationError):

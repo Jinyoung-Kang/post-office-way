@@ -3,7 +3,8 @@ from __future__ import annotations
 from fastapi import APIRouter, Query
 from sqlalchemy import text
 
-from atlas.api.common import bad_request, jsonable
+from atlas.api.common import jsonable
+from atlas.domain.errors import Invalid
 from atlas.api.services import hubs as svc
 from atlas.core.db import get_engine
 
@@ -31,11 +32,11 @@ def care_layer(bbox: str = Query(..., description="minLon,minLat,maxLon,maxLat")
     try:
         x1, y1, x2, y2 = (float(v) for v in bbox.split(","))
     except ValueError as e:
-        raise bad_request("bbox 는 minLon,minLat,maxLon,maxLat 입니다.") from e
+        raise Invalid("bbox 는 minLon,minLat,maxLon,maxLat 입니다.") from e
     if not 1 <= size <= 5000:
-        raise bad_request("size 는 1~5000 입니다.")
+        raise Invalid("size 는 1~5000 입니다.")
     if (x2 - x1) * (y2 - y1) > 4:   # 약 200km × 200km 넘는 범위는 너무 많음 — 확대해서 보도록
-        raise bad_request("범위가 너무 넓습니다. 지도를 더 확대하세요.")
+        raise Invalid("범위가 너무 넓습니다. 지도를 더 확대하세요.")
     with get_engine().connect() as c:
         rows = c.execute(text("""
             SELECT hpid, kind, div_name, name, addr, open_holiday, open_sunday, hours, ST_Y(geom) AS lat, ST_X(geom) AS lon

@@ -3,7 +3,8 @@ from __future__ import annotations
 from fastapi import APIRouter, Query
 from sqlalchemy import text
 
-from atlas.api.common import FACILITY_COLS, bad_request, facility_json, jsonable, not_found, page_params
+from atlas.api.common import FACILITY_COLS, facility_json, jsonable, page_params
+from atlas.domain.errors import Invalid, NotFound
 from atlas.api.services import calendar as cal_svc
 from atlas.api.services import hubs as hub_svc
 from atlas.core.clock import now_kst
@@ -24,7 +25,7 @@ def list_facilities(bbox: str | None = Query(None, description="minLon,minLat,ma
         try:
             x1, y1, x2, y2 = (float(v) for v in bbox.split(","))
         except ValueError as e:
-            raise bad_request("bbox 는 minLon,minLat,maxLon,maxLat 입니다.") from e
+            raise Invalid("bbox 는 minLon,minLat,maxLon,maxLat 입니다.") from e
         where.append("h.geom && ST_MakeEnvelope(:x1, :y1, :x2, :y2, 4326)")
         p.update(x1=x1, y1=y1, x2=x2, y2=y2)
     if types:
@@ -33,7 +34,7 @@ def list_facilities(bbox: str | None = Query(None, description="minLon,minLat,ma
             if any(not 0 <= t <= 9 for t in p["types"]):
                 raise ValueError("post_div 범위 밖")
         except ValueError as e:
-            raise bad_request("types 는 숫자 목록입니다 (0 총괄국 · 1 우체국 · 2 우체통 · 3 365코너 · 4 무인창구 · 5 우표판매소).") from e
+            raise Invalid("types 는 숫자 목록입니다 (0 총괄국 · 1 우체국 · 2 우체통 · 3 365코너 · 4 무인창구 · 5 우표판매소).") from e
         where.append("h.post_div = ANY(CAST(:types AS smallint[]))")
     if finOnly:
         where.append("h.fin_available")
@@ -56,7 +57,7 @@ def facility_detail(hist_id: int):
         r = c.execute(text(f"SELECT {FACILITY_COLS}, h.valid_to FROM mart.post_facility_hist h WHERE h.hist_id = :id"),
                       {"id": hist_id}).mappings().first()
         if not r:
-            raise not_found("FACILITY_NOT_FOUND", f"histId {hist_id} 가 없습니다.")
+            raise NotFound("FACILITY_NOT_FOUND", f"histId {hist_id} 가 없습니다.")
         areas = c.execute(text("""
             SELECT m.level, m.adm_cd, a.adm_nm, m.method, m.stat_year
               FROM mart.facility_area_map m

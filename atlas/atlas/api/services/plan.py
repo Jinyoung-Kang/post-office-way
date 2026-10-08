@@ -19,7 +19,8 @@ from sqlalchemy import text
 from sqlalchemy.engine import Connection
 
 from atlas.api import cache
-from atlas.api.common import bad_request, jsonable, meta_of, not_found, resolve_calc_run
+from atlas.api.common import jsonable, meta_of, resolve_calc_run
+from atlas.domain.errors import Invalid, NotFound
 
 TOP_N = 8
 MAX_K = 7
@@ -127,11 +128,11 @@ def greedy_open(cur: dict[str, float], w: dict[str, float], near: dict[str, list
 # ---------------------------------------------------------------------------------------- DB 연결
 def _validate(scope: str, k: int, weight: str) -> None:
     if not scope or not scope.isdigit() or len(scope) not in (2, 5):
-        raise bad_request("scope 는 시도 2자리 또는 시군구 5자리 코드입니다.")
+        raise Invalid("scope 는 시도 2자리 또는 시군구 5자리 코드입니다.")
     if not 1 <= k <= MAX_K:
-        raise bad_request(f"k 는 1~{MAX_K} 입니다.")
+        raise Invalid(f"k 는 1~{MAX_K} 입니다.")
     if weight not in ("aged65", "pop"):
-        raise bad_request("weight 는 aged65 또는 pop 입니다.")
+        raise Invalid("weight 는 aged65 또는 pop 입니다.")
 
 
 def _weights(c: Connection, y: int, cds: list[str], weight: str) -> tuple[dict[str, float], str]:
@@ -168,7 +169,7 @@ def _level(run: dict[str, Any], level: int | None) -> int:
     levels = [int(x) for x in run["params"].get("levels", [2])]
     lvl = level or max(levels)
     if lvl not in levels:
-        raise bad_request(f"level {lvl} 은 이 calc_run 에서 계산되지 않았습니다 (가능: {levels}).")
+        raise Invalid(f"level {lvl} 은 이 calc_run 에서 계산되지 않았습니다 (가능: {levels}).")
     return lvl
 
 
@@ -189,7 +190,7 @@ def plan_close(c: Connection, scope: str, k: int, weight: str, level: int | None
         {"asof": run["facility_as_of"], "y": y, "scope": scope,
          "mlvl": min(int(x) for x in run["params"].get("levels", [2]))}).mappings()}
     if not facs:
-        raise not_found("NO_CANDIDATE", f"범위 {scope} 안에 금융 가능 우체국이 없습니다.")
+        raise NotFound("NO_CANDIDATE", f"범위 {scope} 안에 금융 가능 우체국이 없습니다.")
     use_oa = c.execute(text("""SELECT 1 FROM mart.oa_area WHERE stat_year = :y AND emd_cd LIKE :scope || '%'
                                   AND rep_point_5179 IS NOT NULL AND tot_ppltn > 0 LIMIT 1"""),
                        {"y": y, "scope": scope}).first() is not None
@@ -289,7 +290,7 @@ def plan_open(c: Connection, scope: str, k: int, weight: str, level: int | None 
          WHERE a.stat_year = :y AND a.level = :lvl AND a.adm_cd LIKE :scope || '%'"""),
         {"run": run["calc_run_id"], "y": y, "lvl": lvl, "scope": scope})}
     if not cur:
-        raise not_found("NO_AREA", f"범위 {scope} 에 계산된 지역이 없습니다.")
+        raise NotFound("NO_AREA", f"범위 {scope} 에 계산된 지역이 없습니다.")
     near: dict[str, list[tuple[str, float]]] = {}
     for s, a, d in c.execute(text("""
             SELECT s.adm_cd, a.adm_cd, ST_Distance(s.rep_point_5179, a.rep_point_5179)

@@ -11,8 +11,8 @@ from sqlalchemy import text
 from sqlalchemy.engine import Connection
 
 from atlas.api import cache
-from atlas.api.common import (FACILITY_COLS, bad_request, data_version, jsonable, meta_of, metric_row, not_found,
-                              page_params, resolve_calc_run)
+from atlas.api.common import FACILITY_COLS, data_version, jsonable, meta_of, metric_row, page_params, resolve_calc_run
+from atlas.domain.errors import Invalid, NotFound
 
 DEFAULT_SIMPLIFY = {2: 200.0, 3: 50.0}
 GEO_TTL = 24 * 3600          # 계산이 바뀌면 키(calc_run)가 바뀌지만, 쓰이지 않는 키가 남지 않게 만료도 둠
@@ -23,7 +23,7 @@ def _check_parent(parent: str | None) -> None:
     # 시도 2자리·시군구 5자리만 — 자유 문자열이면 LIKE 와일드카드('%')로 level=3 의 parent 필수 제한을 피해
     # 전국 읍면동을 받거나, 값마다 만료 없는 캐시 키가 생겼음 (S3)
     if parent is not None and not _PARENT.match(parent):
-        raise bad_request("parent 는 시도 2자리 또는 시군구 5자리 숫자입니다.")
+        raise Invalid("parent 는 시도 2자리 또는 시군구 5자리 숫자입니다.")
 
 
 def simplify_step(v: float | None) -> float | None:
@@ -42,11 +42,11 @@ _RANKED = """
 
 def _check_level(level: int, parent: str | None, run: dict[str, Any]) -> None:
     if level not in (2, 3):
-        raise bad_request("level 은 2(시군구) 또는 3(읍면동) 입니다.")
+        raise Invalid("level 은 2(시군구) 또는 3(읍면동) 입니다.")
     if level == 3 and not parent:
-        raise bad_request("level=3 이면 parent(시도 2자리 또는 시군구 5자리)가 필요합니다.")
+        raise Invalid("level=3 이면 parent(시도 2자리 또는 시군구 5자리)가 필요합니다.")
     if level not in [int(x) for x in run["params"].get("levels", [])]:
-        raise not_found("LEVEL_NOT_CALCULATED", f"calcRunId {run['calc_run_id']} 는 level {level} 을 계산하지 않았습니다.")
+        raise NotFound("LEVEL_NOT_CALCULATED", f"calcRunId {run['calc_run_id']} 는 level {level} 을 계산하지 않았습니다.")
 
 
 def geojson_payload(c: Connection, level: int, metric: str, parent: str | None, calc_run_id: str | None,
@@ -57,7 +57,7 @@ def geojson_payload(c: Connection, level: int, metric: str, parent: str | None, 
     run = resolve_calc_run(c, calc_run_id)
     _check_level(level, parent, run)
     if simplify is not None and not 0 <= simplify <= 5000:
-        raise bad_request("simplify 는 0~5000(m) 입니다.")
+        raise Invalid("simplify 는 0~5000(m) 입니다.")
     simplify = simplify_step(simplify)
     key = f"geo:gz3:{data_version(c, run)}:{level}:{parent or '-'}:{metric}:{simplify if simplify is not None else 'd'}"
     if (tag := cache.get(key + ":etag")) and (etag_only or (body := cache.get(key))):
@@ -76,7 +76,7 @@ def geojson(c: Connection, level: int, metric: str, parent: str | None, calc_run
     run = resolve_calc_run(c, calc_run_id)
     _check_level(level, parent, run)
     if simplify is not None and not 0 <= simplify <= 5000:
-        raise bad_request("simplify 는 0~5000(m) 입니다.")
+        raise Invalid("simplify 는 0~5000(m) 입니다.")
     return _geojson_text(c, run, level, metric, parent, simplify_step(simplify))
 
 
@@ -123,7 +123,7 @@ def list_areas(c: Connection, level: int, metric: str, parent: str | None, calc_
     mdef = metric_row(c, metric)
     page, size, offset = page_params(page, size)
     if sort not in ("desc", "asc"):
-        raise bad_request("sort 는 desc 또는 asc 입니다.")
+        raise Invalid("sort 는 desc 또는 asc 입니다.")
     params = {"run": run["calc_run_id"], "metric": metric, "level": level, "year": run["stat_year"],
               "parent": parent, "lim": size, "off": offset}
     where = """a.stat_year = :year AND a.level = :level
@@ -163,7 +163,7 @@ def area_detail(c: Connection, adm_cd: str, calc_run_id: str | None) -> dict[str
           LEFT JOIN mart.area_population pa ON pa.adm_cd = a.parent_cd AND pa.stat_year = a.stat_year
          WHERE a.adm_cd = :cd AND a.stat_year = :y"""), {"cd": adm_cd, "y": run["stat_year"]}).mappings().first()
     if not a:
-        raise not_found("AREA_NOT_FOUND", f"admCd {adm_cd} ({run['stat_year']}년) 가 없습니다.")
+        raise NotFound("AREA_NOT_FOUND", f"admCd {adm_cd} ({run['stat_year']}년) 가 없습니다.")
     metrics = c.execute(text("""
         SELECT d.metric_code, d.name_ko, d.unit, d.higher_is_worse, m.value, m.rnk, m.pct, m.n
           FROM mart.access_metric m

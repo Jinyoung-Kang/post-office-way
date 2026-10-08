@@ -7,7 +7,8 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
 
-from atlas.api.common import bad_request, jsonable, meta_of, not_found, page_params, resolve_calc_run
+from atlas.api.common import jsonable, meta_of, page_params, resolve_calc_run
+from atlas.domain.errors import Invalid, NotFound
 
 SORTS = {"lost": "b.lost_ppltn DESC, b.catch_ppltn DESC", "catch": "b.catch_ppltn DESC",
          "aged": "coalesce(b.catch_aged, 0) DESC", "walk": "coalesce(b.walk_lost_ppltn, 0) DESC, b.lost_ppltn DESC",
@@ -63,7 +64,7 @@ def list_impact(c: Connection, calc_run_id: str | None, sido: str | None, sgg: s
                 sort: str, page: int, size: int) -> dict[str, Any]:
     run = resolve_calc_run(c, calc_run_id)
     if sort not in SORTS:
-        raise bad_request(f"sort 는 {', '.join(SORTS)} 중 하나입니다.")
+        raise Invalid(f"sort 는 {', '.join(SORTS)} 중 하나입니다.")
     page, size, offset = page_params(page, size, cap=100)
     where = """b.calc_run_id = :r AND (CAST(:sido AS text) IS NULL OR b.adm_cd LIKE CAST(:sido AS text) || '%')
                AND (CAST(:sgg AS text) IS NULL OR b.adm_cd = CAST(:sgg AS text))
@@ -81,7 +82,7 @@ def list_impact(c: Connection, calc_run_id: str | None, sido: str | None, sgg: s
     rows = c.execute(text(f"SELECT {_COLS} {_FROM} WHERE {where} ORDER BY {SORTS[sort]}, b.place_id LIMIT :lim OFFSET :off"),
                      p).mappings().all()
     if summary["n"] == 0 and not (sido or sgg):
-        raise not_found("BANK_IMPACT_NOT_FOUND", "은행 지점 영향평가 결과가 없습니다 — 은행 지점 수집(make banks-full) 뒤 지표를 다시 계산하세요.")
+        raise NotFound("BANK_IMPACT_NOT_FOUND", "은행 지점 영향평가 결과가 없습니다 — 은행 지점 수집(make banks-full) 뒤 지표를 다시 계산하세요.")
     return {"items": [_item(r) for r in rows], "page": page, "size": size, "total": total,
             "summary": jsonable({"branches": summary["n"], "high": summary["high"], "mid": summary["mid"],
                                  "low": summary["low"], "lostPpltn": summary["lost"], "walkLostPpltn": summary["walk_lost"],
@@ -95,7 +96,7 @@ def detail(c: Connection, place_id: str, calc_run_id: str | None) -> dict[str, A
     p = {"r": run["calc_run_id"], "y": run["stat_year"], "id": place_id}
     r = c.execute(text(f"SELECT {_COLS} {_FROM} WHERE b.calc_run_id = :r AND b.place_id = :id"), p).mappings().first()
     if not r:
-        raise not_found("BANK_IMPACT_NOT_FOUND", f"은행 지점 {place_id} 의 영향평가가 없습니다(새마을금고·저축은행은 평가 대상 아님).")
+        raise NotFound("BANK_IMPACT_NOT_FOUND", f"은행 지점 {place_id} 의 영향평가가 없습니다(새마을금고·저축은행은 평가 대상 아님).")
     # 대체 창구 — 같은 은행 다음 지점, 다른 은행 지점 3곳, 금융 우체국 3곳 (지점 위치 기준)
     alts = c.execute(text("""
         WITH x AS (SELECT geom_5179, brand FROM mart.bank_place WHERE place_id = :id)

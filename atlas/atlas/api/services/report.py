@@ -12,8 +12,8 @@ from sqlalchemy import text
 from sqlalchemy.engine import Connection
 
 from atlas.api import cache
-from atlas.api.common import bad_request, jsonable, meta_of, not_found, resolve_calc_run
-from atlas.api.errors import ApiError
+from atlas.api.common import jsonable, meta_of, resolve_calc_run
+from atlas.domain.errors import DomainError, Invalid, NotFound
 
 # 보고서에 싣는 지표 — 화면 순서대로 (없는 지표는 건너뜀)
 KEY_METRICS = ["POPW_FIN_DIST_M", "FAR2KM_SHARE", "AGED65_FAR_PPLTN", "NEAREST_FIN_DRIVE_MIN", "POPW_FIN_WALK_M",
@@ -24,7 +24,7 @@ EMD_METRICS = ["POPW_FIN_DIST_M", "FAR2KM_SHARE", "WALK30_NO_FIN_SHARE", "AGED65
 
 def report(c: Connection, adm_cd: str, calc_run_id: str | None) -> dict[str, Any]:
     if len(adm_cd) != 5 or not adm_cd.isdigit():
-        raise bad_request("지역 보고서는 시군구(5자리 코드) 단위입니다.")
+        raise Invalid("지역 보고서는 시군구(5자리 코드) 단위입니다.")
     run = resolve_calc_run(c, calc_run_id)
     walk_at = c.execute(text("SELECT finished_at FROM mart.walk_run WHERE calc_run_id = :r AND status = 'DONE'"),
                         {"r": run["calc_run_id"]}).scalar()
@@ -38,7 +38,7 @@ def report(c: Connection, adm_cd: str, calc_run_id: str | None) -> dict[str, Any
         from atlas.api.services.visit import area_outlook
 
         body["visit"] = area_outlook(c, adm_cd)
-    except ApiError:
+    except DomainError:
         body["visit"] = None                       # 예보를 아직 받지 않았으면 그 칸만 비움
     return body
 
@@ -58,7 +58,7 @@ def _static(c: Connection, adm_cd: str, run: dict[str, Any], walk_at: Any) -> di
                               WHERE adm_cd = a.adm_cd AND stat_year = a.stat_year ORDER BY ref_period DESC LIMIT 1) rp ON true
          WHERE a.adm_cd = :cd AND a.stat_year = :y AND a.level = 2"""), p).mappings().first()
     if not area:
-        raise not_found("AREA_NOT_FOUND", f"시군구 {adm_cd} ({run['stat_year']}년) 가 없습니다.")
+        raise NotFound("AREA_NOT_FOUND", f"시군구 {adm_cd} ({run['stat_year']}년) 가 없습니다.")
 
     # 핵심 지표 + 전국 시군구 중앙값(비교 기준)
     metrics = c.execute(text("""
