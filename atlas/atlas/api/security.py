@@ -121,7 +121,8 @@ class RateLimitMiddleware:
 
             metrics.RATE_LIMITED.labels(bucket).inc()
             log.warning("rate limited", extra={"bucket": bucket, "ip": ip, "path": scope["path"]})
-            body = ('{"code":"RATE_LIMITED","message":"요청이 너무 많습니다. %d초 뒤 다시 시도하세요."}' % reset).encode()
+            body = json.dumps({"code": "RATE_LIMITED", "message": f"요청이 너무 많습니다. {reset}초 뒤 다시 시도하세요.",
+                               "traceId": (scope.get("state") or {}).get("trace_id")}, ensure_ascii=False).encode()
             await send({"type": "http.response.start", "status": 429,
                         "headers": [(b"content-type", b"application/json"), (b"retry-after", str(reset).encode()),
                                     *headers]})

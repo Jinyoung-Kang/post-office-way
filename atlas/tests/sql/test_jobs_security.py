@@ -158,6 +158,7 @@ def test_rate_limit_returns_429(client, monkeypatch):
         assert client.get("/api/v1/metrics").status_code == 200
     r = client.get("/api/v1/metrics")
     assert r.status_code == 429 and r.headers["retry-after"] == "42" and r.json()["code"] == "RATE_LIMITED"
+    assert r.json()["traceId"] == r.headers["x-trace-id"]                 # 오류 형식 {code, message, traceId}
 
 
 def test_api_role_least_privilege(engine):
@@ -511,3 +512,18 @@ def test_late_finish_from_reaped_worker_is_ignored(fake_jobs, engine):
     queue.finish(jid, True, {"from": "w2"}, worker="w2")
     with engine.connect() as c:
         assert c.execute(text("SELECT status FROM ops.job WHERE job_id = :j"), {"j": jid}).scalar() == "DONE"
+
+
+def test_error_log_time_is_kst_regardless_of_process_timezone(client, engine, monkeypatch):
+    """오류 로그 한 줄의 시각은 서비스 기준(KST) — 프로세스 시간대(TZ)에 기대지 않음."""
+    with engine.begin() as c:
+        c.execute(text("""INSERT INTO ops.app_error (source, method, path, error_type, message, at)
+                          VALUES ('api', 'GET', '/x', 'E', 'm', '2026-10-08 00:00:00+00')"""))
+    monkeypatch.setenv("TZ", "UTC")
+    time.tzset()
+    try:
+        line = client.get("/api/v1/meta/errors").json()["items"][0]["line"]
+    finally:
+        monkeypatch.undo()
+        time.tzset()
+    assert line.startswith("2026-10-08 09:00:00")
