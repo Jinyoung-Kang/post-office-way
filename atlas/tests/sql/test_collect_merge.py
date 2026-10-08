@@ -4,10 +4,10 @@ import httpx
 import pytest
 from sqlalchemy import text
 
-from atlas.collector import runs
+from atlas.ops import runs
 from atlas.collector.post.parser import normalize_item
 from atlas.collector.post.pipeline import _INSERT_STG, _merge_hist, _run_post_dq
-from atlas.collector.dq.rules import DQRecorder
+from atlas.ops.dq import DQRecorder
 
 pytestmark = pytest.mark.db
 

@@ -352,7 +352,7 @@ def test_stored_run_and_job_errors_are_masked(clean, engine):
     from fastapi.testclient import TestClient
 
     from atlas.api.main import app
-    from atlas.collector import runs as crun
+    from atlas.ops import runs as crun
 
     raw = ("OperationalError: boom serviceKey=SECRETVALUE123 [SQL: SELECT * FROM x WHERE a = %(a)s] "
            "[parameters: {'a': 'private-input'}] (Background on this error at: https://sqlalche.me/e/20/e3q8)")
@@ -409,7 +409,7 @@ def test_csp_report_not_recorded_without_redis(client, engine, monkeypatch):
 
 def test_reap_closes_orphan_runs_so_retry_works(fake_jobs, engine):
     """워커가 죽어 작업을 정리(reap)하면 그 작업이 연 실행 기록도 닫혀야 재시도가 '이미 실행 중'으로 실패하지 않음 (R1)."""
-    from atlas.collector import runs
+    from atlas.ops import runs
     from atlas.core.jobctx import current_job_id
 
     jid = queue.enqueue("okjob")
@@ -448,7 +448,7 @@ def test_chain_while_same_kind_running_queues_a_new_one(fake_jobs, engine):
 
 def test_job_with_only_failed_collect_runs_fails_and_skips_recalc(fake_jobs, engine, monkeypatch):
     """수집기가 실행 기록을 FAILED 로 남기고 정상 반환해도 작업은 FAILED, 재계산은 넣지 않음 (R6)."""
-    from atlas.collector import runs
+    from atlas.ops import runs
 
     rid = runs.start_run("NMC_CARE", check_running=False)
     runs.finish_run(rid, "FAILED", {}, error="받은 자료 없음")
