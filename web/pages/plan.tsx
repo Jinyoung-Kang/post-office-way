@@ -9,6 +9,7 @@ import type { MapLabel, Marker } from "@/components/AtlasMap";
 import { api, cachedApi, qs, type AreaFC, type AreaProps, type PlanClose, type PlanOpen, type Region } from "@/lib/api";
 import { classOf, dist, NO_DATA, num, quantileBreaks, SEQ } from "@/lib/format";
 import Sents from "@/components/Sents";
+import type { TipLines } from "@/lib/mapTip";
 
 const AtlasMap = dynamic(() => import("@/components/AtlasMap"), { ssr: false }) as typeof AtlasMapType;
 
@@ -73,7 +74,8 @@ export default function PlanPage() {
       : { fill: "#e5e5ea", opacity: 0.5 };
     return p.value === null ? { fill: NO_DATA, opacity: 0.5 } : { fill: SEQ[Math.max(classOf(p.value, breaks), 0)], opacity: 0.75 };
   }, [breaks, res, touched]);
-  const tooltipOf = useCallback((p: AreaProps) => `최근접 금융 우체국 <b>${dist(p.value)}</b><br/>인구 ${num(p.totPpltn)}명`, []);
+  const tooltipOf = useCallback((p: AreaProps): TipLines => [["최근접 금융 우체국 ", { b: dist(p.value) }],
+    [`인구 ${num(p.totPpltn)}명`]], []);
   const markers: Marker[] = useMemo(() => !res ? [] : res.mode === "close"
     ? res.steps.map((s, i) => ({ lat: s.lat, lon: s.lon, label: `${i + 1}. ✕ ${s.name}`, tone: "removed" as const }))
     : res.steps.map((s, i) => ({ lat: s.lat, lon: s.lon, label: `${i + 1}. ＋ ${s.siteNm || s.siteCd}`, tone: "new" as const })), [res]);

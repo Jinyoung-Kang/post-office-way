@@ -234,7 +234,8 @@ function Detail({ d, geo }: { d: BankImpactDetail; geo: Feature<CatchmentProps>[
       <div className="card overflow-hidden">
         <AtlasMap<CatchmentProps> className="h-[360px]" features={geo} geomKey={b.placeId} markers={markers} pinOnClick
           styleOf={(p) => ({ fill: bandOf(p.altM).fill, opacity: 0.75 })}
-          tooltipOf={(p) => `주민 ${num(p.ppltn)}명 · 지금 ${dist(p.nowM)}<br/>닫히면 ${p.altM != null ? dist(p.altM) : "대체 창구 없음(20km+)"}`}
+          tooltipOf={(p) => [[`주민 ${num(p.ppltn)}명 · 지금 ${dist(p.nowM)}`],
+            [`닫히면 ${p.altM != null ? dist(p.altM) : "대체 창구 없음(20km+)"}`]]}
           padding={[40, 30, 30, 30]} />
         <div className="flex flex-wrap items-center gap-3 px-4 py-2 text-[12px] text-ink-2" aria-label="범례">
           <span className="font-medium">닫히면 대체 창구까지</span>

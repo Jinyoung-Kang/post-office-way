@@ -12,6 +12,7 @@ import { dist, dt, num, NO_DATA, REASON_LABEL, shortSido, VISIT_FILL, VISIT_LABE
 import { StatSkeletons } from "@/components/Skeleton";
 import { useQueryState } from "@/lib/useQueryState";
 import Sents from "@/components/Sents";
+import type { TipLines } from "@/lib/mapTip";
 
 const AtlasMap = dynamic(() => import("@/components/AtlasMap"), { ssr: false }) as typeof AtlasMapType;
 type P = AreaProps & { visit?: VisitItem };
@@ -42,11 +43,11 @@ export default function TodayPage() {
     const lv = p.visit?.level;
     return { fill: lv === null || lv === undefined ? NO_DATA : VISIT_FILL[lv], opacity: 0.85, stroke: "#ffffff" };
   }, []);
-  const tooltipOf = useCallback((p: P) => {
+  const tooltipOf = useCallback((p: P): TipLines => {
     const v = p.visit;
-    if (!v || v.level === null) return "예보 없음";
+    if (!v || v.level === null) return [["예보 없음"]];
     const why = v.reasons.length ? v.reasons.map((r) => r.text).join(" · ") : "특이 사항 없음";
-    return `방문 여건 <b>${v.label}</b> · ${why}<br/>2km 밖 65세 이상 ${num(v.agedFarPpltn)}명`;
+    return [["방문 여건 ", { b: v.label }, ` · ${why}`], [`2km 밖 65세 이상 ${num(v.agedFarPpltn)}명`]];
   }, []);
 
   const risky = (d?.items || []).filter((x) => (x.level ?? 0) >= 1);

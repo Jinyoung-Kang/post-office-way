@@ -8,6 +8,7 @@ import RegionCard, { FacilityCard } from "@/components/RegionCard";
 import { BANK_LEGEND, CARE_LEGEND, FACILITY_LEGEND, type CareLayer, type FacilityLayer, type MapLabel } from "@/components/AtlasMap";
 import { cachedApi, qs, type AreaFC, type AreaProps, type Facility, type MetricDef, type Region } from "@/lib/api";
 import { classOf, groupMetrics, NO_DATA, num, quantileBreaks, SEQ, withUnit } from "@/lib/format";
+import type { TipLines } from "@/lib/mapTip";
 
 const AtlasMap = dynamic(() => import("@/components/AtlasMap"), { ssr: false }) as typeof AtlasMapType;
 
@@ -111,9 +112,9 @@ export default function MapPage() {
     if (isBinary) return { fill: p.value >= 1 ? SEQ[3] : SEQ[0], opacity: 0.8 };
     return { fill: SEQ[Math.max(classOf(p.value, breaks), 0)], opacity: 0.8 };
   }, [breaks, isBinary]);
-  const tooltipOf = useCallback((p: AreaProps) =>
-    `${fc?.meta.metricName ?? ""} <b>${withUnit(p.value, p.unit)}</b>` +
-    (p.rank ? ` · ${p.rank}위/${p.rankOf}` : "") + `<br/>인구 ${num(p.totPpltn)}명`, [fc]);
+  const tooltipOf = useCallback((p: AreaProps): TipLines => [
+    [`${fc?.meta.metricName ?? ""} `, { b: withUnit(p.value, p.unit) }, p.rank ? ` · ${p.rank}위/${p.rankOf}` : ""],
+    [`인구 ${num(p.totPpltn)}명`]], [fc]);
 
   const sido = parent.slice(0, 2);
   const sigunguOptions = regions.find((r) => r.admCd === sido)?.sigungu || [];

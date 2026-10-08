@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api, qs, type Bank, type CarePlace, type Facility, type Feature, type Page } from "@/lib/api";
 import { loadKakao, toPaths } from "@/lib/kakao";
+import { esc, tipHtml, type TipLines } from "@/lib/mapTip";
 
 export type Style = { fill: string; opacity?: number; stroke?: string };
 export type Marker = { lat: number; lon: number; label: string; tone: "removed" | "new" | "focus" };
@@ -13,7 +14,7 @@ export type CareLayer = { holidayOnly: boolean } | null;
 type Props<P extends { admCd: string; admNm: string }> = {
   features: Feature<P>[];
   styleOf: (p: P) => Style;
-  tooltipOf?: (p: P) => string;
+  tooltipOf?: (p: P) => TipLines;     // 구조로 받아 HTML 은 lib/mapTip 에서 이스케이프해 만듦
   selected?: string | null;
   onSelect?: (admCd: string) => void;
   facilities?: FacilityLayer;
@@ -40,10 +41,6 @@ const WEEK = ["", "월", "화", "수", "목", "금", "토", "일", "공휴일"];
 function yieldToMain(): Promise<void> {
   const sch = (globalThis as any).scheduler;
   return sch?.yield ? sch.yield() : new Promise((r) => setTimeout(r, 0));
-}
-
-function esc(s: string) {
-  return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
 }
 
 export default function AtlasMap<P extends { admCd: string; admNm: string }>(props: Props<P>) {
@@ -215,16 +212,15 @@ export default function AtlasMap<P extends { admCd: string; admNm: string }>(pro
     });
   }
 
-  function tipHtml(p: P) {
-    const body = cb.current.tooltipOf ? cb.current.tooltipOf(p) : "";
-    return `<div class="map-tip">${pinned.current ? '<span class="map-tip-x" aria-hidden="true">✕</span>' : ""}<b>${esc(p.admNm)}</b>${body ? `<br/>${body}` : ""}</div>`;
+  function tipOf(p: P) {
+    return tipHtml(p.admNm, cb.current.tooltipOf ? cb.current.tooltipOf(p) : [], !!pinned.current);
   }
 
   // 누르면(터치 포함) 말풍선 고정 — 마우스를 치워도 남고, 빈 곳이나 같은 지역을 다시 누르면 닫힘
   function pin(p: P, latLng: any) {
     if (pinned.current === p.admCd) { pinned.current = null; tip.current.setMap(null); return; }
     pinned.current = p.admCd;
-    tip.current.setContent(tipHtml(p));
+    tip.current.setContent(tipOf(p));
     tip.current.setPosition(latLng);
     tip.current.setMap(map.current);
   }
@@ -238,7 +234,7 @@ export default function AtlasMap<P extends { admCd: string; admNm: string }>(pro
       strokeColor: on || sel ? "#1d1d1f" : st.stroke || "#ffffff", strokeWeight: on || sel ? 2 : 1 }));
     if (pinned.current) return;          // 고정한 말풍선이 있으면 마우스로 바꾸지 않음
     if (on && latLng) {
-      tip.current.setContent(tipHtml(p));
+      tip.current.setContent(tipOf(p));
       tip.current.setPosition(latLng);
       tip.current.setMap(map.current);
     } else {

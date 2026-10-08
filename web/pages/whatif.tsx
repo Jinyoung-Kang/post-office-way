@@ -7,6 +7,7 @@ import type { MapLabel, Marker } from "@/components/AtlasMap";
 import { api, qs, type Facility, type Feature, type Page, type WhatIf } from "@/lib/api";
 import { dist, num } from "@/lib/format";
 import Sents from "@/components/Sents";
+import type { TipLines } from "@/lib/mapTip";
 
 const AtlasMap = dynamic(() => import("@/components/AtlasMap"), { ssr: false }) as typeof AtlasMapType;
 
@@ -69,9 +70,10 @@ export default function WhatIfPage() {
     fill: p.distAfterM === null ? "#d70015" : "#ff6a00",
     opacity: p.distAfterM === null ? 0.75 : 0.28 + 0.55 * Math.min(1, (p.increaseM || 0) / maxInc),
   }), [maxInc]);
-  const tooltipOf = useCallback((p: ImpactProps) =>
-    `${dist(p.distBeforeM)} → <b>${dist(p.distAfterM)}</b> (+${dist(p.increaseM)})<br/>인구 ${num(p.affectedPpltn)}명` +
-    (p.affectedAged65 !== null && p.affectedAged65 !== undefined ? ` · 65세 이상 ${num(p.affectedAged65)}명` : ""), []);
+  const tooltipOf = useCallback((p: ImpactProps): TipLines => [
+    [`${dist(p.distBeforeM)} → `, { b: dist(p.distAfterM) }, ` (+${dist(p.increaseM)})`],
+    [`인구 ${num(p.affectedPpltn)}명` +
+      (p.affectedAged65 !== null && p.affectedAged65 !== undefined ? ` · 65세 이상 ${num(p.affectedAged65)}명` : "")]], []);
   const markers: Marker[] = useMemo(() => (result?.removed || []).map((r) => ({ lat: r.lat, lon: r.lon, label: `✕ ${r.name}`, tone: "removed" as const })), [result]);
   const incLabels: MapLabel[] = useMemo(() => (result?.areas || [])
     .filter((a) => a.distBeforeM !== null && a.lat != null)
