@@ -12,7 +12,7 @@ from sqlalchemy.engine import Connection
 from atlas.calc.runs import meta_of, resolve_calc_run
 from atlas.core.serial import jsonable
 from atlas.domain.errors import Invalid, NotFound
-from atlas.domain.params import page_params
+from atlas.domain.params import page_params, parse_bbox
 from atlas.features.banks import queries as q
 
 SORTS = {"lost": "b.lost_ppltn DESC, b.catch_ppltn DESC", "catch": "b.catch_ppltn DESC",
@@ -100,10 +100,7 @@ def catchment_geojson(c: Connection, place_id: str, calc_run_id: str | None) -> 
 
 def places_in_bbox(c: Connection, bbox: str, atm: bool, size: int) -> dict[str, Any]:
     """④ 지도 레이어 — 화면 범위 안 은행·금고 지점(ATM 은 선택)."""
-    try:
-        x1, y1, x2, y2 = (float(v) for v in bbox.split(","))
-    except ValueError as e:
-        raise Invalid("bbox 는 minLon,minLat,maxLon,maxLat 입니다.") from e
+    x1, y1, x2, y2 = parse_bbox(bbox)
     if not 1 <= size <= 5000:
         raise Invalid("size 는 1~5000 입니다.")
     rows = q.places_in_bbox(c, x1, y1, x2, y2, atm, size)

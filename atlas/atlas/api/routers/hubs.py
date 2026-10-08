@@ -5,6 +5,7 @@ from sqlalchemy import text
 
 from atlas.core.serial import jsonable
 from atlas.domain.errors import Invalid
+from atlas.domain.params import parse_bbox
 from atlas.features import hubs as svc
 from atlas.core.db import get_engine
 
@@ -29,10 +30,7 @@ def hubs_facilities(sido: str | None = Query(None, pattern=r"^\d{2}$"),
 def care_layer(bbox: str = Query(..., description="minLon,minLat,maxLon,maxLat"),
                kind: str = Query("all", pattern="^(all|PHARMACY|CLINIC)$"),
                holidayOnly: bool = False, size: int = 3000):
-    try:
-        x1, y1, x2, y2 = (float(v) for v in bbox.split(","))
-    except ValueError as e:
-        raise Invalid("bbox 는 minLon,minLat,maxLon,maxLat 입니다.") from e
+    x1, y1, x2, y2 = parse_bbox(bbox)
     if not 1 <= size <= 5000:
         raise Invalid("size 는 1~5000 입니다.")
     if (x2 - x1) * (y2 - y1) > 4:   # 약 200km × 200km 넘는 범위는 너무 많음 — 확대해서 보도록

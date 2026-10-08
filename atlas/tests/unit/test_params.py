@@ -31,3 +31,12 @@ def test_parse_uuid_and_page():
         with pytest.raises(Invalid):
             page_params(page, size)
     assert page_params(1, 5000, cap=5000)[1] == 5000
+
+
+def test_parse_bbox():
+    from atlas.domain.params import parse_bbox
+
+    assert parse_bbox("126.9,37.5,127.1,37.6") == (126.9, 37.5, 127.1, 37.6)
+    for bad in ("1,2,3", "1,2,3,4,5", "a,b,c,d", ""):
+        with pytest.raises(Invalid, match="bbox"):
+            parse_bbox(bad)

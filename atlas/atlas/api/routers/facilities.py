@@ -7,7 +7,7 @@ from atlas.features.facilities import FACILITY_COLS, facility_json
 
 from atlas.core.serial import jsonable
 
-from atlas.domain.params import page_params
+from atlas.domain.params import page_params, parse_bbox
 from atlas.domain.errors import Invalid, NotFound
 from atlas.features import calendar as cal_svc
 from atlas.features import hubs as hub_svc
@@ -27,10 +27,7 @@ def list_facilities(bbox: str | None = Query(None, description="minLon,minLat,ma
     where = ["h.is_current"]
     p: dict = {"lim": size, "off": off}
     if bbox:
-        try:
-            x1, y1, x2, y2 = (float(v) for v in bbox.split(","))
-        except ValueError as e:
-            raise Invalid("bbox 는 minLon,minLat,maxLon,maxLat 입니다.") from e
+        x1, y1, x2, y2 = parse_bbox(bbox)
         where.append("h.geom && ST_MakeEnvelope(:x1, :y1, :x2, :y2, 4326)")
         p.update(x1=x1, y1=y1, x2=x2, y2=y2)
     if types:

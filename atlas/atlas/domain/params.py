@@ -43,3 +43,12 @@ def pick_level(params: dict[str, Any], level: int | None) -> int:
     if lvl not in levels:
         raise Invalid(f"level {lvl} 은 이 calc_run 에서 계산되지 않았습니다 (가능: {levels}).")
     return lvl
+
+
+def parse_bbox(bbox: str) -> tuple[float, float, float, float]:
+    """지도 범위 'minLon,minLat,maxLon,maxLat' → 숫자 4개."""
+    try:
+        x1, y1, x2, y2 = (float(v) for v in bbox.split(","))
+    except ValueError as e:
+        raise Invalid("bbox 는 minLon,minLat,maxLon,maxLat 입니다.") from e
+    return x1, y1, x2, y2
