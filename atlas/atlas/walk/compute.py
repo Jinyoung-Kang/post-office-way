@@ -17,6 +17,7 @@ from typing import Any
 import numpy as np
 from sqlalchemy import text
 
+from atlas.calc.runs import LATEST_DONE_ID
 from atlas.core.config import get_settings
 from atlas.core.db import get_engine
 from atlas.core.jobctx import current_job_id
@@ -88,9 +89,10 @@ def run_walk(calc_run_id: str | None = None, graph=None) -> dict[str, Any]:
         if (v := graph.meta.get("graphVersion")) != GRAPH_VERSION:   # 규칙이 바뀐 뒤 남은 예전 그래프는 쓰지 않음 (R12)
             return {"skipped": f"도보 그래프 규칙이 바뀌었습니다(파일 {v} ≠ 코드 {GRAPH_VERSION}) — `make osm` 으로 다시 만드세요."}
     with eng.connect() as c:
-        run = c.execute(text("""SELECT calc_run_id, stat_year, facility_as_of, params FROM mart.calc_run
-                                WHERE status = 'DONE' AND (CAST(:id AS uuid) IS NULL OR calc_run_id = CAST(:id AS uuid))
-                                ORDER BY created_at DESC LIMIT 1"""), {"id": calc_run_id}).mappings().first()
+        # 지정하지 않으면 API 와 같은 '최신 완료 계산 실행'(calc/runs.py)
+        run = c.execute(text(f"""SELECT calc_run_id, stat_year, facility_as_of, params FROM mart.calc_run
+                                 WHERE status = 'DONE' AND calc_run_id = coalesce(CAST(:id AS uuid), {LATEST_DONE_ID})"""),
+                        {"id": calc_run_id}).mappings().first()
     if not run:
         return {"skipped": "완료된 지표 계산이 없습니다."}
     rid, year = run["calc_run_id"], run["stat_year"]
