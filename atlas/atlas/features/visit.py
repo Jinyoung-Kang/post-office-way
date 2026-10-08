@@ -24,14 +24,19 @@ from atlas.domain.calendar import day_status
 from atlas.domain.visit import LEVEL_LABEL, VISIT_RULE_VERSION, WINDOW_HOURS, Hour, air_region, assess
 
 IMPACT_METRICS = ("AGED65_FAR_PPLTN", "FAR2KM_PPLTN", "NEAREST_FIN_DIST_M", "HOLIDAY_CARE_GAP_PPLTN", "HAS_365")
-
+LOOKAHEAD_DAYS = 10   # 단기예보는 길어야 발표일 +4일 — 그보다 넉넉히
 
 
 def available_dates(c: Connection, today: date) -> list[date]:
+    """창구 시간(09~18시)에 예보가 있는 날, 오늘부터 4일.
+    날짜마다 인덱스(fcst_at)로 그 시간대에 행이 하나라도 있는지만 확인 — 예전에는 앞으로의 예보 2만여 행을 읽어
+    날짜를 뽑아 정렬했음(단독 5.6ms, 부하 때 평균 77ms → 0.13ms, docs/benchmarks.md)."""
     return [r[0] for r in c.execute(text("""
-        SELECT DISTINCT CAST(fcst_at AS date) FROM mart.weather_hourly
-         WHERE fcst_at >= CAST(:d AS timestamp) AND EXTRACT(hour FROM fcst_at) BETWEEN :h0 AND :h1
-         ORDER BY 1 LIMIT 4"""), {"d": today, "h0": WINDOW_HOURS.start, "h1": WINDOW_HOURS.stop - 1}).all()]
+        SELECT CAST(d AS date) FROM generate_series(CAST(:d AS timestamp), CAST(:d AS timestamp) + make_interval(days => :n),
+                                                    interval '1 day') d
+         WHERE EXISTS (SELECT 1 FROM mart.weather_hourly w
+                        WHERE w.fcst_at >= d + make_interval(hours => :h0) AND w.fcst_at < d + make_interval(hours => :h1))
+         ORDER BY 1 LIMIT 4"""), {"d": today, "n": LOOKAHEAD_DAYS, "h0": WINDOW_HOURS.start, "h1": WINDOW_HOURS.stop}).all()]
 
 
 def _hours_by_grid(c: Connection, d: date, grid: tuple[int, int] | None = None) -> dict[tuple[int, int], list[Hour]]:

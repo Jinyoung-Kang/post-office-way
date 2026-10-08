@@ -103,3 +103,21 @@ def test_area_outlook_and_errors(client):
     assert client.get("/api/v1/visit/conditions/abc").status_code == 400
     assert client.get("/api/v1/visit/conditions", params={"date": "20260925"}).status_code == 400
     assert client.get("/api/v1/visit/conditions", params={"date": "2020-01-01"}).json()["code"] == "VISIT_NO_DATA"
+
+
+def test_available_dates_window(clean, engine):
+    """예보가 창구 시간(09~18시)에 있는 날만, 오늘부터 4일 — 창구 시간 밖 예보만 있는 날·지난 날은 빠짐."""
+    from datetime import date
+
+    from atlas.features.visit import available_dates
+
+    rows = [("2026-10-08 12:00", 1),                      # 어제 — 빠짐
+            ("2026-10-09 08:00", 2), ("2026-10-09 18:00", 3),   # 오늘: 18시대는 창구 시간(18:59 까지)
+            ("2026-10-10 06:00", 4), ("2026-10-10 21:00", 5),   # 창구 시간 밖만 — 빠짐
+            ("2026-10-11 09:00", 6), ("2026-10-12 13:00", 7), ("2026-10-13 10:00", 8), ("2026-10-14 10:00", 9)]
+    with clean.begin() as c:
+        for at, n in rows:
+            c.execute(text("INSERT INTO mart.weather_hourly (nx, ny, fcst_at, base_at) VALUES (60, :n, CAST(:at AS timestamp), now())"),
+                      {"n": n, "at": at})
+        got = available_dates(c, date(2026, 10, 9))
+    assert got == [date(2026, 10, 9), date(2026, 10, 11), date(2026, 10, 12), date(2026, 10, 13)]
