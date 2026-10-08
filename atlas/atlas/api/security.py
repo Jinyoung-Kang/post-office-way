@@ -8,12 +8,14 @@
 from __future__ import annotations
 
 import ipaddress
+import json
 import logging
 import time
 from functools import lru_cache
 from typing import Any
 
 import redis.asyncio as aioredis
+from starlette.exceptions import HTTPException
 from starlette.requests import Request
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
@@ -132,6 +134,61 @@ class RateLimitMiddleware:
             await send(msg)
 
         await self.app(scope, receive, send_with)
+
+
+MAX_BODY = 64 * 1024   # 가장 큰 정상 요청(What-if·배치 제안·관리 작업)도 1KB 안팎
+
+
+class _TooLarge(HTTPException):
+    """본문을 읽다가 상한을 넘음 — FastAPI 는 본문 파싱 중 HTTPException 만 그대로 다시 던지고(그 밖은 400 으로 바꿈)
+    오류 처리기가 {code: PAYLOAD_TOO_LARGE} 로 응답함"""
+
+    def __init__(self, limit: int) -> None:
+        super().__init__(413, f"요청 본문은 {limit // 1024}KB 까지입니다.")
+
+
+class BodyLimitMiddleware:
+    """요청 본문 상한 (S2) — 인증·검증보다 먼저. 길이 헤더가 크면 바로 413, 길이를 모르는 청크 본문은 읽다가 넘으면 413.
+    없으면 토큰 없는 요청도 수백 MB 본문을 다 읽은 뒤에야 401 을 돌려줘 메모리를 고갈시킬 수 있었음."""
+
+    def __init__(self, app: ASGIApp, limit: int = MAX_BODY) -> None:
+        self.app, self.limit = app, limit
+
+    async def _reject(self, scope: Scope, send: Send) -> None:
+        tid = (scope.get("state") or {}).get("trace_id")
+        body = json.dumps({"code": "PAYLOAD_TOO_LARGE", "message": f"요청 본문은 {self.limit // 1024}KB 까지입니다.",
+                           "traceId": tid}, ensure_ascii=False).encode()
+        await send({"type": "http.response.start", "status": 413,
+                    "headers": [(b"content-type", b"application/json"), (b"content-length", str(len(body)).encode())]})
+        await send({"type": "http.response.body", "body": body})
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http" or scope["method"] in ("GET", "HEAD", "OPTIONS"):
+            return await self.app(scope, receive, send)
+        for k, v in scope.get("headers") or []:
+            if k == b"content-length" and v.isdigit() and int(v) > self.limit:
+                return await self._reject(scope, send)
+        seen, started = 0, False
+
+        async def recv() -> Message:
+            nonlocal seen
+            msg = await receive()
+            if msg["type"] == "http.request":
+                seen += len(msg.get("body", b""))
+                if seen > self.limit:
+                    raise _TooLarge(self.limit)
+            return msg
+
+        async def send_wrap(msg: Message) -> None:
+            nonlocal started
+            started = started or msg["type"] == "http.response.start"
+            await send(msg)
+
+        try:
+            await self.app(scope, recv, send_wrap)
+        except _TooLarge:
+            if not started:
+                await self._reject(scope, send)
 
 
 # API 응답(JSON)용 — 문서(/docs)는 Swagger UI 가 CDN 스크립트를 쓰므로 CSP 를 따로 둠

@@ -41,7 +41,8 @@ def install(app: FastAPI) -> None:
 
     @app.exception_handler(StarletteHTTPException)
     async def _http(request: Request, exc: StarletteHTTPException):
-        code = {404: "NOT_FOUND", 405: "METHOD_NOT_ALLOWED", 401: "UNAUTHORIZED"}.get(exc.status_code, "HTTP_ERROR")
+        code = {404: "NOT_FOUND", 405: "METHOD_NOT_ALLOWED", 401: "UNAUTHORIZED",
+                413: "PAYLOAD_TOO_LARGE"}.get(exc.status_code, "HTTP_ERROR")
         return JSONResponse(_body(request, code, str(exc.detail)), status_code=exc.status_code)
 
     # 안전망: 입력값 때문에 DB 가 거부한 경우(숫자 범위 초과·형식 오류)는 서버 오류가 아니라 잘못된 요청 (fuzz 로 찾은 버그)

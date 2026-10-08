@@ -11,7 +11,7 @@ router = APIRouter(prefix="/whatif", tags=["whatif"])
 
 class WhatIfRequest(BaseModel):
     calcRunId: str | None = None
-    removeHistIds: list[int] = Field(..., description="제외할 시설 histId 1~5개")
+    removeHistIds: list[int] = Field(..., min_length=1, max_length=5, description="제외할 시설 histId 1~5개")
     level: int | None = Field(None, description="분석 레벨 (생략 시 계산된 가장 세밀한 레벨)")
 
 

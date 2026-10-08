@@ -1,6 +1,6 @@
 """FastAPI 앱 — Base URL /api/v1, OpenAPI 문서 /docs, Prometheus /metrics.
 
-미들웨어(바깥 → 안): 추적 로그 → 지표 → 보안 헤더 → 속도 제한 → CORS → gzip → ETag → 라우터.
+미들웨어(바깥 → 안): 추적 로그 → 지표 → 보안 헤더 → 본문 상한 → 속도 제한 → CORS → gzip → ETag → 라우터.
 ETag 는 gzip 안쪽이라 압축 전 본문으로 해시하고, 304 는 압축할 본문이 없습니다.
 API 는 DDL 권한이 없는 역할(atlas_api)로 접속하므로 기동 때 마이그레이션을 적용하지 않고 확인만 합니다.
 """
@@ -21,7 +21,7 @@ from atlas.api import errors, metrics
 from atlas.api.etag import ETagMiddleware
 from atlas.api.routers import (admin, areas, banks, calendar, dq, facilities, health, hubs, meta, metrics as metric_defs,
                                overview, plan, reports, visit, whatif)
-from atlas.api.security import RateLimitMiddleware, SecurityHeadersMiddleware, ip_from_scope
+from atlas.api.security import BodyLimitMiddleware, RateLimitMiddleware, SecurityHeadersMiddleware, ip_from_scope
 from atlas.core.config import get_settings
 from atlas.core.db import get_engine
 from atlas.core.logging import setup_logging
@@ -83,6 +83,7 @@ app.add_middleware(GZipMiddleware, minimum_size=2048, compresslevel=5)   # 기�
 app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:3100", "http://127.0.0.1:3100"],
                    allow_methods=["GET", "POST"], allow_headers=["Content-Type", "X-Admin-Token", "If-None-Match"])
 app.add_middleware(RateLimitMiddleware)
+app.add_middleware(BodyLimitMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(metrics.MetricsMiddleware)
 app.add_middleware(TraceMiddleware)
