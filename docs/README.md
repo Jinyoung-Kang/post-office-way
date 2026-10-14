@@ -32,6 +32,9 @@
 | [ADR-022](adr/ADR-022-next16.md) | Next.js 16·React 19 전환 — CSP(인라인 스크립트 금지)를 지키려고 webpack 빌드 |
 | [ADR-023](adr/ADR-023-collector-data-guards.md) | 수집이 기존 자료를 지우지 않게 — 완전성 확인·대량 변경 상한·범위를 좁힌 삭제 |
 | [ADR-024](adr/ADR-024-code-layers.md) | 코드 계층 — 라우터(HTTP)·기능 모듈(흐름·조회)·도메인(순수 규칙), 화면은 Hook 과 순수 모듈 |
+| [ADR-025](adr/ADR-025-run-records-close-on-interrupt.md) | 실행 기록은 중단(Ctrl-C)에도 닫는다 — `except BaseException` + 정적 검사 |
+| [ADR-026](adr/ADR-026-proxy-request-framing.md) | 웹 프록시는 요청 본문의 경계를 다시 세운다 — GET·HEAD 본문 거절, 쓰지 않는 메서드 405 |
+| [ADR-027](adr/ADR-027-nearest-tie-break.md) | 같은 좌표 지점의 최근접 동률은 id 로 — 후보를 넉넉히 받아 정렬, 드물면 다시 찾기(측정 비교) |
 
 ## API (`http://localhost:8100/api/v1`, 자동 문서 `/docs`)
 
@@ -39,8 +42,8 @@
 |---|---|
 | `GET /health` · `GET /health/live` | 준비 상태(DB·Redis·스키마·작업 큐·워커 차선별 생존 신호) · 프로세스 생존만 |
 | `GET /overview` | 전국 개요 — 시설·거리 분포·고령인구·금융 공백·취약 지역 ('먼 거리' 기준은 응답의 `farKm`, 계산 설정을 따름) |
-| `GET /areas` · `/areas/geojson` · `/areas/{admCd}` | 지역 목록·순위 / 단계구분도 GeoJSON(캐시) / 지역 상세(최근접 3·은행·지표·인구) |
-| `GET /facilities` · `/facilities/{histId}` | 시설 목록(bbox·유형·검색) / 시설 상세 |
+| `GET /areas` · `/areas/geojson` · `/areas/{admCd}` | 지역 목록·순위 / 단계구분도 GeoJSON(캐시, `simplify` 는 10·20·50·100·200·500·1000·2000·5000m 중 가까운 단계로) / 지역 상세(최근접 3·은행·지표·인구) |
+| `GET /facilities` · `/facilities/{histId}` | 시설 목록(bbox·유형·검색) / 시설 상세 (영업 상태 `status.state`: open·lunch(점심 휴무 시간)·before·after·closed·unknown) |
 | `GET /banks` | 은행·금고 지점 레이어 (bbox 필수, 대면 지점은 마지막 전수 수집 기준) |
 | `GET /banks/impact` · `/banks/impact/{placeId}` · `/banks/impact/{placeId}/geojson` | 은행 지점 폐쇄 영향평가 — 순위·등급별 개수(`sido`·`sgg`·`grade`·`sort`) / 지점 상세(대체 창구·거리대별 이용 주민) / 이용 주민 집계구 |
 | `GET /areas/{admCd}/report` | 지역 한 장 보고서 (시군구) — 지표·전국 중앙값·순위, 우체국, 은행 지점 영향, 읍면동(경계 포함), 방문 여건 |
@@ -56,13 +59,14 @@
 | `GET /meta/collect-runs` · `/meta/calc-runs` · `/meta/regions` | 수집·계산 실행 기록 · 시도/시군구 목록 |
 | `GET /meta/errors` | 오류 로그 — API 예외·작업·수집·계산 실패·품질 ERROR 를 시간순, 항목 `id`·복사용 한 줄(`line`) 포함, 키 마스킹, 지운 항목 제외 |
 | `GET /meta/jobs` · `GET /meta/schedule` | 작업 큐 최근 기록(요청 IP 제외) · 워커 스케줄과 다음 실행 시각 |
-| `POST /admin/jobs` · `GET /admin/jobs` · `POST /admin/jobs/{id}/cancel` | 작업 요청(202, 워커가 실행) · 관리자용 목록 · 대기 작업 취소 (`X-Admin-Token`) |
+| `POST /admin/jobs` · `GET /admin/jobs` · `POST /admin/jobs/{id}/cancel` | 작업 요청(202, 워커가 실행 — 계산 설정이 잘못되면 400) · 관리자용 목록 · 대기 작업 취소 (`X-Admin-Token`) |
 | `POST /admin/errors/ack` | 오류 로그에서 지우기 `{"ids": ["api:12", "job:34"]}` — 확인 표시만, 원본 이력은 보존 (`X-Admin-Token`) |
 | `POST /admin/collect/{kind}` · `POST /admin/calc` | 이전 경로 호환 — 작업 큐로 넣음 |
 | `GET /metrics` (8100 직접) | Prometheus 지표 — 경로별 응답 시간·속도 제한·캐시 적중·304 |
 
 오류는 `{code, message, traceId}` 형식입니다(예: `CALC_RUN_NOT_FOUND`, `VISIT_NO_DATA`, `VALIDATION_ERROR`, `RATE_LIMITED`, `JOB_IN_PROGRESS`,
-본문 64KB 초과 `PAYLOAD_TOO_LARGE`(413)). 규칙·조회 계층은 HTTP 를 모르고 도메인 오류만 던지며, 상태 코드는 `api/errors.py` 에서 정합니다.
+본문 64KB 초과 `PAYLOAD_TOO_LARGE`(413)). 잘못된 입력은 모두 400 `VALIDATION_ERROR` — 해석할 수 없는 본문, ASCII 숫자가 아닌 지역 코드,
+NaN·뒤집힌 `bbox` 포함. 웹 프록시(:3100)는 GET·HEAD·POST 만 넘기고(그 밖은 405), 본문이 붙은 GET 은 400. 규칙·조회 계층은 HTTP 를 모르고 도메인 오류만 던지며, 상태 코드는 `api/errors.py` 에서 정합니다.
 조회 응답에는 `ETag`(조건부 GET → 304), 모든 응답에 `X-Trace-Id`·`Server-Timing`·`X-RateLimit-*` 가 붙습니다.
 
 ## 데이터 구조 (`db/migrations`)

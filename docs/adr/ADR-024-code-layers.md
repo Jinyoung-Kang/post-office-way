@@ -43,3 +43,16 @@ core/* · ops/*     설정·DB·캐시·직렬화 / 수집·계산·도보가 �
 - 이 과정에서 찾은 버그는 따로 고침: '자료 없음'을 메시지 정규식으로 판정해 은행 지점 영향평가 '결과 없음'이 오류로 보이던 것,
   목록 실패 때 끝나지 않는 자리 표시, 주소에 조건이 있는 화면의 기본값 중복 요청, 지도 이동마다 모든 점 재생성(docs/benchmarks.md).
 - 대가: 기능 하나를 고칠 때 파일이 2~3개(router·service·queries)로 나뉜다. 작은 기능은 파일 하나로 두어 이 비용을 줄였다.
+
+## 2차 리뷰 보완 (2026-10-15)
+같은 원칙을 남아 있던 곳에 적용했다. '이미 갈라진 중복'이나 '테스트할 수 없는 구조'인 곳만 옮겼다.
+- **도메인 한 곳**: `domain/params` 의 `ascii_digits`·`parse_region_code`(지역 코드 검사 7곳이 갈라져 있었음), `calc_params`·`calc_levels`·
+  `calc_job_params`(계산 생성·관리 API·CLI 가 같은 검증).
+- **정의 한 곳을 정적 검사로**: 실행 기록을 닫는 except 는 BaseException(ADR-025), '최신 완료 계산 실행'은 `calc/runs.py` 한 곳
+  (`tests/unit/test_layers.py`).
+- **화면**:
+  - 지도 화면의 주소↔상태 변환 → `lib/mapQuery.ts`. 페이지 effect 안에 있어 테스트할 수 없었고, 기본 조건으로 먼저 요청하는 버그가 숨어 있었다.
+  - 시도 목록 조회 → `hooks/useRegions`. 6곳이 오류를 제각각 삼켰다.
+  - '누를 수 있는 점' → `lib/mapDots.makePickable`. 시설 점만 키보드로 누를 수 있었다.
+  - What-if 결과·지도 반영 → `lib/scenario`, 표의 불러오는 중·실패·빈 상태 판정 → `hooks/useApi` 의 `tableView`(React 없는 함수).
+
