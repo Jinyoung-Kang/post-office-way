@@ -181,8 +181,11 @@ backup:
 
 # 복원은 지금 DB 를 건드리기 전에 끝까지 검증 — 덤프 목차 확인 → 임시 DB(<DB>_restore)에 복원 → 성공하면 이름을 바꿔 교체.
 # 이전 DB 는 <DB>_prev 로 남김(되돌리기: make restore-undo). 복원이 중간에 실패하면 지금 DB 는 그대로.
+# 이름 바꾸기 두 번은 한 트랜잭션(psql -1) — 두 번째가 실패하면 첫 번째도 되돌려져 <DB> 가 사라진 채 멈추지 않음
+# (DROP DATABASE 는 트랜잭션 안에서 못 써서 따로). 실패하면 멈춘 서비스를 다시 띄움
 RESTORE_DB ?= atlas
 PSQL_ADMIN := $(COMPOSE) exec -T db psql -U atlas -d postgres -v ON_ERROR_STOP=1 -q
+DB_EXISTS = $(COMPOSE) exec -T db psql -U atlas -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname = '$(1)'" < /dev/null | grep -q 1
 restore:
 	@test -f "$(FILE)" || { echo "FILE=backups/<파일>.dump 를 지정하세요"; ls backups/*.dump 2>/dev/null; exit 2; }
 	@$(COMPOSE) exec -T db pg_restore --list < $(FILE) > /dev/null || { echo "덤프를 읽을 수 없습니다: $(FILE)"; exit 1; }
@@ -192,20 +195,24 @@ restore:
 	  || { $(PSQL_ADMIN) -c "DROP DATABASE IF EXISTS $(RESTORE_DB)_restore WITH (FORCE)"; \
 	       echo "복원 실패 — $(RESTORE_DB) DB 는 바뀌지 않았습니다"; exit 1; }
 	$(COMPOSE) stop api worker web
-	@$(PSQL_ADMIN) -c "DROP DATABASE IF EXISTS $(RESTORE_DB)_prev WITH (FORCE)" \
-	  -c "SELECT count(pg_terminate_backend(pid)) FROM pg_stat_activity WHERE datname = '$(RESTORE_DB)'" \
+	@$(PSQL_ADMIN) -c "DROP DATABASE IF EXISTS $(RESTORE_DB)_prev WITH (FORCE)"
+	@$(PSQL_ADMIN) -1 -c "SELECT count(pg_terminate_backend(pid)) FROM pg_stat_activity WHERE datname = '$(RESTORE_DB)'" \
 	  -c "ALTER DATABASE $(RESTORE_DB) RENAME TO $(RESTORE_DB)_prev" \
-	  -c "ALTER DATABASE $(RESTORE_DB)_restore RENAME TO $(RESTORE_DB)"
+	  -c "ALTER DATABASE $(RESTORE_DB)_restore RENAME TO $(RESTORE_DB)" \
+	  || { $(COMPOSE) up -d; echo "이름 교체 실패 — $(RESTORE_DB) DB 는 바뀌지 않았습니다(복원본은 $(RESTORE_DB)_restore)"; exit 1; }
 	$(COMPOSE) up -d
 	@echo "복원 완료 — 이전 DB 는 $(RESTORE_DB)_prev 로 남겼습니다 (되돌리기: make restore-undo)"
 
+# 되돌릴 DB(<DB>_prev)가 없으면 서비스를 멈추기 전에 끝냄 — 예전에는 지금 DB 이름부터 바꾼 뒤 실패해 <DB> 가 사라진 채 멈췄음
 restore-undo:
+	@$(call DB_EXISTS,$(RESTORE_DB)_prev) || { echo "$(RESTORE_DB)_prev 가 없습니다 — 되돌릴 복원이 없습니다."; exit 2; }
 	@read -p "$(RESTORE_DB) 를 $(RESTORE_DB)_prev(복원 전 DB)로 되돌립니다. 계속할까요? [y/N] " a && [ "$$a" = y ]
 	$(COMPOSE) stop api worker web
-	@$(PSQL_ADMIN) -c "SELECT count(pg_terminate_backend(pid)) FROM pg_stat_activity WHERE datname = '$(RESTORE_DB)'" \
+	@$(PSQL_ADMIN) -1 -c "SELECT count(pg_terminate_backend(pid)) FROM pg_stat_activity WHERE datname = '$(RESTORE_DB)'" \
 	  -c "ALTER DATABASE $(RESTORE_DB) RENAME TO $(RESTORE_DB)_undone" \
 	  -c "ALTER DATABASE $(RESTORE_DB)_prev RENAME TO $(RESTORE_DB)" \
-	  -c "DROP DATABASE $(RESTORE_DB)_undone WITH (FORCE)"
+	  || { $(COMPOSE) up -d; echo "되돌리기 실패 — $(RESTORE_DB) DB 는 그대로입니다"; exit 1; }
+	@$(PSQL_ADMIN) -c "DROP DATABASE $(RESTORE_DB)_undone WITH (FORCE)"
 	$(COMPOSE) up -d
 
 # 테스트 DB(atlas_test)는 운영 DB 와 분리 — 테스트가 스키마를 지우고 다시 만듭니다.
