@@ -60,7 +60,9 @@ export default function AtlasMap<P extends { admCd: string; admNm: string }>(pro
   const shapeClickAt = useRef(0);   // 도형 클릭 뒤 같은 클릭으로 지도 click 이 또 오면 무시(카카오는 둘 다 보냄)
   const cb = useRef({ styleOf, tooltipOf, onSelect, selected, onFacility, onBank, padding, pin: pinOnClick ?? !onSelect });
   cb.current = { styleOf, tooltipOf, onSelect, selected, onFacility, onBank, padding, pin: pinOnClick ?? !onSelect };
+  // 레이어 상태 문구는 레이어마다 — 하나를 같이 쓰면 시설·약국을 함께 켤 때 서로 덮고, 약국을 끄면 시설 문구까지 지워졌음
   const [facNote, setFacNote] = useState<string | null>(null);
+  const [careNote, setCareNote] = useState<string | null>(null);
   const [built, setBuilt] = useState(0);   // 폴리곤을 다 만든 횟수 — 나눠 만들기가 끝난 뒤 확대 등이 다시 돌게
 
   // 말풍선 하나를 돌려 씀. 빈 곳을 누르면 고정한 말풍선 닫기 (아래 effect 들보다 먼저 — 같은 커밋에서 선언 순서대로 실행)
@@ -263,10 +265,10 @@ export default function AtlasMap<P extends { admCd: string; admNm: string }>(pro
     enabled: !!care, maxLevel: 7, zIndex: 4,
     path: (bbox) => `/care${qs({ bbox, holidayOnly: careHolidayOnly || undefined, size: 3000 })}`,
     items: (r) => r.items, keyOf: (p) => p.id, draw: careDot,
-    onLoaded: (r) => setFacNote(`약국·의원 ${r.items.length.toLocaleString()}곳${careHolidayOnly ? " (공휴일 진료)" : ""}`),
-    onTooFar: () => setFacNote("확대하면 약국·의원이 보입니다"),
-    onError: (e) => setFacNote(e.message),
-    onCleanup: () => setFacNote(null),
+    onLoaded: (r) => setCareNote(`약국·의원 ${r.items.length.toLocaleString()}곳${careHolidayOnly ? " (공휴일 진료)" : ""}`),
+    onTooFar: () => setCareNote("확대하면 약국·의원이 보입니다"),
+    onError: (e) => setCareNote(`약국·의원 조회 실패: ${e.message}`),
+    onCleanup: () => setCareNote(null),
   }, String(careHolidayOnly));
 
   // 늘 보이는 라벨 — 순위 상위 지역 등 핵심 값만 (많으면 지도가 가려져 10여 개로 제한하는 건 부르는 쪽 몫)
@@ -317,7 +319,8 @@ export default function AtlasMap<P extends { admCd: string; admNm: string }>(pro
           </div>
         </div>
       )}
-      {facNote && <div className="glass absolute bottom-3 left-1/2 z-10 -translate-x-1/2 rounded-full px-3 py-1 text-[12px] text-ink-2">{facNote}</div>}
+      {(facNote || careNote) && <div className="glass absolute bottom-3 left-1/2 z-10 -translate-x-1/2 rounded-full px-3 py-1 text-[12px] text-ink-2">
+        {[facNote, careNote].filter(Boolean).join(" · ")}</div>}
     </div>
   );
 }
