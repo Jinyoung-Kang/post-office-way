@@ -8,9 +8,10 @@ import RegionCard, { FacilityCard } from "@/components/RegionCard";
 import { BANK_LEGEND, CARE_LEGEND, FACILITY_LEGEND, type CareLayer, type FacilityLayer, type MapLabel } from "@/components/AtlasMap";
 import { useApi } from "@/hooks/useApi";
 import { worstFirst } from "@/lib/rules";
-import { cachedApi, isNoData, qs, type AreaFC, type AreaProps, type Facility, type MetricDef, type Region } from "@/lib/api";
+import { cachedApi, isNoData, type AreaFC, type AreaProps, type Facility, type MetricDef, type Region } from "@/lib/api";
 import { classOf, legendRows, minOnlyValue, NO_DATA, quantileBreaks, SEQ } from "@/lib/choropleth";
 import { groupMetrics, num, withUnit } from "@/lib/format";
+import { DEFAULT_METRIC, geojsonPathOf, mapQueryFrom, mapQueryOf, mapStateOf, queryMatches, sameMapQuery, type MapQuery } from "@/lib/mapQuery";
 import type { TipLines } from "@/lib/mapTip";
 
 const AtlasMap = dynamic(() => import("@/components/AtlasMap"), { ssr: false }) as typeof AtlasMapType;
@@ -20,7 +21,7 @@ export default function MapPage() {
   const { calc } = useDataBasis();
   const metrics = (useApi<{ items: MetricDef[] }>("/metrics", { cacheMs: 600_000 }).data?.items ?? []).filter((m) => m.available);
   const regions = useApi<{ items: Region[] }>("/meta/regions", { cacheMs: 600_000 }).data?.items ?? [];
-  const [metric, setMetric] = useState("ACCESS_GAP_SCORE");
+  const [metric, setMetric] = useState(DEFAULT_METRIC);
   const [level, setLevel] = useState<2 | 3>(2);
   const [parent, setParent] = useState<string>("");
   const [fc, setFc] = useState<AreaFC | null>(null);
@@ -34,7 +35,7 @@ export default function MapPage() {
   const [banks, setBanks] = useState(false);
   const [care, setCare] = useState<CareLayer>(null);
   const [showTop, setShowTop] = useState(true);
-  const written = useRef<{ adm?: string; metric?: string; in?: string }>({});
+  const written = useRef<MapQuery>({});
   // 주소 → 상태를 한 번 반영한 다음 렌더부터 상태 → 주소를 씀 (같은 커밋에서 쓰면 옛 상태로 주소를 지움)
   const [hydrated, setHydrated] = useState(false);
   const [ms, setMs] = useState<number | null>(null);
@@ -51,46 +52,41 @@ export default function MapPage() {
     return () => mq.removeEventListener("change", apply);
   }, []);
 
-  // ?adm=11010&metric=… (순위·개요 화면에서 이동) → 레벨·상위 전환, 선택, 확대
+  // ?adm=11010&metric=… (순위·개요 화면에서 이동) → 레벨·상위 전환, 선택, 확대 (규칙은 lib/mapQuery.ts)
   useEffect(() => {
     if (!router.isReady) return;
     setHydrated(true);
-    const adm = typeof router.query.adm === "string" ? router.query.adm : null;
-    const m = typeof router.query.metric === "string" ? router.query.metric : null;
-    const within = typeof router.query.in === "string" ? router.query.in : null;
+    const q = mapQueryFrom({ adm: router.query.adm, metric: router.query.metric, in: router.query.in });
     // 이 화면이 방금 주소에 쓴 값이면 다시 확대하지 않음 (지역을 누를 때마다 지도가 튀지 않게)
-    if (adm === (written.current.adm ?? null) && m === (written.current.metric ?? null)
-        && within === (written.current.in ?? null)) return;
-    if (m) setMetric(m);
-    if (within && !adm) { setLevel(3); setParent(within); setSelected(null); setFocusCd(null); }
-    if (adm) {
-      if (adm.length > 5) { setLevel(3); setParent(adm.slice(0, 5)); } else { setLevel(2); setParent(""); }
-      setSelected(adm); setFocusCd(adm); setFacility(null);
-    }
+    if (sameMapQuery(q, written.current)) return;
+    const next = mapStateOf(q);
+    if (next.metric !== undefined) setMetric(next.metric);
+    if (next.level !== undefined) setLevel(next.level);
+    if (next.parent !== undefined) setParent(next.parent);
+    if (next.selected !== undefined) setSelected(next.selected);
+    if (next.focus !== undefined) setFocusCd(next.focus);
+    if (next.selected) setFacility(null);
   }, [router.isReady, router.query.adm, router.query.metric, router.query.in]);
 
+  const geoPath = geojsonPathOf({ metric, level, parent });
   useEffect(() => {
-    if (level === 3 && !parent) return;
+    if (geoPath === null) return;
     let alive = true;
     setLoading(true); setFailure(null);
     const t0 = performance.now();
-    cachedApi<AreaFC>(`/areas/geojson${qs({ level, metric, parent: parent || undefined })}`)
+    cachedApi<AreaFC>(geoPath)
       .then((r) => { if (alive) { setFc(r); setMs(Math.round(performance.now() - t0)); } })
       .catch((e) => { if (alive) { setFc(null); setFailure(e instanceof Error ? e : new Error(String(e))); } })
       .finally(() => alive && setLoading(false));
     return () => { alive = false; };
-  }, [level, parent, metric]);
+  }, [geoPath]);
 
   // 지표·선택 지역을 주소에 반영 → 새로고침·공유·뒤로 가기에도 같은 화면
   useEffect(() => {
     if (!router.isReady || !hydrated) return;
-    // adm = 선택한 지역, in = 읍면동으로 보는 범위(시도 2자리·시군구 5자리)
-    const q: { metric?: string; adm?: string; in?: string } = {
-      ...(metric !== "ACCESS_GAP_SCORE" ? { metric } : {}), ...(selected ? { adm: selected } : {}),
-      ...(level === 3 && parent && !(selected && selected.length > 5) ? { in: parent } : {}) };
+    const q = mapQueryOf({ metric, level, parent, selected });
     written.current = q;
-    if ((router.query.adm ?? undefined) === q.adm && (router.query.metric ?? undefined) === q.metric
-        && (router.query.in ?? undefined) === q.in) return;
+    if (queryMatches({ adm: router.query.adm, metric: router.query.metric, in: router.query.in }, q)) return;
     router.replace({ pathname: "/", query: q }, undefined, { shallow: true, scroll: false });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [metric, selected, level, parent, router.isReady, hydrated]);
