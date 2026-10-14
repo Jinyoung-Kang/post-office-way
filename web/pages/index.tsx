@@ -70,7 +70,8 @@ export default function MapPage() {
   // 주소를 상태에 반영한 뒤(hydrated)에만 요청 — 그 전 상태는 기본값
   const geoPath = geojsonPathOf({ metric, level, parent }, hydrated);
   useEffect(() => {
-    if (geoPath === null) return;
+    // 받을 것이 없어짐(읍면동인데 상위 지역을 못 정함) — 받던 요청은 정리에서 버려지므로 '불러오는 중'도 여기서 끝냄
+    if (geoPath === null) { setLoading(false); return; }
     let alive = true;
     setLoading(true); setFailure(null);
     const t0 = performance.now();
