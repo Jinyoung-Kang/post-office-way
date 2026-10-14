@@ -169,3 +169,60 @@ def test_reopen_only_latest_unfinished_run_of_same_kind(clean, engine):
     latest = runs.start_run("POST_AREA", check_running=False)
     runs.finish_run(latest, "PARTIAL", {"doneCodes": ["1"]})
     assert runs.reopen_run(latest, "POST_AREA")["stats"] == {"doneCodes": ["1"]}
+
+
+def _collect_with_pages(engine, monkeypatch, tmp_path, pages_items):
+    """코드 '100' 하나 — pages_items[i] = (i+1)쪽 항목 id 목록, 머리글은 늘 totalCount=120·totalPage=3."""
+    from atlas.collector import http as http_mod
+    from atlas.collector.post import pipeline, seed
+    from atlas.core import config
+
+    monkeypatch.setenv("POST_SERVICE_KEY", "TESTKEY")
+    monkeypatch.setenv("POST_CALL_DELAY_MS", "0")
+    config.get_settings.cache_clear()
+    monkeypatch.setattr(config.get_settings(), "seed_dir", str(tmp_path))
+    monkeypatch.setattr(pipeline, "MIN_CLOSE_GUARD", 10_000)          # 대량 폐국 상한이 결함을 가리지 않게
+    seed.write_area_codes([seed.AreaCode("100")])
+
+    def handler(req: httpx.Request):
+        page = int(req.url.params["nowPage"])
+        items = "".join(ITEM.format(pid=p) for p in pages_items[page - 1])
+        return httpx.Response(200, text=XML.format(total=120, pages=3, page=page, items=items))
+
+    orig_init = http_mod.Fetcher.__post_init__
+
+    def patched(self):
+        orig_init(self)
+        self._client = httpx.Client(transport=httpx.MockTransport(handler))
+
+    monkeypatch.setattr(http_mod.Fetcher, "__post_init__", patched)
+    rid = pipeline.collect_post(sleep=lambda s: None)
+    config.get_settings.cache_clear()
+    with engine.connect() as c:
+        st, stats = c.execute(text("SELECT status, stats FROM ops.collect_run WHERE collect_run_id = :r"), {"r": rid}).one()
+        n = c.execute(text("SELECT count(*) FROM mart.post_facility_hist WHERE is_current")).scalar_one()
+    return st, stats, n
+
+
+FULL = [[f"A{i}" for i in range(0, 50)], [f"A{i}" for i in range(50, 100)], [f"A{i}" for i in range(100, 120)]]
+
+
+@pytest.mark.parametrize("broken", [
+    [FULL[0], [], FULL[2]],                    # 가운데 쪽이 머리글만 있고 항목 0개
+    [FULL[0], FULL[1][:10], FULL[2]],          # 가운데 쪽이 잘림(40곳 모자람)
+    [FULL[0], FULL[1], []],                    # 마지막 쪽이 비어 있음
+])
+def test_incomplete_pages_do_not_close_facilities(clean, engine, monkeypatch, tmp_path, broken):
+    """지역코드의 쪽이 비거나 잘려 totalCount 보다 크게 모자라면 그 코드는 미완료 — 받지 못한 시설을 '문 닫음'으로 처리하지 않음.
+    예전에는 오류 없는 응답이면 성공 코드로 병합해, 상한(현재 시설 5%) 아래면 받지 못한 시설이 모두 닫혔음 (ADR-023 의 빈틈)."""
+    assert _collect_with_pages(engine, monkeypatch, tmp_path, FULL)[2] == 120
+    st, stats, n = _collect_with_pages(engine, monkeypatch, tmp_path, broken)
+    assert n == 120 and stats["failedCodes"] == ["100"] and stats["doneCodes"] == []
+    assert st == "FAILED"                      # 코드가 이것 하나라 실패 (다른 코드가 끝났으면 PARTIAL)
+
+
+def test_small_shortfall_is_still_complete(clean, engine, monkeypatch, tmp_path):
+    """지금 상류가 늘 주는 마지막 쪽 1~2곳 모자람(실측 501: 128/129, 630: 86/88)은 허용 — 그 코드는 완료로 병합."""
+    _collect_with_pages(engine, monkeypatch, tmp_path, FULL)
+    st, stats, n = _collect_with_pages(engine, monkeypatch, tmp_path, [FULL[0], FULL[1], FULL[2][:-2]])
+    assert st == "DONE" and stats["doneCodes"] == ["100"] and n == 118

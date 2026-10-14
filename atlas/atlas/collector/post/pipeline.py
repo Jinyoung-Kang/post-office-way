@@ -23,6 +23,9 @@ from atlas.core.db import begin, run_sql_file
 log = logging.getLogger(__name__)
 PAGE_SIZE = 50  # 명세 최대값
 KIND = "POST_AREA"
+# 받은 항목이 totalCount 보다 이만큼 넘게 모자라면 그 지역코드는 미완료(닫는 근거로 쓰지 않음).
+# 상류는 지금도 마지막 쪽을 1~2곳 덜 줌(실측 501: 128/129, 630: 86/88) — 그 정도는 완료로 봄
+SHORT_TOLERANCE, SHORT_RATIO = 2, 0.02
 
 _STG_COLS = ("post_id", "post_div", "name", "addr", "tel", "lat", "lon", "post_time", "finance_time",
              "lunch_yn", "lunch_time", "post365_yn", "area_code", "mod_dt", "is_center",
@@ -80,6 +83,7 @@ def collect_post(scope: list[str] | None = None, resume: uuid.UUID | None = None
             if ac.code in done:
                 continue
             ok, loaded, total_count, page, total_page = True, 0, None, 1, 1
+            received, empty_pages = 0, []
             if resume:  # 이전 시도에서 중간까지 들어간 행을 지워 중복 경보를 막음
                 with begin() as c:
                     c.execute(text("DELETE FROM stg.post_facility WHERE collect_run_id = :r AND area_code = :a"),
@@ -94,8 +98,12 @@ def collect_post(scope: list[str] | None = None, resume: uuid.UUID | None = None
                                {"areaCode": ac.code, "page": page, "status": res.status,
                                 "error": res.error or (parsed.error if parsed else None)})
                     break
-                total_page = max(parsed.total_page or 1, 1)
                 total_count = parsed.total_count
+                # totalPage 가 없으면 totalCount 로 셈 — 예전에는 1쪽만 받고 성공으로 봤음
+                total_page = max(parsed.total_page or -(-(total_count or 0) // PAGE_SIZE), 1)
+                received += len(parsed.items)
+                if not parsed.items and (total_count or 0) > 0:
+                    empty_pages.append(page)
                 rows = [normalize_item(it, ac.code) for it in parsed.items]
                 if ac.is_center:
                     for r in rows:
@@ -110,6 +118,14 @@ def collect_post(scope: list[str] | None = None, resume: uuid.UUID | None = None
                             loaded += 1
                 page += 1
                 sleep(delay)
+            short = (total_count or 0) - received
+            if ok and (empty_pages or short > max(SHORT_TOLERANCE, SHORT_RATIO * (total_count or 0))):
+                # 쪽이 비거나 크게 모자람 — 받은 행은 stg 에 남기되(새·바뀐 시설은 반영) 이 코드는 닫는 근거에서 빼고 실패로(재개 대상)
+                ok = False
+                with begin() as c:
+                    dq.add(c, "FETCH_FAILED", "stg.post_facility", ac.code,
+                           {"areaCode": ac.code, "reason": "INCOMPLETE", "totalCount": total_count,
+                            "received": received, "emptyPages": empty_pages})
             if ok:
                 stats["doneCodes"].append(ac.code)
                 if ac.code in stats["failedCodes"]:  # 재개로 성공하면 실패 목록에서 뺌
