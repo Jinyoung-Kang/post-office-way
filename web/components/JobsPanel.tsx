@@ -3,7 +3,7 @@ import { Card } from "@/components/Layout";
 import { TableSkeleton } from "@/components/Skeleton";
 import { poll } from "@/lib/poller";
 import { api, type Job, type ScheduleItem } from "@/lib/api";
-import { dt, num } from "@/lib/format";
+import { dt, dtShort, num } from "@/lib/format";
 import Sents from "@/components/Sents";
 
 type Health = { status: string; schema: { upToDate: boolean; pending: string[] } | null;
@@ -100,7 +100,7 @@ export default function JobsPanel() {
                 </span>
                 <span className="shrink-0 text-right text-[12px]">
                   {s.missingKeys.length ? <span className="badge badge-warn" title={s.missingKeys.join(", ")}>키 없음</span>
-                    : s.enabled ? <span className="text-ink-2">다음 {s.nextRunAt ? s.nextRunAt.slice(5, 16).replace("T", " ") : "—"}</span>
+                    : s.enabled ? <span className="text-ink-2">다음 {dtShort(s.nextRunAt)}</span>
                     : <span className="text-ink-3">꺼짐</span>}
                 </span>
               </div>

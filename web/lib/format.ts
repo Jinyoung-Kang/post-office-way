@@ -24,11 +24,43 @@ export function withUnit(v: number | null | undefined, unit: string): string {
   return `${num(v, 1)}${unit}`;
 }
 
+// 시각은 브라우저 시간대가 아니라 서비스 기준(KST)으로 표시 — 서버는 오류 로그 한 줄을 KST 로 만들고
+// (atlas/features/error_log.py), 기상청 발표 시각처럼 오프셋 없는 값은 KST 벽시계 시각. 해외 브라우저에서 9시간 어긋났음
+const KST_FMT = new Intl.DateTimeFormat("ko-KR", {
+  timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit",
+});
+const KST_PARTS = new Intl.DateTimeFormat("ko-KR", {
+  timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit",
+  second: "2-digit", hourCycle: "h23",
+});
+
+// 서버 시각 문자열 → Date. 오프셋(Z·+09:00)이 있으면 그대로, 없으면 KST 로 봄(날짜만이면 KST 자정)
+export function parseKst(s: string): Date {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return new Date(`${s}T00:00:00+09:00`);
+  if (/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/.test(s)) return new Date(`${s.replace(" ", "T")}+09:00`);
+  return new Date(s);
+}
+
+function kstParts(d: Date): Record<"year" | "month" | "day" | "hour" | "minute" | "second", string> {
+  const out = { year: "", month: "", day: "", hour: "", minute: "", second: "" };
+  for (const p of KST_PARTS.formatToParts(d)) if (p.type in out) out[p.type as keyof typeof out] = p.value;
+  return out;
+}
+
 export function dt(s: string | null | undefined): string {
   if (!s) return DASH;
-  const d = new Date(s);
+  const d = parseKst(s);
   if (Number.isNaN(d.getTime())) return s;
-  return d.toLocaleString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+  return KST_FMT.format(d);
+}
+
+// 짧게 '월-일 시:분' (KST) — 작업 큐의 다음 실행 시각
+export function dtShort(s: string | null | undefined): string {
+  if (!s) return DASH;
+  const d = parseKst(s);
+  if (Number.isNaN(d.getTime())) return s;
+  const p = kstParts(d);
+  return `${p.month}-${p.day} ${p.hour}:${p.minute}`;
 }
 
 export const short = (id: string | null | undefined) => (id ? id.slice(0, 8) : DASH);
@@ -92,9 +124,9 @@ export const SENTENCE_GAP = /(?<=(?:[^\s\d]|[^\s(\d]\d+)[.?!])\s+/;
 // '…니다. …' → 문장 배열. 화면 머리 설명·<Sents> 가 문장마다 줄을 바꾸는 데 씀
 export const sentences = (text: string) => text.split(SENTENCE_GAP).filter(Boolean);
 
-// 'YYYY-MM-DD HH:MM:SS' (브라우저 시간대) — 오류 로그 한 줄 형식과 같게
+// 'YYYY-MM-DD HH:MM:SS' (KST) — 서버 오류 로그 한 줄 형식·시간대와 같게
 export function localStamp(d: Date): string {
-  const p = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+  const p = kstParts(d);
+  return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}:${p.second}`;
 }
 

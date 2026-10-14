@@ -61,6 +61,7 @@ describe("유한하지 않은 값", () => {
 });
 
 it("localStamp", () => {
-  expect(localStamp(new Date(2026, 9, 8, 7, 5, 3))).toBe("2026-10-08 07:05:03");
+  // KST 고정이라 기기 시간대와 상관없이 같은 값 (해외 시간대는 format.tz.test.ts)
+  expect(localStamp(new Date("2026-10-07T22:05:03Z"))).toBe("2026-10-08 07:05:03");
 });
 
