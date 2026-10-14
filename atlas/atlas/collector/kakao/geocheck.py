@@ -34,7 +34,9 @@ def geocode(fetcher, addr: str) -> dict[str, Any] | None:
     with begin() as c:
         hit = c.execute(text("SELECT lat, lon, matched_addr, status FROM mart.geocode_cache WHERE addr = :a"),
                         {"a": q}).first()
-    if hit:
+    # 'ERROR'(일시 오류)는 캐시 미스로 보고 다시 조회 — 예전에는 영구히 None 이라 그 시설이 계속 좌표 없음·'주소 못 찾음'이었음
+    # (도로 거리 수집도 ERROR 는 다시 부름, road.py)
+    if hit and hit[3] != "ERROR":
         return {"lat": hit[0], "lon": hit[1], "matched": hit[2]} if hit[3] == "OK" else None
     s = get_settings()
     url = f"{s.kakao_local_base}/v2/local/search/address.json"
@@ -42,7 +44,7 @@ def geocode(fetcher, addr: str) -> dict[str, Any] | None:
     docs = (data or {}).get("documents") or []
     if data is not None and not docs and len(q.split()) >= 3:
         # 신설·개편된 시도 이름(예: 전남광주통합특별시)을 모르는 경우 → 시도를 빼고 한 번 더
-        data = call(fetcher, url, {"query": q.split(maxsplit=1)[1], "size": 1}, "KAKAO_LOCAL") or data
+        data = call(fetcher, url, {"query": q.split(maxsplit=1)[1], "size": 1}, "KAKAO_LOCAL")   # 실패면 None → ERROR
         docs = (data or {}).get("documents") or []
     if data is None:
         status, row = "ERROR", None
