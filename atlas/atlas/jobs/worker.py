@@ -170,8 +170,13 @@ def run_lane(lane: str, poll_s: float = 30.0, once: bool = False, stop: threadin
                 if backoff:
                     log.info("db reconnected", extra={"worker": name})
                     backoff = 0.0
-                if schedule:
-                    last_reap = _schedule_tick(entries, last_reap)
+                if schedule:   # 단일 차선 모드 — 예상 밖 오류에 차선을 죽이지 않음(다중 차선의 run_scheduler 와 같게)
+                    try:
+                        last_reap = _schedule_tick(entries, last_reap)
+                    except _DB_DOWN:
+                        raise
+                    except Exception:  # noqa: BLE001
+                        log.exception("schedule tick failed — continuing", extra={"worker": name})
                 job = queue.claim(name, kinds)
                 if job:
                     queue.worker_beat(name, lane, job["job_id"])

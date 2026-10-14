@@ -153,6 +153,14 @@ def reap(engine: Engine | None = None) -> dict[str, int]:
     """하트비트가 끊긴 RUNNING 작업 — 시도 횟수가 남았으면 다시 대기열로, 아니면 FAILED.
     그 작업이 연 실행 기록(수집·계산·도보)도 FAILED 로 닫음 — 남으면 재시도가 '이미 실행 중'으로 실패 (R1)."""
     stale = f"j.status = 'RUNNING' AND j.heartbeat_at < now() - interval '{STALE_MIN} minutes'"
+    try:
+        return _reap(engine, stale)
+    except IntegrityError:   # 두 UPDATE 사이에 같은 종류가 대기열에 들어옴(V23) — 이 주기는 되돌리고 다음 주기에 '대신함'으로 처리
+        log.warning("reap skipped — same kind enqueued concurrently")
+        return {"requeued": 0, "failed": 0}
+
+
+def _reap(engine: Engine | None, stale: str) -> dict[str, int]:
     with (engine or get_engine()).begin() as c:
         # 같은 종류가 이미 대기 중이면 그 작업이 대신함 — 다시 넣으면 '대기 중 하나' 고유 인덱스(V23) 위반으로 정리 전체가 실패했음
         superseded = [r[0] for r in c.execute(text(f"""

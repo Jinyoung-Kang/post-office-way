@@ -653,3 +653,56 @@ def test_late_failure_from_reaped_worker_keeps_new_owner_runs(fake_jobs, engine)
     assert worker.execute(job_w1, worker="w1") is False           # 늦게 실패한 처음 워커
     with engine.connect() as c:
         assert c.execute(text("SELECT status FROM ops.collect_run WHERE collect_run_id = :r"), {"r": rid}).scalar() == "RUNNING"
+
+
+def test_single_lane_survives_unexpected_schedule_error(fake_jobs, monkeypatch):
+    """단일 차선 모드(--lane short 등)도 스케줄·정리 중 예상 밖 오류에서 차선이 살아 있어야 함 — 다중 차선의 run_scheduler 만
+    보강(3aca6ed)되어, 단일 차선은 같은 오류에 프로세스가 끝나 재시작을 반복했음."""
+    import threading
+
+    calls, errors = [], []
+
+    def boom(entries, last):
+        calls.append(1)
+        if len(calls) == 1:
+            raise RuntimeError("예상 밖 오류")
+        stop.set()
+        return last
+
+    def target():
+        try:
+            worker.run_lane("short", poll_s=0.01, stop=stop, schedule=True)
+        except Exception as e:  # noqa: BLE001
+            errors.append(e)
+
+    stop = threading.Event()
+    monkeypatch.setattr(worker, "_schedule_tick", boom)
+    monkeypatch.setattr(worker, "RETRY_MAX_S", 0.01)
+    t = threading.Thread(target=target, daemon=True)
+    t.start()
+    t.join(5)
+    assert not t.is_alive() and errors == [] and len(calls) == 2
+
+
+def test_reap_tolerates_concurrent_enqueue(fake_jobs, engine, monkeypatch):
+    """정리의 두 UPDATE 사이에 같은 종류가 대기열에 들어오면 재대기열이 고유 인덱스(V23)에 걸림 — 정리 전체가 예외로 끝나지 않고
+    그 주기만 건너뛴 뒤 다음 주기에 '이미 대기 중이라 대신함'으로 처리."""
+    from sqlalchemy import event
+
+    jid = queue.enqueue("okjob")
+    queue.claim("w1")
+    with engine.begin() as c:
+        c.execute(text("UPDATE ops.job SET heartbeat_at = now() - interval '1 hour' WHERE job_id = :j"), {"j": jid})
+    fired = []
+
+    def sneak(conn, cursor, statement, *a):
+        if "그 작업이 대신함" in statement and not fired:   # superseded UPDATE 직후, 재대기열 전에 다른 곳에서 넣음
+            fired.append(1)
+            queue.enqueue("okjob")
+
+    event.listen(engine, "after_cursor_execute", sneak)
+    try:
+        assert queue.reap(engine) == {"requeued": 0, "failed": 0}
+    finally:
+        event.remove(engine, "after_cursor_execute", sneak)
+    assert queue.reap(engine)["failed"] == 1                      # 다음 주기 — 대기 중인 새 작업이 대신함
