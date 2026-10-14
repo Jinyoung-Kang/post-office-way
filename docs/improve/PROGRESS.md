@@ -83,11 +83,19 @@ API 이미지 Python 3.13.16 · FastAPI 0.141.1 · SQLAlchemy 2.1.1 · Starlette
 - `make test`(이미지 다시 빌드) 372 passed, 2 skipped(저장소 루트가 있어야 하는 compose 설정 검사 — CI 에서 실행). ruff 통과.
 - 웹: tsc·eslint 통과, vitest 96 passed, `npm run build` 성공.
 - 성능: docs/benchmarks.md '2차 코드 리뷰' — B8 +6%(대안 비교), B1·방문 여건 경로 차이 없음, make bench 는 환경 잡음으로 판정 못 함.
-  make bench 4회(수정 전 2·후 2)가 운영 DB 의 What-if 시나리오 표에 행을 남김(벤치의 원래 동작, 시작 전 113행).
-- QA(`make qa`, api·web 만 띄움 — 워커 없음): 진행 중 → 결과는 REPORT.md
+  make bench 4회(수정 전 2·후 2) 뒤 운영 DB 의 What-if 시나리오 표는 그대로 113행(벤치의 무작위 조합이 이미 있는 시나리오라 새 행 없음).
+- QA(`make qa`, api·web 만 띄움 — 워커 없음, 8분 16초): crawl 11개 화면 오류 0 · requests 24개 상태(지도 주소 조건 상태 추가) 중복·기본 조건
+  선요청 0 · a11y axe 위반 0·모바일 넘침 0 · sentences 0 · failures 11개 실패 상황 통과(속도 제한 1회 재시도) · fuzz 658건 5xx 0.
+- 브라우저(앱 내장 브라우저, http://localhost:3100):
+  - `/?adm=37520&metric=FAR2KM_SHARE` 첫 로드 — GeoJSON 은 그 지표로 1번, 지역 카드는 calcRunId 를 붙여 1번(네트워크 기록).
+  - 시설·은행·약국 레이어를 함께 켜면 문구 '시설 62곳 · 확대하면 약국·의원이 보입니다'(W7).
+  - 은행 점 59개 중 영향평가 대상 26개만 role=button·tabIndex 0·aria-label, 초점 + Enter → /banks?id=…(W6).
+  - 머리글 '지도'(/)로 가면 지표가 기본값·카드 닫힘(B3).
+  - 없는 지역 코드의 오류 카드에도 닫기 단추(B3 후속).
+  - 점심 상태(lunch)는 지금 시각(새벽)이라 화면으로 확인하지 못함 — API 테스트로 대신.
 
 ## 남은 일
-- QA 결과 확인 → 브라우저로 지도 화면 확인(B3·W6·W7·카드 닫기) → 독립 검토(3단계) → REPORT.md
+- 독립 검토(3단계, 워크플로 진행 중) → 지적 반영 → REPORT.md
 - 작업 트리 정리: `.claude/worktrees/wf_2eb748b5-abc-1`(브랜치 improve/20261015-web — 커밋은 이 브랜치로 cherry-pick 함), 스크래치의 main-wt
 
 ## 승인 대기 (모아 두었다가 한 번에 묻기)
