@@ -9,3 +9,7 @@ import os
 os.environ["DATABASE_URL"] = os.environ.get("TEST_DATABASE_URL", "postgresql+psycopg://nobody@127.0.0.1:1/no_db")
 # Redis: make test 는 compose 의 redis 15번 DB(운영은 0번), 없으면 닿지 않는 주소(캐시 없음 경로)
 os.environ["REDIS_URL"] = os.environ.get("TEST_REDIS_URL", "redis://127.0.0.1:1/0")
+# 도보 설정: compose 가 .env 의 값을 worker·collector(make test 가 쓰는 컨테이너)에 넘기므로, 테스트는 손 계산의 전제인 기본값으로 고정
+# (예: .env 에 WALK_LIMIT_M=2000 이 있으면 도보 거리 테스트가 실패했음 — 2차 독립 검토)
+for _k in ("OSM_PBF_URL", "WALK_LIMIT_M", "WALK_SNAP_MAX_M", "WALK_SPEED_MPS", "WALK_MINUTES"):
+    os.environ.pop(_k, None)
