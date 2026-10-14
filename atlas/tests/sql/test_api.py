@@ -77,7 +77,7 @@ def test_out_of_range_inputs_are_400_not_500(client):
 
 
 def test_geojson_free_inputs_are_bounded(client):
-    """parent 는 지역 코드 형식만 (LIKE 와일드카드로 레벨 제한 우회·캐시 키 폭증 방지), simplify 는 10m 단위로 묶음 (S3)."""
+    """parent 는 지역 코드 형식만 (LIKE 와일드카드로 레벨 제한 우회·캐시 키 폭증 방지), simplify 는 정해진 단계로 묶음 (S3)."""
     for bad in ("%", "9_", "abc", "99%", "1234567"):
         r = client.get("/api/v1/areas/geojson", params={"level": 2, "metric": "NEAREST_FIN_DIST_M", "parent": bad})
         assert r.status_code == 400, bad
@@ -85,7 +85,7 @@ def test_geojson_free_inputs_are_bounded(client):
     assert client.get("/api/v1/areas/geojson", params={"level": 2, "metric": "NEAREST_FIN_DIST_M", "parent": "99"}).status_code == 200
     from atlas.features.areas.service import simplify_step
 
-    assert simplify_step(123.4567) == simplify_step(120.0) == 120.0
+    assert simplify_step(123.4567) == simplify_step(120.0) == 100.0
     assert simplify_step(0) == 0.0 and simplify_step(None) is None and simplify_step(4.9) == 10.0   # 0 초과는 최소 10m
     assert client.get("/api/v1/visit/conditions", params={"sido": "%"}).status_code == 400   # 값마다 판정 300ms 방지
 
@@ -123,3 +123,17 @@ def test_overview_far_threshold_follows_calc_params(terrain, engine):
     with TestClient(app) as c:
         ov = c.get("/api/v1/overview").json()
     assert ov["farKm"] == 3 and ov["farPpltn"] == expect
+
+
+def test_geojson_explicit_default_simplify_shares_cache(client, monkeypatch):
+    """기본값과 같은 simplify(시군구 200m)를 적은 요청은 생략한 요청과 같은 캐시 항목을 씀 — 같은 본문을 두 번 만들어 두지 않게."""
+    from atlas.core import cache
+
+    store: dict[str, bytes] = {}
+    monkeypatch.setattr(cache, "get", lambda k: store.get(k))
+    monkeypatch.setattr(cache, "set", lambda k, v, ttl=None: store.__setitem__(k, v if isinstance(v, bytes) else v.encode()))
+    p = {"level": 2, "metric": "NEAREST_FIN_DIST_M"}
+    a = client.get("/api/v1/areas/geojson", params=p)
+    b = client.get("/api/v1/areas/geojson", params={**p, "simplify": 200})
+    assert a.status_code == b.status_code == 200 and a.content == b.content
+    assert len([k for k in store if not k.endswith(":etag")]) == 1

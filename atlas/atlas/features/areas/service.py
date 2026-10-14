@@ -4,6 +4,7 @@ from __future__ import annotations
 import gzip
 import hashlib
 import json
+import math
 import re
 from typing import Any
 
@@ -36,13 +37,16 @@ def _check_parent(parent: str | None) -> None:
         raise Invalid("parent 는 시도 2자리 또는 시군구 5자리 숫자입니다.")
 
 
+SIMPLIFY_STEPS = (10.0, 20.0, 50.0, 100.0, 200.0, 500.0, 1000.0, 2000.0, 5000.0)
+
+
 def simplify_step(v: float | None) -> float | None:
-    """단순화 허용 오차를 10m 단위로 묶음 — 임의 실수마다 전국 경계 단순화(최대 수 초)와 캐시 키가 새로 생기지 않게.
-    0 은 원본 그대로, 0 보다 크면 최소 10m (예전에는 0~5 가 0 으로 반올림돼 가장 무거운 원본 경계가 나갔음).
-    값을 거부하지 않으므로 기존 요청은 그대로 동작."""
+    """단순화 허용 오차를 정해진 단계 중 가장 가까운 값(비율 기준)으로 — 값마다 전국 경계 단순화(요청당 DB 약 1.3초)와
+    24시간 캐시 항목이 새로 생기지 않게. 10m 단위로 묶던 때는 0~5000 에서 501가지 × 지표 28개가 모두 캐시 미스였음.
+    0 은 원본 그대로, 0 보다 크면 최소 10m. 값을 거부하지 않으므로 기존 요청은 그대로 동작(경계 정밀도만 단계로)."""
     if v is None:
         return None
-    return 0.0 if v <= 0 else max(10.0, float(round(v / 10) * 10))
+    return 0.0 if v <= 0 else min(SIMPLIFY_STEPS, key=lambda s: (abs(math.log(v / s)), -s))
 
 
 def _check_level(level: int, parent: str | None, run: dict[str, Any]) -> None:
@@ -64,6 +68,8 @@ def geojson_payload(c: Connection, level: int, metric: str, parent: str | None, 
     if simplify is not None and not 0 <= simplify <= 5000:
         raise Invalid("simplify 는 0~5000(m) 입니다.")
     simplify = simplify_step(simplify)
+    if simplify == DEFAULT_SIMPLIFY[level]:      # 기본값을 적은 요청은 생략한 요청과 같은 본문 — 같은 캐시 항목으로
+        simplify = None
     key = f"geo:gz3:{data_version(c, run)}:{level}:{parent or '-'}:{metric}:{simplify if simplify is not None else 'd'}"
     if (tag := cache.get(key + ":etag")) and (etag_only or (body := cache.get(key))):
         return (None if etag_only else body), tag.decode()
