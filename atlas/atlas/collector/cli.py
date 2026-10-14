@@ -69,14 +69,24 @@ def cmd_collect(a: argparse.Namespace) -> int:
 
     params = {"scope": a.scope, "resume": a.resume, "refresh": a.refresh, "maxCalls": a.max_calls, "recalc": False}
     ids: list[str] = []
+    rc = 0
     for kind in COLLECT_ALIASES.get(a.what, (a.what,)):
         spec = registry.get(kind)
         if miss := spec.missing():
             print(f"{spec.title}: .env 에 {', '.join(miss)} 가 없어 건너뜁니다 (넣으면 켜집니다).")
             continue
-        ids += registry.run(kind, params).get("collectRunIds", [])
+        res = registry.run(kind, params)
+        if "collectRunIds" in res:
+            ids += res["collectRunIds"]
+            continue
+        # 수집 실행 기록이 없는 작업(도보 계산) — 결과나 건너뛴 이유를 그대로. 예전에는 아무것도 출력하지 않고 0 이었음
+        if res.get("skipped"):
+            print(f"{spec.title}: {res['skipped']}", file=sys.stderr)
+            rc = max(rc, 1 if res.get("stale") else 0)     # 그래프 규칙이 바뀜 — `make osm` 이 필요
+        else:
+            _print(res)
     if not ids:
-        return 0
+        return rc
     with get_engine().connect() as c:
         rows = c.execute(text("""SELECT collect_run_id, kind, status, stats - 'doneCodes' - 'failedCodes' AS stats,
                                         jsonb_array_length(CASE WHEN jsonb_typeof(stats->'failedCodes') = 'array'
