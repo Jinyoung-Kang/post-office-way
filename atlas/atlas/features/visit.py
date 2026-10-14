@@ -17,6 +17,7 @@ from atlas.core import cache
 from atlas.calc.runs import LATEST_DONE_ID, latest_done
 from atlas.core.serial import jsonable
 from atlas.domain.errors import Invalid, NotFound
+from atlas.domain.params import ascii_digits
 from atlas.features import calendar as cal
 from atlas.core.clock import now_kst
 from atlas.core.config import get_settings
@@ -194,7 +195,7 @@ def _conditions(c: Connection, d: date, dates: list[date], sido: str | None) -> 
 def area_outlook(c: Connection, adm_cd: str) -> dict[str, Any]:
     """지역 카드용 — 시군구(읍면동이면 상위 시군구)의 오늘~모레 판정."""
     sgg = adm_cd[:5]
-    if len(adm_cd) < 5 or not sgg.isdigit():
+    if len(adm_cd) < 5 or not ascii_digits(adm_cd):
         raise Invalid("admCd 는 시군구(5자리) 또는 읍면동 코드입니다.")
     now = now_kst()
     calc = latest_done(c)

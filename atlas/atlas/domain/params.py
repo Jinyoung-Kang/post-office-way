@@ -11,6 +11,18 @@ MAX_SIZE = 200
 MAX_PAGE = 100_000   # OFFSET 이 bigint 를 넘지 않게 (그 이상은 의미 없는 페이지)
 
 
+def ascii_digits(v: str | None) -> bool:
+    """0-9 로만 — str.isdigit 와 정규식 \\d 는 아랍·전각·위첨자 숫자도 받고, $ 는 끝 줄바꿈도 받음."""
+    return bool(v) and v.isascii() and v.isdigit()
+
+
+def parse_region_code(v: str | None, lengths: tuple[int, ...] = (2, 5), message: str | None = None) -> str:
+    """지역 코드(시도 2자리·시군구 5자리) — 검사를 여기 한 곳에서. 예전에는 7곳에 따로 있어 갈라졌음(같은 '١١'에 400·404·200)."""
+    if not ascii_digits(v) or len(v) not in lengths:
+        raise Invalid(message or f"지역 코드는 {'·'.join(f'{n}자리' for n in lengths)} 숫자(0-9)입니다.")
+    return v
+
+
 def parse_uuid(v: str | None, what: str = "calcRunId") -> uuid.UUID | None:
     if v in (None, ""):
         return None

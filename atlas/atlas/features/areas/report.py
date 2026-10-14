@@ -13,7 +13,8 @@ from sqlalchemy.engine import Connection
 from atlas.calc.runs import meta_of, resolve_calc_run, walk_finished_at
 from atlas.core import cache
 from atlas.core.serial import jsonable
-from atlas.domain.errors import DomainError, Invalid, NotFound
+from atlas.domain.errors import DomainError, NotFound
+from atlas.domain.params import parse_region_code
 from atlas.features.areas import queries as q
 
 # 보고서에 싣는 지표 — 화면 순서대로 (없는 지표는 건너뜀)
@@ -24,8 +25,7 @@ EMD_METRICS = ["POPW_FIN_DIST_M", "FAR2KM_SHARE", "WALK30_NO_FIN_SHARE", "AGED65
 
 
 def report(c: Connection, adm_cd: str, calc_run_id: str | None) -> dict[str, Any]:
-    if len(adm_cd) != 5 or not adm_cd.isdigit():
-        raise Invalid("지역 보고서는 시군구(5자리 코드) 단위입니다.")
+    parse_region_code(adm_cd, (5,), "지역 보고서는 시군구(5자리 코드) 단위입니다.")
     run = resolve_calc_run(c, calc_run_id)
     walk_at = walk_finished_at(c, run["calc_run_id"])
     key = f"report:{run['calc_run_id']}:{walk_at.isoformat() if walk_at else '-'}:{adm_cd}"

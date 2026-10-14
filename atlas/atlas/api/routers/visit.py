@@ -11,7 +11,7 @@ router = APIRouter(prefix="/visit", tags=["visit"])
 
 @router.get("/conditions", summary="⑥ 시군구별 방문 여건 (기상청 단기예보·에어코리아 예보 × 먼 곳 고령인구)")
 def conditions(date: str | None = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$", description="YYYY-MM-DD, 생략하면 오늘(운영 시간이 끝났으면 내일)"),
-               sido: str | None = Query(None, pattern=r"^\d{2}$", description="시도 코드 2자리로 좁히기")):
+               sido: str | None = Query(None, pattern=r"^[0-9]{2}$", description="시도 코드 2자리로 좁히기")):
     with get_engine().connect() as c:
         return Response(svc.conditions_json(c, date, sido), media_type="application/json")
 

@@ -18,7 +18,7 @@ def list_banks(bbox: str = Query(..., description="minLon,minLat,maxLon,maxLat")
 
 
 @router.get("/impact", summary="① 은행 지점 폐쇄 영향평가 — 순위·등급별 개수 (시도·시군구·등급 필터)")
-def impact_list(sido: str | None = Query(None, pattern=r"^\d{2}$"), sgg: str | None = Query(None, pattern=r"^\d{5}$"),
+def impact_list(sido: str | None = Query(None, pattern=r"^[0-9]{2}$"), sgg: str | None = Query(None, pattern=r"^[0-9]{5}$"),
                 grade: str | None = Query(None, pattern="^(HIGH|MID|LOW)$"),
                 sort: str = Query("lost", pattern="^(lost|catch|aged|walk|far)$"),
                 page: int = 1, size: int = 20, calcRunId: str | None = None):

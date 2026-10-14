@@ -20,7 +20,7 @@ from atlas.calc.runs import meta_of, resolve_calc_run
 from atlas.core import cache
 from atlas.core.serial import jsonable
 from atlas.domain.errors import Invalid, NotFound
-from atlas.domain.params import far_meters, pick_level
+from atlas.domain.params import far_meters, parse_region_code, pick_level
 from atlas.domain.placement import Area, greedy_close, greedy_open, single_impacts
 from atlas.features.plan import queries as q
 
@@ -31,8 +31,7 @@ CAVEAT = "직선거리·지역 대표점 기준의 탐욕 근사이며 공식 �
 
 
 def _validate(scope: str, k: int, weight: str) -> None:
-    if not scope or not scope.isdigit() or len(scope) not in (2, 5):
-        raise Invalid("scope 는 시도 2자리 또는 시군구 5자리 코드입니다.")
+    parse_region_code(scope, (2, 5), "scope 는 시도 2자리 또는 시군구 5자리 코드입니다.")
     if not 1 <= k <= MAX_K:
         raise Invalid(f"k 는 1~{MAX_K} 입니다.")
     if weight not in ("aged65", "pop"):

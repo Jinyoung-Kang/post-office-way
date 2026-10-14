@@ -15,7 +15,7 @@ def hubs_summary(calcRunId: str | None = None):
 
 
 @router.get("/hubs/facilities", summary="⑦ 우체국별 대체 불가능성 순위 (닫히면 생활 거점이 사라지는 인구)")
-def hubs_facilities(sido: str | None = Query(None, pattern=r"^\d{2}$"),
+def hubs_facilities(sido: str | None = Query(None, pattern=r"^[0-9]{2}$"),
                     sort: str = Query("soleHub", pattern="^(soleHub|soleFin|served)$"),
                     page: int = 1, size: int = 20, calcRunId: str | None = None):
     with get_engine().connect() as c:

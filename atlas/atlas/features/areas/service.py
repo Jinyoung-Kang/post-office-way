@@ -5,7 +5,6 @@ import gzip
 import hashlib
 import json
 import math
-import re
 from typing import Any
 
 from sqlalchemy.engine import Connection
@@ -14,13 +13,12 @@ from atlas.calc.runs import data_version, meta_of, resolve_calc_run
 from atlas.core import cache
 from atlas.core.serial import jsonable
 from atlas.domain.errors import Invalid, NotFound
-from atlas.domain.params import page_params
+from atlas.domain.params import page_params, parse_region_code
 from atlas.domain.rules import POST_DIV_LABEL
 from atlas.features.areas import queries as q
 
 DEFAULT_SIMPLIFY = {2: 200.0, 3: 50.0}
 GEO_TTL = 24 * 3600          # 계산이 바뀌면 키(calc_run)가 바뀌지만, 쓰이지 않는 키가 남지 않게 만료도 둠
-_PARENT = re.compile(r"[0-9]{2}(?:[0-9]{3})?")   # ASCII 숫자만 — \d 는 아랍·전각 숫자도, $ 는 끝 줄바꿈도 받음
 
 
 def metric_row(c: Connection, code: str) -> dict[str, Any]:
@@ -33,8 +31,8 @@ def metric_row(c: Connection, code: str) -> dict[str, Any]:
 def _check_parent(parent: str | None) -> None:
     # 시도 2자리·시군구 5자리만 — 자유 문자열이면 LIKE 와일드카드('%')로 level=3 의 parent 필수 제한을 피해
     # 전국 읍면동을 받거나, 값마다 만료 없는 캐시 키가 생겼음 (S3)
-    if parent is not None and not _PARENT.fullmatch(parent):
-        raise Invalid("parent 는 시도 2자리 또는 시군구 5자리 숫자입니다.")
+    if parent is not None:
+        parse_region_code(parent, (2, 5), "parent 는 시도 2자리 또는 시군구 5자리 숫자입니다.")
 
 
 SIMPLIFY_STEPS = (10.0, 20.0, 50.0, 100.0, 200.0, 500.0, 1000.0, 2000.0, 5000.0)

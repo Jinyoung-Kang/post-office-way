@@ -52,3 +52,19 @@ def test_parse_bbox_rejects_non_finite_inverted_or_out_of_range(bad):
 
     with pytest.raises(Invalid, match="bbox"):
         parse_bbox(bad)
+
+
+@pytest.mark.parametrize("bad", ["١١", "１１", "²²", "11\n", "1", "123", "", "1a"])
+def test_region_code_is_ascii_2_or_5_digits(bad):
+    from atlas.domain.params import parse_region_code
+
+    with pytest.raises(Invalid):
+        parse_region_code(bad)
+
+
+def test_region_code_lengths():
+    from atlas.domain.params import parse_region_code
+
+    assert parse_region_code("11") == "11" and parse_region_code("37520") == "37520"
+    with pytest.raises(Invalid):
+        parse_region_code("11", lengths=(5,))

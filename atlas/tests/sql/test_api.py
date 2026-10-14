@@ -137,3 +137,18 @@ def test_geojson_explicit_default_simplify_shares_cache(client, monkeypatch):
     b = client.get("/api/v1/areas/geojson", params={**p, "simplify": 200})
     assert a.status_code == b.status_code == 200 and a.content == b.content
     assert len([k for k in store if not k.endswith(":etag")]) == 1
+
+
+@pytest.mark.parametrize("path", ["/api/v1/visit/conditions?sido=١١", "/api/v1/banks/impact?sido=١١",
+                                  "/api/v1/banks/impact?sgg=１１１１１", "/api/v1/hubs/facilities?sido=１１",
+                                  "/api/v1/areas/１１１１１/report", "/api/v1/visit/conditions/٣٧٥٢٠"])
+def test_region_codes_reject_non_ascii_digits(client, path):
+    """지역 코드 검사가 7곳에 따로 있어 갈라졌음 — 같은 '١١'(아랍 숫자)에 400·404·200 이 제각각이었고, 200 인 곳은 값마다
+    30분 캐시 항목이 새로 생겼음. 이제 모두 ASCII 숫자만 받고 400 VALIDATION_ERROR."""
+    r = client.get(path)
+    assert r.status_code == 400 and r.json()["code"] == "VALIDATION_ERROR", (path, r.status_code, r.text[:200])
+
+
+def test_plan_scope_rejects_non_ascii_digits(client):
+    r = client.post("/api/v1/plan/close", json={"scope": "²²", "k": 1, "weight": "aged65"})
+    assert r.status_code == 400 and r.json()["code"] == "VALIDATION_ERROR"
