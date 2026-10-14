@@ -1,16 +1,18 @@
 import Link from "next/link";
 import { useApi } from "@/hooks/useApi";
-import { qs, type AreaDetail, type Facility, type VisitOutlook } from "@/lib/api";
+import type { AreaDetail, Facility, VisitOutlook } from "@/lib/api";
+import { regionPathOf } from "@/lib/mapQuery";
 import { dist, dt, num, short, withUnit } from "@/lib/format";
 import { ErrorBox } from "@/components/Layout";
 import VisitBadge from "@/components/VisitBadge";
 
 // 지역 카드 — 모든 숫자에 calc_run·수집 시점 표시 (FR-502, NFR-07)
+// calcRunId: 그 계산 실행의 값(지도와 같은 실행). null 이면 아직 모름 — 요청하지 않고 기다림. 없으면 최신
 export default function RegionCard({ admCd, calcRunId, highlight, onDrill, onClose }: {
-  admCd: string; calcRunId?: string; highlight?: string; onDrill?: (admCd: string) => void; onClose?: () => void;
+  admCd: string; calcRunId?: string | null; highlight?: string; onDrill?: (admCd: string) => void; onClose?: () => void;
 }) {
   // 지역을 연달아 누르면 이전 요청을 취소하고 마지막 지역의 응답만 표시
-  const { data: d, error } = useApi<AreaDetail>(`/areas/${encodeURIComponent(admCd)}${qs({ calcRunId })}`, { keep: false });
+  const { data: d, error } = useApi<AreaDetail>(regionPathOf(admCd, calcRunId), { keep: false });
   const err = error?.message ?? null;
 
   if (err) return <ErrorBox error={err} />;

@@ -11,7 +11,7 @@ import { worstFirst } from "@/lib/rules";
 import { cachedApi, isNoData, type AreaFC, type AreaProps, type Facility, type MetricDef, type Region } from "@/lib/api";
 import { classOf, legendRows, minOnlyValue, NO_DATA, quantileBreaks, SEQ } from "@/lib/choropleth";
 import { groupMetrics, num, withUnit } from "@/lib/format";
-import { DEFAULT_METRIC, geojsonPathOf, mapQueryFrom, mapQueryOf, mapStateOf, queryMatches, sameMapQuery, type MapQuery } from "@/lib/mapQuery";
+import { cardRunOf, DEFAULT_METRIC, geojsonPathOf, mapQueryFrom, mapQueryOf, mapStateOf, queryMatches, sameMapQuery, type MapQuery } from "@/lib/mapQuery";
 import type { TipLines } from "@/lib/mapTip";
 
 const AtlasMap = dynamic(() => import("@/components/AtlasMap"), { ssr: false }) as typeof AtlasMapType;
@@ -68,7 +68,8 @@ export default function MapPage() {
     if (next.selected) setFacility(null);
   }, [router.isReady, router.query.adm, router.query.metric, router.query.in]);
 
-  const geoPath = geojsonPathOf({ metric, level, parent });
+  // 주소를 상태에 반영한 뒤(hydrated)에만 요청 — 그 전 상태는 기본값
+  const geoPath = geojsonPathOf({ metric, level, parent }, hydrated);
   useEffect(() => {
     if (geoPath === null) return;
     let alive = true;
@@ -250,7 +251,7 @@ export default function MapPage() {
       {detailOpen && (
         <aside className="glass absolute bottom-3 left-3 right-3 z-20 max-h-[55dvh] overflow-y-auto p-5 md:bottom-auto md:left-auto md:right-4 md:top-4 md:max-h-[calc(100dvh-100px)] md:w-[368px]">
           {facility ? <FacilityCard f={facility} onClose={() => setFacility(null)} /> : selected && (
-            <RegionCard admCd={selected} calcRunId={fc?.meta.calcRunId} highlight={metric}
+            <RegionCard admCd={selected} calcRunId={cardRunOf(fc, !!failure)} highlight={metric}
               onClose={() => { setSelected(null); setFocusCd(null); }}
               onDrill={level === 2 ? (cd) => { setLevel(3); setParent(cd); setSelected(null); setFocusCd(null); } : undefined} />
           )}

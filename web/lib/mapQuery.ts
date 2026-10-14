@@ -50,8 +50,24 @@ export function mapQueryOf(s: Pick<MapState, "metric" | "level" | "parent" | "se
   return q;
 }
 
-// 단계구분도 GeoJSON 경로 — 읍면동인데 상위 지역이 아직 없으면 요청하지 않음(null)
-export function geojsonPathOf(s: Pick<MapState, "metric" | "level" | "parent">): string | null {
-  if (s.level === 3 && !s.parent) return null;
+// 단계구분도 GeoJSON 경로. 요청하지 않음(null):
+// - 주소를 아직 상태에 반영하지 않았을 때(ready=false) — 그 전 상태는 기본값이라 ?metric=…·?in=… 화면이
+//   기본 지표 전국 GeoJSON(약 200KB gzip)을 먼저 한 번 더 받았음
+// - 읍면동인데 상위 지역이 아직 없을 때
+export function geojsonPathOf(s: Pick<MapState, "metric" | "level" | "parent">, ready: boolean): string | null {
+  if (!ready || (s.level === 3 && !s.parent)) return null;
   return `/areas/geojson${qs({ level: s.level, metric: s.metric, parent: s.parent || undefined })}`;
+}
+
+// 지역 카드가 볼 계산 실행 — 지도 자료가 오기 전에는 기다림(null). 기다리지 않으면 계산 실행 없이 한 번,
+// 지도 자료가 온 뒤 calcRunId 를 붙여 또 한 번 받아 카드가 깜박였음. 지도 자료를 못 받았으면 최신(undefined)
+export function cardRunOf(fc: { meta: { calcRunId: string } } | null, failed: boolean): string | null | undefined {
+  if (fc) return fc.meta.calcRunId;
+  return failed ? undefined : null;
+}
+
+// 지역 카드 경로 — calcRunId 가 null 이면 요청하지 않음
+export function regionPathOf(admCd: string, calcRunId: string | null | undefined): string | null {
+  if (calcRunId === null) return null;
+  return `/areas/${encodeURIComponent(admCd)}${qs({ calcRunId })}`;
 }

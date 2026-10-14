@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { geojsonPathOf, mapQueryFrom, mapQueryOf, mapStateOf, queryMatches, sameMapQuery } from "./mapQuery";
+import { cardRunOf, geojsonPathOf, mapQueryFrom, mapQueryOf, mapStateOf, queryMatches, regionPathOf, sameMapQuery } from "./mapQuery";
 
 describe("지도 화면 주소 읽기", () => {
   it("이 화면이 쓰는 문자열 값만 꺼냄", () => {
@@ -54,13 +54,35 @@ describe("지도 화면 주소 쓰기", () => {
 
 describe("단계구분도 경로", () => {
   it("시군구 · 전국", () => {
-    expect(geojsonPathOf({ metric: "ACCESS_GAP_SCORE", level: 2, parent: "" }))
+    expect(geojsonPathOf({ metric: "ACCESS_GAP_SCORE", level: 2, parent: "" }, true))
       .toBe("/areas/geojson?level=2&metric=ACCESS_GAP_SCORE");
   });
 
   it("읍면동은 상위 지역이 있어야 요청", () => {
-    expect(geojsonPathOf({ metric: "FAR2KM_SHARE", level: 3, parent: "47" }))
+    expect(geojsonPathOf({ metric: "FAR2KM_SHARE", level: 3, parent: "47" }, true))
       .toBe("/areas/geojson?level=3&metric=FAR2KM_SHARE&parent=47");
-    expect(geojsonPathOf({ metric: "FAR2KM_SHARE", level: 3, parent: "" })).toBeNull();
+    expect(geojsonPathOf({ metric: "FAR2KM_SHARE", level: 3, parent: "" }, true)).toBeNull();
+  });
+
+  it("주소를 읽기 전에는 요청하지 않고, 읽은 뒤에는 주소의 지표로 한 번", () => {
+    // ?adm=47190&metric=FAR2KM_SHARE 첫 렌더: 상태는 아직 기본값 — 기본 지표 전국 GeoJSON 을 받으면 안 됨
+    expect(geojsonPathOf({ metric: "ACCESS_GAP_SCORE", level: 2, parent: "" }, false)).toBeNull();
+    const s = { metric: "ACCESS_GAP_SCORE", level: 2 as const, parent: "", selected: null, focus: null,
+      ...mapStateOf({ adm: "47190", metric: "FAR2KM_SHARE" }) };
+    expect(geojsonPathOf(s, true)).toBe("/areas/geojson?level=2&metric=FAR2KM_SHARE");
+  });
+});
+
+describe("지역 카드 경로", () => {
+  it("지도 자료가 오기 전에는 요청하지 않음 — 계산 실행 없이 한 번, 붙여서 또 한 번 받지 않게", () => {
+    expect(cardRunOf(null, false)).toBeNull();
+    expect(regionPathOf("47190", cardRunOf(null, false))).toBeNull();
+    const fc = { meta: { calcRunId: "c-1" } };
+    expect(regionPathOf("47190", cardRunOf(fc, false))).toBe("/areas/47190?calcRunId=c-1");
+  });
+
+  it("지도 자료를 못 받았으면 최신 계산 실행으로", () => {
+    expect(cardRunOf(null, true)).toBeUndefined();
+    expect(regionPathOf("47190", cardRunOf(null, true))).toBe("/areas/47190");
   });
 });
