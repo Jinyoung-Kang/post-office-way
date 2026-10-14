@@ -17,7 +17,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest==9.1.1", "respx==0.23.1"]
+dev = ["pytest==9.1.1"]
 # ② 도보 경로 — OSM 읽기(osmium)·최단 경로(scipy). 워커·수집기 이미지에만 설치 (API 이미지는 가볍게 유지)
 walk = ["osmium==4.3.1", "numpy==2.4.6", "scipy==1.17.1"]
 
