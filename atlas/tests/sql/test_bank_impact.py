@@ -126,3 +126,16 @@ def test_region_report(client):
     assert [p["name"] for p in r["posts"]] == ["F1"]
     assert client.get("/api/v1/areas/99/report").status_code == 400
     assert client.get("/api/v1/areas/12345/report").json()["code"] == "AREA_NOT_FOUND"
+
+
+def test_branch_just_outside_boundary_gets_nearest_area(terrain, engine):
+    """해안선 단순화 등으로 경계 밖에 조금 떨어진 지점도 우체국과 같은 규칙(snapM 2km 안 최근접 지역)으로 지역이 정해져야 함.
+    예전에는 지점만 '폴리곤 안'만 봐서 지역이 비어(실데이터: 경계 밖 16m 의 HIGH 지점) 시군구 보고서·시도 필터에서 빠졌음."""
+    with engine.begin() as c:
+        add_oa(c, "99010010000001", 5_000, 3_000, 100)
+        add_branch(c, "K9", -16, 5_000, "KB국민은행")            # 지역 A 왼쪽 경계에서 16m 밖
+        add_branch(c, "K8", -3_000, 5_000, "신한은행")           # 2km 넘게 밖 — 지금처럼 지역 없음
+    rid = run_calc(stat_year=2024, levels=[2])
+    with engine.connect() as c:
+        got = dict(c.execute(text("SELECT place_id, adm_cd FROM mart.bank_impact WHERE calc_run_id = :r"), {"r": rid}).all())
+    assert got == {"K9": "99010", "K8": None}

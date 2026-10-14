@@ -88,8 +88,8 @@ def execute_calc_run(calc_run_id: uuid.UUID, engine: Engine | None = None) -> di
                 raise RuntimeError(f"{stat_year}년 level {levels} 행정구역이 없습니다. 먼저 `make sgis` 를 실행하세요.")
             if n_fin == 0:
                 raise RuntimeError("금융 가능 시설이 없습니다. 먼저 `make collect` 를 실행하세요.")
-            step("spatialJoin", lambda: run_sql_file(c, "calc/01_facility_area_map.sql",
-                                                     {**base, "snap_m": float(params.get("snapM", 2000))}))
+            snap = {"snap_m": float(params.get("snapM", 2000))}     # 시설·은행 지점이 경계 밖일 때 최근접 지역에 붙이는 거리
+            step("spatialJoin", lambda: run_sql_file(c, "calc/01_facility_area_map.sql", {**base, **snap}))
             step("nearest", lambda: run_sql_file(c, "calc/02_area_nearest.sql", base))
             step("metrics", lambda: run_sql_file(c, "calc/03_metrics.sql", base))
 
@@ -119,7 +119,7 @@ def execute_calc_run(calc_run_id: uuid.UUID, engine: Engine | None = None) -> di
             step("bank", lambda: run_sql_file(c, "calc/07_bank.sql", far))      # ④ 금융 공백
             step("road", lambda: run_sql_file(c, "calc/08_road.sql", base))     # ② 도로 거리
             step("life", lambda: run_sql_file(c, "calc/09_life.sql", far))      # ⑦ 생활 거점(약국·의원)
-            step("bankImpact", lambda: run_sql_file(c, "calc/11_bank_impact.sql", far))   # ① 은행 지점 폐쇄 영향
+            step("bankImpact", lambda: run_sql_file(c, "calc/11_bank_impact.sql", {**far, **snap}))   # ① 은행 지점 폐쇄 영향
             step("ranks", lambda: run_sql_file(c, "calc/10_ranks.sql", base))  # 순위·백분위 미리 계산 (V14)
             extra = c.execute(text("""SELECT
                 (SELECT count(*) FROM mart.oa_nearest WHERE calc_run_id = :id),
