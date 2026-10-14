@@ -141,9 +141,13 @@ def _pick_date(c: Connection, day: str | None) -> tuple[date, list[date]]:
 
 
 def _version(c: Connection, d: date) -> str:
-    """판정 입력의 버전 — 이 값이 같으면 결과도 같음(예보 발표·대기 발표·공휴일·계산·오늘 날짜)."""
-    v = c.execute(text(f"""SELECT (SELECT max(base_at) FROM mart.weather_hourly
-                                  WHERE fcst_at >= CAST(:d AS timestamp) AND fcst_at < CAST(:d AS timestamp) + interval '1 day'),
+    """판정 입력의 버전 — 이 값이 같으면 결과도 같음(예보 발표·대기 발표·공휴일·계산·오늘 날짜).
+    예보는 (최신 발표 시각, 그 발표로 들어온 행 수) — 기상청 수집은 격자마다 커밋하므로 발표 시각만 보면 첫 격자가 들어온
+    순간의 섞인 판정이 수집이 끝난 뒤에도 30분 캐시됐음. 행 수가 격자 커밋마다 늘어 키가 바뀜(측정: 그날 약 5,800행, 3ms)."""
+    v = c.execute(text(f"""WITH w AS (SELECT base_at FROM mart.weather_hourly
+                                       WHERE fcst_at >= CAST(:d AS timestamp) AND fcst_at < CAST(:d AS timestamp) + interval '1 day')
+                           SELECT (SELECT max(base_at) FROM w),
+                                  (SELECT count(*) FROM w WHERE base_at = (SELECT max(base_at) FROM w)),
                                  (SELECT max(announced_at) FROM mart.air_forecast WHERE inform_date = :d),
                                  (SELECT max(fetched_at) FROM mart.holiday),
                                  {LATEST_DONE_ID}"""), {"d": d}).one()

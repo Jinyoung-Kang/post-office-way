@@ -170,3 +170,28 @@ def test_kma_unexpected_error_cancels_remaining_calls(clean, engine, monkeypatch
     with pytest.raises(ValueError):
         kma.collect_kma(now=datetime(2026, 9, 24, 5, 30))
     assert len(calls) < 40
+
+
+def test_conditions_cache_follows_grid_commits(weather, engine, monkeypatch):
+    """기상청 수집은 격자마다 커밋함 — 첫 격자가 커밋된 순간의 섞인 판정이 수집이 끝난 뒤에도 30분 캐시되면 안 됨.
+    예전 캐시 버전은 '그날 예보의 최신 발표 시각'뿐이라 첫 격자 뒤로 바뀌지 않았음."""
+    from atlas.core import cache
+    from atlas.features import visit
+
+    store: dict[str, bytes] = {}
+    monkeypatch.setattr(cache, "get", lambda k: store.get(k))
+    monkeypatch.setattr(cache, "set", lambda k, v, ttl=None: store.__setitem__(k, v.encode() if isinstance(v, str) else v))
+    with engine.connect() as c:
+        grids = c.execute(text("SELECT DISTINCT nx, ny FROM mart.weather_hourly ORDER BY 1, 2")).all()
+    assert len(grids) > 1
+    clear = """UPDATE mart.weather_hourly SET base_at = '2026-09-24 08:00', pty = 0, pop = 0, pcp_mm = 0, sno_cm = 0, wsd = 1
+                WHERE (nx, ny) {} (:nx, :ny)"""
+    with engine.begin() as c:                                    # 새 발표(08시)가 첫 격자에만 들어간 순간
+        c.execute(text(clear.format("=")), {"nx": grids[0][0], "ny": grids[0][1]})
+    with engine.connect() as c:
+        visit.conditions_json(c, "2026-09-25")
+    with engine.begin() as c:                                    # 나머지 격자도 들어옴 — 수집 끝
+        c.execute(text(clear.format("<>")), {"nx": grids[0][0], "ny": grids[0][1]})
+    with engine.connect() as c:
+        done = json.loads(visit.conditions_json(c, "2026-09-25"))
+    assert "RAIN" not in done["summary"]["byReason"]
