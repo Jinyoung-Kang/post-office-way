@@ -158,6 +158,10 @@ def collect_post(scope: list[str] | None = None, resume: uuid.UUID | None = None
                                                  "rows": stats["rows"], "failed": len(stats["failedCodes"])})
     except BaseException as e:  # Ctrl-C 에도 기록을 닫음(test_layers)
         stats["calls"] = calls_before + fetcher.calls
+        if isinstance(e, MergeGuardError):   # 병합 트랜잭션과 함께 품질 기록도 되돌려졌으므로 따로 남김 (ADR-023 '품질 ERROR')
+            with begin() as c:
+                dq.add(c, "MASS_CHANGE_HELD", "mart.post_facility_hist", None, {"error": str(e)})
+                dq.record_checks(c, ("MASS_CHANGE_HELD",))
         runs.finish_run(run_id, "FAILED", stats, error=f"{type(e).__name__}: {e}")
         raise
     finally:

@@ -96,3 +96,17 @@ def test_truncated_tile_makes_crawl_partial(clean, monkeypatch, engine):
     monkeypatch.setattr(banks, "make_fetcher", lambda *_: FakeFetcher())
     status, stats = _status(engine, banks.collect_banks_full())
     assert status == "PARTIAL" and stats["truncated"] == 1
+
+
+def test_partial_crawl_reason_shows_in_error_log(clean, monkeypatch, engine):
+    """전수가 아닌 실행(PARTIAL)은 기준 목록이 갱신되지 않으므로 사유가 오류 로그에 보여야 함 — 예전에는 error 가 비어 안 보였음."""
+    from atlas.features import error_log
+
+    pts = [(f"P{i}", 127.0 + i * 0.0001, 37.5) for i in range(30)]
+    inner = fake_kakao(pts)
+    monkeypatch.setattr(banks, "call", lambda f, u, p, s: None if p["page"] == 2 else inner(f, u, p, s))
+    monkeypatch.setattr(banks, "make_fetcher", lambda *_: FakeFetcher())
+    banks.collect_banks_full()
+    with engine.connect() as c:
+        items = [i for i in error_log.list_errors(c, days=1, limit=50)["items"] if i["source"] == "수집"]
+    assert items and "전수" in items[0]["message"] and "쪽 1" in items[0]["message"]

@@ -16,6 +16,7 @@ from typing import Any
 from sqlalchemy import text
 
 from atlas.ops import runs
+from atlas.ops.dq import DQRecorder
 from atlas.collector.datago.client import DataGoStop, call, items_of, make_fetcher
 from atlas.core.config import get_settings
 from atlas.core.db import begin
@@ -76,6 +77,8 @@ def collect_kind(fetcher, run_id: uuid.UUID, kind: str, source: str, url: str) -
                            {"k": kind, "t": started}).scalar_one()
         if unseen > max(MAX_REMOVE_RATIO * existing, MIN_REMOVE_GUARD):
             st["removeHeld"] = unseen          # 응답 이상 — 지우지 않고 미완료로 (다음 수집에서 다시 판단)
+            DQRecorder(collect_run_id=run_id).add(c, "MASS_CHANGE_HELD", "mart.care_place", kind,
+                                                  {"unseen": unseen, "existing": existing})
             log.warning("care removal held", extra={"kind": kind, "unseen": unseen, "existing": existing})
             return st
         st["removed"] = c.execute(text("""DELETE FROM mart.care_place WHERE kind = :k AND last_seen < to_timestamp(:t)"""),
@@ -102,7 +105,18 @@ def collect_care() -> uuid.UUID:
                       "calls": fetcher.calls, "errors": fetcher.errors,
                       "elapsedMs": int((time.monotonic() - t0) * 1000)})
         status = "DONE" if all(done) else ("PARTIAL" if any(done) or stats["rows"] else "FAILED")
-        runs.finish_run(run_id, status, stats, error=stats["stoppedBy"] if status == "FAILED" else None)
+        with begin() as c:
+            DQRecorder(collect_run_id=run_id).record_checks(c, ("MASS_CHANGE_HELD",))
+        # PARTIAL 도 사유를 남겨 오류 로그에 보이게 (ADR-023 — 사람이 보고 판단). 원문은 넣지 않고 건수만
+        reasons = []
+        for k, *_ in SOURCES:
+            st = stats.get(k.lower(), {})
+            if st.get("removeHeld"):
+                reasons.append(f"{k.lower()} 삭제 보류(이번에 안 보인 {st['removeHeld']}곳)")
+            elif st.get("incomplete"):
+                reasons.append(f"{k.lower()} 미완료({st['incomplete']})")
+        runs.finish_run(run_id, status, stats,
+                        error=None if status == "DONE" else ("; ".join(reasons) or stats["stoppedBy"] or "미완료"))
     except BaseException as e:  # Ctrl-C 에도 기록을 닫음(test_layers)
         stats["calls"] = fetcher.calls
         runs.finish_run(run_id, "FAILED", stats, error=f"{type(e).__name__}: {e}")

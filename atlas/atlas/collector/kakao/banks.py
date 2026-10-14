@@ -202,7 +202,9 @@ def collect_banks_full() -> uuid.UUID:
         # — 전수(DONE) 실행은 기준 목록이 되어 그 실행에서 안 보인 지점을 폐점으로 빼므로, 빠짐이 있으면 안 됨.
         # 계산은 이전 전수 실행(또는 90일 규칙)을 계속 씀
         ok = not (stats["stoppedBy"] or stats["failedTiles"] or stats["failedPages"] or stats["truncated"])
-        runs.finish_run(run_id, "DONE" if ok else "PARTIAL", stats)
+        why = (f"전수 아님(실패한 칸 {stats['failedTiles']}·쪽 {stats['failedPages']}·잘린 칸 {stats['truncated']}"
+               + (", 중단됨" if stats["stoppedBy"] else "") + ") — 기준 목록은 이전 전수 실행을 계속 씀")
+        runs.finish_run(run_id, "DONE" if ok else "PARTIAL", stats, error=None if ok else why)   # 오류 로그에 보이게
     except BaseException as e:  # Ctrl-C 에도 기록을 닫음(test_layers)
         stats["calls"] = fetcher.calls
         runs.finish_run(run_id, "FAILED", stats, error=f"{type(e).__name__}: {e}")

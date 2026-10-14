@@ -32,6 +32,7 @@ RULES: dict[str, tuple[str, str]] = {
     "COORD_ADDR_MISMATCH": ("WARN", "API 좌표와 주소 검색 좌표가 1km 넘게 다름"),
     "ADDR_NOT_FOUND": ("INFO", "주소 검색(카카오)으로 찾지 못한 시설 주소"),
     "OA_UNMATCHED": ("INFO", "집계구 인구·경계 중 한쪽만 있는 집계구"),
+    "MASS_CHANGE_HELD": ("ERROR", "한 번에 기존 자료의 큰 비율이 지워지거나 닫히게 되어 반영을 멈춤 — 응답을 확인하세요(ADR-023)"),
 }
 
 COLLECT_POST_RULES = ("COORD_NULL", "COORD_GEOCODED", "COORD_OUT_OF_KR", "DUP_POST_ID", "TOTALCOUNT_MISMATCH",

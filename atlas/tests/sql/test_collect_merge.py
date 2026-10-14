@@ -171,7 +171,7 @@ def test_reopen_only_latest_unfinished_run_of_same_kind(clean, engine):
     assert runs.reopen_run(latest, "POST_AREA")["stats"] == {"doneCodes": ["1"]}
 
 
-def _collect_with_pages(engine, monkeypatch, tmp_path, pages_items):
+def _collect_with_pages(engine, monkeypatch, tmp_path, pages_items, keep_guard=False):
     """코드 '100' 하나 — pages_items[i] = (i+1)쪽 항목 id 목록, 머리글은 늘 totalCount=120·totalPage=3."""
     from atlas.collector import http as http_mod
     from atlas.collector.post import pipeline, seed
@@ -181,7 +181,8 @@ def _collect_with_pages(engine, monkeypatch, tmp_path, pages_items):
     monkeypatch.setenv("POST_CALL_DELAY_MS", "0")
     config.get_settings.cache_clear()
     monkeypatch.setattr(config.get_settings(), "seed_dir", str(tmp_path))
-    monkeypatch.setattr(pipeline, "MIN_CLOSE_GUARD", 10_000)          # 대량 폐국 상한이 결함을 가리지 않게
+    if not keep_guard:
+        monkeypatch.setattr(pipeline, "MIN_CLOSE_GUARD", 10_000)      # 대량 폐국 상한이 결함을 가리지 않게
     seed.write_area_codes([seed.AreaCode("100")])
 
     def handler(req: httpx.Request):

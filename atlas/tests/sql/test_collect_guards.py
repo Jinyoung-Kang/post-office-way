@@ -66,6 +66,37 @@ def test_care_mass_removal_is_held(clean, engine, monkeypatch):
     assert _pharmacies(engine) == 220 and stats["pharmacy"]["removeHeld"] == 200 and status != "DONE"
 
 
+def _visible_errors(engine):
+    from atlas.features import error_log
+
+    with engine.connect() as c:
+        return error_log.list_errors(c, days=1, limit=50)["items"]
+
+
+def test_held_or_incomplete_collection_shows_in_error_log(clean, engine, monkeypatch):
+    """ADR-023 '멈추고 품질 ERROR 로 남긴다' — 삭제 보류(PARTIAL)도 사유와 품질 ERROR 가 오류 로그에 보여야 사람이 판단함.
+    예전에는 PARTIAL 의 error 가 비어 오류 로그(error IS NOT NULL 만)·품질 ERROR 어디에도 나타나지 않았음."""
+    _seed_pharmacies(engine, 200)
+    _run_care(monkeypatch, {"items": {"item": [_item(i) for i in range(20)]}, "totalCount": 20})
+    items = _visible_errors(engine)
+    collect = [i for i in items if i["source"] == "수집"]
+    assert collect and "보류" in collect[0]["message"]
+    assert any(i["source"] == "품질" and i["title"] == "MASS_CHANGE_HELD" for i in items)
+
+
+def test_post_merge_guard_leaves_quality_error(clean, engine, monkeypatch, tmp_path):
+    """우체국 대량 폐국 멈춤(MergeGuardError)은 병합 트랜잭션과 함께 품질 기록도 되돌려져 '품질 ERROR' 가 남지 않았음."""
+    from tests.sql.test_collect_merge import FULL, _collect_with_pages
+    from atlas.collector.post import pipeline
+
+    _collect_with_pages(engine, monkeypatch, tmp_path, FULL)
+    monkeypatch.setattr(pipeline, "MIN_CLOSE_GUARD", 1)
+    with pytest.raises(pipeline.MergeGuardError):
+        other = [[p.replace("A", "B") for p in page] for page in FULL]     # 모두 다른 시설 → 기존 120곳이 닫히게 됨
+        _collect_with_pages(engine, monkeypatch, tmp_path, other, keep_guard=True)
+    assert any(i["source"] == "품질" and i["title"] == "MASS_CHANGE_HELD" for i in _visible_errors(engine))
+
+
 def test_care_normal_closure_removes_unseen(clean, engine, monkeypatch):
     """정상 — 전체를 받았고 사라진 곳이 적으면 폐업한 곳만 지움."""
     _seed_pharmacies(engine, 2)
