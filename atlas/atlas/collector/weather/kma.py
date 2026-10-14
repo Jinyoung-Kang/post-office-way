@@ -17,6 +17,7 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
 
+from atlas.calc.runs import LATEST_DONE_ID
 from atlas.ops import runs
 from atlas.collector.datago.client import DataGoStop, call, items_of, make_fetcher
 from atlas.core.clock import now_kst
@@ -40,8 +41,8 @@ def latest_base(now: datetime) -> datetime:
 
 
 def stat_year(c: Connection) -> int:
-    return c.execute(text("""SELECT stat_year FROM mart.calc_run WHERE status = 'DONE'
-                             ORDER BY finished_at DESC NULLS LAST LIMIT 1""")).scalar() or get_settings().stat_year
+    return c.execute(text(f"SELECT stat_year FROM mart.calc_run WHERE calc_run_id = {LATEST_DONE_ID}")).scalar() \
+        or get_settings().stat_year
 
 
 def ensure_grids(c: Connection, year: int) -> list[tuple[int, int]]:

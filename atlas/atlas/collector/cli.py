@@ -132,14 +132,15 @@ def cmd_prune(a: argparse.Namespace) -> int:
     """raw 원문은 재처리용, stg 는 병합용 스냅샷 — 수집마다 약 10MB 씩 늘어 종류별 최근 N개 run 만 남깁니다.
     계산 결과도 계산마다 약 25MB(집계구 최근접 10만 행 등)라 최근 N개 계산만 남깁니다.
     품질 이슈는 이력으로 남기되 INFO(수천 건 반복)만 함께 정리합니다."""
+    from atlas.calc.runs import LATEST_DONE_ID
+
     keep, keep_calc = max(1, a.keep), max(1, a.keep_calc)
     with get_engine().begin() as c:
         # 계산 결과(지표·최근접·집계구 최근접·What-if)는 계산마다 약 25MB — 최근 N개 계산만 남김(가장 최근 DONE 은 항상 보존)
         old_calc = f"""SELECT calc_run_id FROM (
                           SELECT calc_run_id, row_number() OVER (ORDER BY created_at DESC) AS rn FROM mart.calc_run
                            WHERE status <> 'RUNNING') x WHERE rn > {keep_calc}
-                        AND calc_run_id <> (SELECT calc_run_id FROM mart.calc_run WHERE status = 'DONE'
-                                             ORDER BY finished_at DESC NULLS LAST LIMIT 1)"""
+                        AND calc_run_id <> {LATEST_DONE_ID}"""   # API·도보가 '최신'으로 쓰는 바로 그 실행
         c.execute(text(f"DELETE FROM ops.dq_issue WHERE calc_run_id IN ({old_calc})"))
         c.execute(text(f"DELETE FROM ops.dq_check WHERE calc_run_id IN ({old_calc})"))
         calc = c.execute(text(f"DELETE FROM mart.calc_run WHERE calc_run_id IN ({old_calc})")).rowcount

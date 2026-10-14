@@ -67,3 +67,12 @@ def test_run_failure_handlers_catch_base_exception():
                 if caught != "BaseException" or not reraises:
                     bad.append(f"{f.relative_to(PKG)}:{node.lineno} except {caught}")
     assert not bad, "실행 기록을 닫는 except 가 BaseException 이 아니거나 다시 던지지 않음:\n" + "\n".join(bad)
+
+
+def test_latest_done_calc_run_defined_once():
+    """'최신 완료 계산 실행' 정의(동률 처리 포함)는 calc/runs.py 한 곳 — prune·기상청 수집에 복사본이 남아 동률 처리가 달랐음."""
+    import re
+
+    pat = re.compile(r"FROM mart\.calc_run\s+WHERE status = 'DONE'\s+ORDER BY finished_at", re.S)
+    bad = [str(f.relative_to(PKG)) for f in sorted(PKG.rglob("*.py")) if f.name != "runs.py" and pat.search(f.read_text())]
+    assert not bad, "최신 완료 계산 실행을 따로 정의: " + ", ".join(bad)
