@@ -9,7 +9,7 @@ export type LayerSpec<T, R> = {
   enabled: boolean;
   maxLevel: number;                     // 이보다 넓게 보면(카카오 level 이 크면) 지우고 onTooFar
   zIndex: number;
-  clickable?: boolean;
+  clickable?: boolean | ((item: T) => boolean);   // 함수면 점마다 — 누를 수 없는 점이 지도 클릭을 막지 않게
   path: (bbox: string) => string;       // API 경로
   items: (res: R) => T[];
   keyOf: (item: T) => string;
@@ -20,6 +20,11 @@ export type LayerSpec<T, R> = {
   onDisabled?: () => void;              // 꺼질 때
   onCleanup?: () => void;               // 조건이 바뀌거나 화면을 떠날 때
 };
+
+// 오버레이의 clickable — true 인 오버레이는 그 위의 클릭을 지도로 넘기지 않음(누를 수 없는 점이면 고정한 말풍선이 닫히지 않았음)
+export function isClickable<T>(c: LayerSpec<T, unknown>["clickable"], item: T): boolean {
+  return typeof c === "function" ? c(item) : !!c;
+}
 
 export function useBboxLayer<T extends { lat: number; lon: number }, R>(
   m: { kakao: RefObject<any>; map: RefObject<any>; ready: boolean }, spec: LayerSpec<T, R>, key: string) {
@@ -51,7 +56,7 @@ export function useBboxLayer<T extends { lat: number; lon: number }, R>(
         for (const k of add) {
           const it = next.get(k)!;
           shown.set(k, new kakao.maps.CustomOverlay({ map, position: new kakao.maps.LatLng(it.lat, it.lon),
-            content: s.current.draw(it), zIndex: s.current.zIndex, clickable: !!s.current.clickable }));
+            content: s.current.draw(it), zIndex: s.current.zIndex, clickable: isClickable(s.current.clickable, it) }));
         }
         s.current.onLoaded?.(res, shown.size);
       } catch (e) {

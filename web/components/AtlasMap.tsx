@@ -6,6 +6,7 @@ import { toPaths } from "@/lib/kakao";
 import { declutter, labelSize } from "@/lib/mapGeom";
 import { esc, tipHtml, type TipLines } from "@/lib/mapTip";
 import { BANK_TONE, bankDot, CARE_TONE, careDot, FAC_TONE, facilityDot } from "@/lib/mapDots";
+import { isBankEvaluable } from "@/lib/rules";
 
 export type Style = { fill: string; opacity?: number; stroke?: string };
 export type Marker = { lat: number; lon: number; label: string; tone: "removed" | "new" | "focus" };
@@ -250,9 +251,10 @@ export default function AtlasMap<P extends { admCd: string; admNm: string }>(pro
   }, `${facilities?.finOnly}|${facilities?.types.join(",")}`);
 
   // 은행·금고 지점 — 확대 수준 9 이하에서 (보라 사각 점). 레이어는 보조 정보 — 실패해도 지도는 유지.
-  // 영향평가 대상 지점은 누를 수 있어 시설 레이어처럼 clickable (점을 누른 클릭이 지도로 번지지 않게)
+  // 영향평가 대상 지점만 누를 수 있어 그 점만 clickable (점을 누른 클릭이 지도로 번지지 않게) — 새마을금고·저축은행 점은
+  // 누를 처리가 없으므로 지도 클릭을 막지 않음
   useBboxLayer<Bank, { items: Bank[] }>(km, {
-    enabled: !!banks, maxLevel: 9, zIndex: 5, clickable: true,
+    enabled: !!banks, maxLevel: 9, zIndex: 5, clickable: (p) => isBankEvaluable(p) && !!cb.current.onBank,
     path: (bbox) => `/banks${qs({ bbox, size: 3000 })}`,
     items: (r) => r.items, keyOf: (p) => p.placeId,
     draw: (p) => bankDot(p, cb.current.onBank ? (x) => cb.current.onBank?.(x) : undefined),
