@@ -247,9 +247,10 @@ export default function AtlasMap<P extends { admCd: string; admNm: string }>(pro
     onDisabled: () => setFacNote(null),
   }, `${facilities?.finOnly}|${facilities?.types.join(",")}`);
 
-  // 은행·금고 지점 — 확대 수준 9 이하에서 (보라 사각 점). 레이어는 보조 정보 — 실패해도 지도는 유지
+  // 은행·금고 지점 — 확대 수준 9 이하에서 (보라 사각 점). 레이어는 보조 정보 — 실패해도 지도는 유지.
+  // 영향평가 대상 지점은 누를 수 있어 시설 레이어처럼 clickable (점을 누른 클릭이 지도로 번지지 않게)
   useBboxLayer<Bank, { items: Bank[] }>(km, {
-    enabled: !!banks, maxLevel: 9, zIndex: 5,
+    enabled: !!banks, maxLevel: 9, zIndex: 5, clickable: true,
     path: (bbox) => `/banks${qs({ bbox, size: 3000 })}`,
     items: (r) => r.items, keyOf: (p) => p.placeId,
     draw: (p) => bankDot(p, cb.current.onBank ? (x) => cb.current.onBank?.(x) : undefined),

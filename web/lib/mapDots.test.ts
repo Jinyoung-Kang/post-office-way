@@ -1,7 +1,7 @@
 // 지도 레이어 점(DOM) — document.createElement 를 흉내 내 속성·이벤트를 확인
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Bank, CarePlace, Facility } from "./api";
-import { bankDot, careDot, facilityDot } from "./mapDots";
+import { bankDot, careDot, facilityDot, makePickable } from "./mapDots";
 
 type FakeEl = {
   tagName: string; className: string; title: string; tabIndex: number; style: Record<string, string>;
@@ -74,11 +74,47 @@ describe("은행 지점 점", () => {
     expect(pick).toHaveBeenCalledWith(bank);
   });
 
+  it("영향평가 대상 은행은 키보드로도 — 시설 점과 같은 누를 수 있는 단추(초점·이름·Enter·Space)", () => {
+    const pick = vi.fn();
+    const el = bankDot(bank, pick) as unknown as FakeEl;
+    expect(el.attrs.role).toBe("button");
+    expect(el.attrs["aria-label"]).toBe("국민은행 광화문지점 — 문을 닫으면 영향 보기");
+    expect(el.tabIndex).toBe(0);
+    for (const key of ["Enter", " "]) {
+      const k = ev({ key }); fire(el, "keydown", k);
+      expect(k.prevented).toBe(true);
+      expect(k.stopped).toBe(true);
+    }
+    expect(pick).toHaveBeenCalledTimes(2);
+  });
+
+  it("누를 곳이 없으면(onPick 없음) 단추로 만들지 않음", () => {
+    const el = bankDot(bank) as unknown as FakeEl;
+    expect(el.attrs.role).toBeUndefined();
+    expect(el.tabIndex).toBe(-1);
+    expect(el.on.click).toBeUndefined();
+  });
+
   it("새마을금고처럼 대상이 아니면 누를 수 없음", () => {
     const el = bankDot(coop, vi.fn()) as unknown as FakeEl;
     expect(el.title).toBe("새마을금고 종로 · 새마을금고");
     expect(el.style.cursor).toBeUndefined();
     expect(el.on.click).toBeUndefined();
+    expect(el.attrs.role).toBeUndefined();
+  });
+});
+
+describe("makePickable — 누를 수 있는 점 공통", () => {
+  it("단추 역할·이름·초점, 클릭·Enter·Space 로 한 번씩", () => {
+    const el = fakeEl("div");
+    const pick = vi.fn();
+    makePickable(el as unknown as HTMLElement, "이름", pick);
+    expect(el.attrs).toEqual({ role: "button", "aria-label": "이름" });
+    expect(el.tabIndex).toBe(0);
+    fire(el, "click", ev());
+    fire(el, "keydown", ev({ key: "Enter" }));
+    fire(el, "keydown", ev({ key: "Tab" }));
+    expect(pick).toHaveBeenCalledTimes(2);
   });
 });
 
