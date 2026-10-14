@@ -31,3 +31,10 @@ def test_simplify_has_few_steps():
     """단순화 허용 오차는 몇 단계로만 — 값마다 전국 경계 단순화(요청당 DB 약 1.3초)와 24시간 캐시 항목이 생기지 않게.
     예전 10m 단위는 0~5000 에서 501가지 × 지표 28개가 모두 캐시 미스였음(리뷰 S3 수정이 덜 됨)."""
     assert len({simplify_step(v / 10) for v in range(0, 50_001)}) <= 10
+
+
+@pytest.mark.parametrize("tiny", [5e-324, 1e-320, 1.2e-320])
+def test_simplify_step_tiny_positive_is_smallest_step(tiny):
+    """아주 작은 양수(비정규 실수)도 가장 작은 단계로 — 단계와 나눈 값이 0 으로 내려가 log(0) 의 ValueError 가 500 이 됐음(독립 검토)."""
+    assert simplify_step(tiny) == 10.0
+

@@ -174,3 +174,8 @@ def test_unparseable_body_is_validation_error(client, body):
     r = client.post("/api/v1/whatif", content=body, headers={"Content-Type": "application/json"})
     assert r.status_code == 400 and r.json()["code"] == "VALIDATION_ERROR"
     assert "parsing" not in r.json()["message"]
+
+
+def test_geojson_tiny_simplify_is_not_500(client):
+    r = client.get("/api/v1/areas/geojson", params={"level": 2, "metric": "NEAREST_FIN_DIST_M", "simplify": "5e-324"})
+    assert r.status_code == 200

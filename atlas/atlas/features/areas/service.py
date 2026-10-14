@@ -44,7 +44,10 @@ def simplify_step(v: float | None) -> float | None:
     0 은 원본 그대로, 0 보다 크면 최소 10m. 값을 거부하지 않으므로 기존 요청은 그대로 동작(경계 정밀도만 단계로)."""
     if v is None:
         return None
-    return 0.0 if v <= 0 else min(SIMPLIFY_STEPS, key=lambda s: (abs(math.log(v / s)), -s))
+    if v <= 0:
+        return 0.0
+    # 로그끼리 빼서 비교 — v / s 를 먼저 나누면 아주 작은 양수(5e-324)에서 0 이 되어 log(0) 이 ValueError(500)였음
+    return min(SIMPLIFY_STEPS, key=lambda s: (abs(math.log(v) - math.log(s)), -s))
 
 
 def _check_level(level: int, parent: str | None, run: dict[str, Any]) -> None:
