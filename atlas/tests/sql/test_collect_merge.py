@@ -171,8 +171,8 @@ def test_reopen_only_latest_unfinished_run_of_same_kind(clean, engine):
     assert runs.reopen_run(latest, "POST_AREA")["stats"] == {"doneCodes": ["1"]}
 
 
-def _collect_with_pages(engine, monkeypatch, tmp_path, pages_items, keep_guard=False):
-    """코드 '100' 하나 — pages_items[i] = (i+1)쪽 항목 id 목록, 머리글은 늘 totalCount=120·totalPage=3."""
+def _collect_with_pages(engine, monkeypatch, tmp_path, pages_items, keep_guard=False, total=120, pages=3):
+    """코드 '100' 하나 — pages_items[i] = (i+1)쪽 항목 id 목록, 머리글은 totalCount=total·totalPage=pages(None 이면 머리글에 없음)."""
     from atlas.collector import http as http_mod
     from atlas.collector.post import pipeline, seed
     from atlas.core import config
@@ -187,8 +187,11 @@ def _collect_with_pages(engine, monkeypatch, tmp_path, pages_items, keep_guard=F
 
     def handler(req: httpx.Request):
         page = int(req.url.params["nowPage"])
-        items = "".join(ITEM.format(pid=p) for p in pages_items[page - 1])
-        return httpx.Response(200, text=XML.format(total=120, pages=3, page=page, items=items))
+        items = "".join(ITEM.format(pid=p) for p in (pages_items[page - 1] if page <= len(pages_items) else []))
+        body = XML.format(total=total, pages=pages, page=page, items=items)
+        if pages is None:
+            body = body.replace("<totalPage>None</totalPage>", "")
+        return httpx.Response(200, text=body)
 
     orig_init = http_mod.Fetcher.__post_init__
 
@@ -250,3 +253,18 @@ def test_rule_change_updates_unchanged_facilities(clean, engine, monkeypatch):
     load(engine, [item("P1", postFinanceTime="00:00~00:00")])                                  # 다시 받아도 멱등
     with engine.connect() as c:
         assert len(rows()) == 2
+
+
+def test_empty_last_page_within_tolerance_is_complete(clean, engine, monkeypatch, tmp_path):
+    """totalCount 가 50의 배수 + 1·2 이고 상류가 늘 주는 1~2곳 모자람이 마지막 쪽 전체면 그 쪽이 비어 옴 — 허용치 안이면 완료
+    (빈 쪽 규칙이 허용치를 덮어 그 코드가 매일 미완료가 되던 것, 독립 검토)."""
+    two = [[f"A{i}" for i in range(0, 50)], [f"A{i}" for i in range(50, 100)]]
+    st, stats, n = _collect_with_pages(engine, monkeypatch, tmp_path, [*two, []], total=101, pages=3)
+    assert st == "DONE" and stats["doneCodes"] == ["100"] and n == 100
+
+
+def test_missing_total_page_uses_total_count(clean, engine, monkeypatch, tmp_path):
+    """머리글에 totalPage 가 없으면 totalCount 로 쪽 수를 셈 — 예전에는 1쪽만 받고 성공으로 봤음."""
+    st, stats, n = _collect_with_pages(engine, monkeypatch, tmp_path, FULL, pages=None)
+    assert st == "DONE" and n == 120
+

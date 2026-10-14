@@ -119,7 +119,10 @@ def collect_post(scope: list[str] | None = None, resume: uuid.UUID | None = None
                 page += 1
                 sleep(delay)
             short = (total_count or 0) - received
-            if ok and (empty_pages or short > max(SHORT_TOLERANCE, SHORT_RATIO * (total_count or 0))):
+            # 가운데 쪽이 비면 미완료. 마지막 쪽만 빈 것은 모자란 수로 판단 — totalCount 가 50의 배수 + 1·2 이면 상류가 늘 주는
+            # 1~2곳 모자람이 마지막 쪽 전체라 그 쪽이 빔(허용치 안이면 완료)
+            middle_empty = [p for p in empty_pages if p < total_page]
+            if ok and (middle_empty or short > max(SHORT_TOLERANCE, SHORT_RATIO * (total_count or 0))):
                 # 쪽이 비거나 크게 모자람 — 받은 행은 stg 에 남기되(새·바뀐 시설은 반영) 이 코드는 닫는 근거에서 빼고 실패로(재개 대상)
                 ok = False
                 with begin() as c:
