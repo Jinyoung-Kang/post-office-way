@@ -12,14 +12,22 @@ SELECT b.place_id, b.brand, bb.post_agent, b.geom, b.geom_5179
 CREATE INDEX ON calc_bankx USING gist (geom_5179);
 ANALYZE calc_bankx;
 
--- 집계구별 가장 가까운 은행 지점 2곳 (+ 금융 우체국까지 거리는 06_oa 의 oa_nearest.dist_m)
+-- 집계구별 가장 가까운 은행 지점 2곳 (+ 금융 우체국까지 거리는 06_oa 의 oa_nearest.dist_m).
+-- 같은 좌표(같은 건물)의 지점은 id 가 작은 쪽이 1순위 — KNN 은 동률 순서를 정하지 않아 실행마다 이용 주민이 다른 지점으로 갈 수
+-- 있었음(R11 이 이 문장에 빠짐). 후보 5곳을 (거리, id)로 정렬하고, 5곳이 모두 같은 거리면(같은 좌표 5곳 이상 — 실데이터 최대 4곳)
+-- 그 거리 안에서 다시 찾음. 정렬 키를 KNN 에 넣으면 인덱스를 못 써 120초를 넘겼고, 이 방식은 +6%(4.1 → 4.4초, 집계구 10만 곳)
 CREATE TEMP TABLE calc_oa_bank ON COMMIT DROP AS
-SELECT n.oa_cd, n.emd_cd, coalesce(n.tot_ppltn, 0) AS pop, n.dist_m AS post_m, k.ids[1] AS b1, k.ds[1] AS d1, k.ds[2] AS d2
+SELECT n.oa_cd, n.emd_cd, coalesce(n.tot_ppltn, 0) AS pop, n.dist_m AS post_m,
+       CASE WHEN k.ds[5] = k.ds[1]
+            THEN (SELECT b.place_id FROM calc_bankx b WHERE ST_DWithin(b.geom_5179, o.rep_point_5179, k.ds[1])
+                   ORDER BY ST_Distance(b.geom_5179, o.rep_point_5179), b.place_id LIMIT 1)
+            ELSE k.ids[1] END AS b1,
+       k.ds[1] AS d1, k.ds[2] AS d2
   FROM mart.oa_nearest n
   JOIN mart.oa_area o ON o.oa_cd = n.oa_cd AND o.stat_year = :stat_year
- CROSS JOIN LATERAL (SELECT array_agg(t.place_id ORDER BY t.d) AS ids, array_agg(t.d ORDER BY t.d) AS ds
+ CROSS JOIN LATERAL (SELECT array_agg(t.place_id ORDER BY t.d, t.place_id) AS ids, array_agg(t.d ORDER BY t.d, t.place_id) AS ds
                        FROM (SELECT b.place_id, ST_Distance(b.geom_5179, o.rep_point_5179) AS d FROM calc_bankx b
-                              ORDER BY b.geom_5179 <-> o.rep_point_5179 LIMIT 2) t) k
+                              ORDER BY b.geom_5179 <-> o.rep_point_5179 LIMIT 5) t) k
  WHERE n.calc_run_id = :calc_run_id AND k.ids IS NOT NULL;
 
 -- 집계구 65세 이상 = 인구 × 읍면동 고령 비율(KOSIS 최신 기준월) — 추정

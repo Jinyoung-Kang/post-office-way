@@ -139,3 +139,20 @@ def test_branch_just_outside_boundary_gets_nearest_area(terrain, engine):
     with engine.connect() as c:
         got = dict(c.execute(text("SELECT place_id, adm_cd FROM mart.bank_impact WHERE calc_run_id = :r"), {"r": rid}).all())
     assert got == {"K9": "99010", "K8": None}
+
+
+@pytest.mark.parametrize("n", [3, 6])
+def test_nearest_branch_tie_is_broken_by_id(terrain, engine, n):
+    """같은 좌표(같은 건물)에 지점이 여럿이면 집계구의 '가장 가까운 지점'은 id 가 가장 작은 지점 — 예전에는 KNN 이 돌려준 순서
+    (표의 물리 순서)를 따라 실행마다 이용 주민·등급이 다른 지점으로 갈 수 있었음(NFR-03, 실데이터 같은 좌표 묶음 59개·최대 4곳).
+    6곳은 후보(5곳)보다 큰 묶음 — 다시 찾아 정함."""
+    ids = [f"T{i}" for i in range(n)]
+    with engine.begin() as c:
+        add_oa(c, "99010010000001", 5_000, 3_000, 100)
+        for pid in reversed(ids):                          # id 가 큰 지점부터 넣음 — 물리 순서가 id 순서와 반대
+            add_branch(c, pid, 4_000, 3_000, "KB국민은행")
+    rid = run_calc(stat_year=2024, levels=[2])
+    with engine.connect() as c:
+        b1 = c.execute(text("SELECT b1 FROM mart.oa_bank WHERE calc_run_id = :r"), {"r": rid}).scalar()
+        catch = dict(c.execute(text("SELECT place_id, catch_ppltn FROM mart.bank_impact WHERE calc_run_id = :r"), {"r": rid}).all())
+    assert b1 == "T0" and catch["T0"] == 100 and all(catch[p] == 0 for p in ids[1:])
