@@ -30,3 +30,40 @@ def test_latest_done_tie_and_status(clean):
             resolve_calc_run(c, "00000000-0000-0000-0000-000000000000")
         with pytest.raises(Invalid):
             resolve_calc_run(c, "not-a-uuid")
+
+
+def test_interrupted_calc_is_closed(terrain, engine, monkeypatch):
+    """CLI 계산을 Ctrl-C 로 멈추면(KeyboardInterrupt 는 Exception 이 아님) 실행 기록을 FAILED 로 닫아야 함.
+    예전에는 RUNNING 으로 남아 2시간 동안 워커의 자동 재계산이 모두 '계산이 이미 실행 중'으로 실패했음."""
+    from atlas.calc import runner
+
+    real = runner.run_sql_file
+
+    def interrupt(c, f, p=None):
+        if f == "calc/02_area_nearest.sql":
+            raise KeyboardInterrupt
+        return real(c, f, p)
+
+    monkeypatch.setattr(runner, "run_sql_file", interrupt)
+    with pytest.raises(KeyboardInterrupt):
+        runner.run_calc(stat_year=2024, levels=[2])
+    with engine.connect() as c:
+        st = c.execute(text("SELECT status FROM mart.calc_run ORDER BY created_at DESC LIMIT 1")).scalar()
+    assert st == "FAILED" and runner.running_calc() is None
+
+
+def test_interrupted_osm_refresh_is_closed(clean, monkeypatch, tmp_path):
+    """make osm 을 Ctrl-C 로 멈춰도 OSM_WALK 실행 기록을 닫음 — 예전에는 6시간 동안 osm 작업이 '이미 실행 중'으로 막혔음."""
+    from atlas.core.config import get_settings
+    from atlas.ops import runs
+    from atlas.walk import osm
+
+    monkeypatch.setattr(get_settings(), "osm_dir", str(tmp_path))
+
+    def interrupt(*a, **k):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(osm, "_download", interrupt)
+    with pytest.raises(KeyboardInterrupt):
+        osm.refresh()
+    assert runs.running_run("OSM_WALK") is None

@@ -168,7 +168,7 @@ def run_walk(calc_run_id: str | None = None, graph=None) -> dict[str, Any]:
                                                 "elapsedMs": int((time.monotonic() - t0) * 1000)})})
         log.info("walk done", extra={"calcRunId": str(rid), **stats, "timingsMs": timings})
         return {"calcRunId": str(rid), **stats, "timingsMs": timings}
-    except Exception as e:
+    except BaseException as e:  # Ctrl-C 에도 기록을 닫음(test_layers)
         with eng.begin() as c:   # 이전 결과(DONE)가 있으면 그대로 — 실패는 작업 기록·로그에
             c.execute(text("""UPDATE mart.walk_run SET status = 'FAILED', error = :e, finished_at = now()
                               WHERE calc_run_id = :r AND status <> 'DONE'"""), {"r": rid, "e": safe_error(f"{type(e).__name__}: {e}")})

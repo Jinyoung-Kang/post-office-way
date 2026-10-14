@@ -103,7 +103,7 @@ def refresh(force_graph: bool = False) -> dict[str, Any]:
                     "graphVersion": GRAPH_VERSION, "graph": stats["graph"]})
         stats["elapsedMs"] = int((time.monotonic() - t0) * 1000)
         runs.finish_run(run_id, "DONE", stats)
-    except Exception as e:
+    except BaseException as e:  # Ctrl-C 에도 기록을 닫음(test_layers)
         runs.finish_run(run_id, "FAILED", stats, error=f"{type(e).__name__}: {e}")
         raise
     return {"collectRunIds": [str(run_id)], "graphBuilt": need_graph, **{k: stats[k] for k in ("download",)}}

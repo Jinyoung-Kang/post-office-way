@@ -126,7 +126,7 @@ def collect_oa(year: int | None = None, refresh: bool = False, pop: bool = True,
         stats.update({"calls": fetcher.calls, "errors": fetcher.errors, "doneCodes": len(stats["doneCodes"]),
                       "elapsedMs": int((time.monotonic() - t0) * 1000)})
         runs.finish_run(run_id, "DONE" if not stats["failedCodes"] else "PARTIAL", stats)
-    except Exception as e:
+    except BaseException as e:  # Ctrl-C 에도 기록을 닫음(test_layers)
         stats["calls"] = fetcher.calls
         stats["doneCodes"] = len(stats["doneCodes"]) if isinstance(stats["doneCodes"], list) else stats["doneCodes"]
         runs.finish_run(run_id, "FAILED", stats, error=f"{type(e).__name__}: {e}")

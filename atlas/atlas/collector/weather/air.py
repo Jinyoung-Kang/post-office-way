@@ -90,7 +90,7 @@ def collect_air(now: datetime | None = None) -> uuid.UUID:
         status = "FAILED" if not rows else ("PARTIAL" if failed or stats["stoppedBy"] else "DONE")
         runs.finish_run(run_id, status, stats,
                         error=None if rows else (stats["stoppedBy"] or "받은 예보가 없습니다"))
-    except Exception as e:
+    except BaseException as e:  # Ctrl-C 에도 기록을 닫음(test_layers)
         stats["calls"] = fetcher.calls
         runs.finish_run(run_id, "FAILED", stats, error=f"{type(e).__name__}: {e}")
         raise

@@ -88,7 +88,7 @@ def collect_banks(year: int | None = None, min_branches: int = 3) -> uuid.UUID:
             stats["totalBranches"] = c.execute(text("SELECT count(*) FROM mart.bank_place WHERE kind = 'BRANCH'")).scalar_one()
         stats.update({"calls": fetcher.calls, "errors": fetcher.errors, "elapsedMs": int((time.monotonic() - t0) * 1000)})
         runs.finish_run(run_id, "PARTIAL" if stats["stoppedBy"] else "DONE", stats)
-    except Exception as e:
+    except BaseException as e:  # Ctrl-C 에도 기록을 닫음(test_layers)
         stats["calls"] = fetcher.calls
         runs.finish_run(run_id, "FAILED", stats, error=f"{type(e).__name__}: {e}")
         raise
@@ -203,7 +203,7 @@ def collect_banks_full() -> uuid.UUID:
         # 계산은 이전 전수 실행(또는 90일 규칙)을 계속 씀
         ok = not (stats["stoppedBy"] or stats["failedTiles"] or stats["failedPages"] or stats["truncated"])
         runs.finish_run(run_id, "DONE" if ok else "PARTIAL", stats)
-    except Exception as e:
+    except BaseException as e:  # Ctrl-C 에도 기록을 닫음(test_layers)
         stats["calls"] = fetcher.calls
         runs.finish_run(run_id, "FAILED", stats, error=f"{type(e).__name__}: {e}")
         raise

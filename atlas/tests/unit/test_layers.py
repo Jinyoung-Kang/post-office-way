@@ -48,3 +48,22 @@ def test_routers_have_no_sql():
     bad = [f"{f.name} → {m}" for f in sorted((PKG / "api" / "routers").glob("*.py")) if f.name != "health.py"
            for m in _imports(f) if m == "sqlalchemy" or m.startswith("sqlalchemy.")]
     assert not bad, "라우터에 SQL:\n" + "\n".join(bad)
+
+
+def _closes_run(handler: ast.ExceptHandler) -> bool:
+    src = ast.unparse(handler)
+    return "finish_run(" in src or "'FAILED'" in src or '"FAILED"' in src
+
+
+def test_run_failure_handlers_catch_base_exception():
+    """실행 기록(수집·계산·도보)을 FAILED 로 닫는 except 는 BaseException 이어야 함 — Exception 이면 Ctrl-C(KeyboardInterrupt)·
+    SystemExit 에서 기록이 RUNNING 으로 남아 수 시간 동안 같은 종류의 실행이 '이미 실행 중'으로 막힘. 닫은 뒤에는 늘 다시 던짐."""
+    bad = []
+    for f in sorted(PKG.rglob("*.py")):
+        for node in ast.walk(ast.parse(f.read_text())):
+            if isinstance(node, ast.ExceptHandler) and _closes_run(node):
+                caught = ast.unparse(node.type) if node.type else "BaseException"
+                reraises = any(isinstance(n, ast.Raise) and n.exc is None for n in ast.walk(node))
+                if caught != "BaseException" or not reraises:
+                    bad.append(f"{f.relative_to(PKG)}:{node.lineno} except {caught}")
+    assert not bad, "실행 기록을 닫는 except 가 BaseException 이 아니거나 다시 던지지 않음:\n" + "\n".join(bad)

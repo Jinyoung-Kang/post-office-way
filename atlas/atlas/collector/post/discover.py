@@ -65,7 +65,7 @@ def discover(start: int = 100, end: int = 799, extra: list[str] | None = None,
         path = write_area_codes(sorted(merged.values(), key=lambda c: (c.code.lower().startswith("c"), c.code)))
         runs.finish_run(run_id, "DONE" if not stats["failedCodes"] else "PARTIAL", stats)
         return str(path), len(found)
-    except Exception as e:
+    except BaseException as e:  # Ctrl-C 에도 기록을 닫음(test_layers)
         stats["calls"] = fetcher.calls
         runs.finish_run(run_id, "FAILED", stats, error=str(e))
         raise

@@ -148,7 +148,7 @@ def run_geocheck(max_checks: int = 8000) -> uuid.UUID:
                 {"divs": list(CHECK_DIVS)}).scalar_one()
         stats.update({"calls": fetcher.calls, "errors": fetcher.errors, "elapsedMs": int((time.monotonic() - t0) * 1000)})
         runs.finish_run(run_id, "PARTIAL" if stats["stoppedBy"] or stats["remaining"] else "DONE", stats)
-    except Exception as e:
+    except BaseException as e:  # Ctrl-C 에도 기록을 닫음(test_layers)
         stats["calls"] = fetcher.calls
         runs.finish_run(run_id, "FAILED", stats, error=f"{type(e).__name__}: {e}")
         raise

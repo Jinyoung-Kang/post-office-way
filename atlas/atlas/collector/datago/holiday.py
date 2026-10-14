@@ -65,7 +65,7 @@ def collect_holidays(years: list[int] | None = None) -> uuid.UUID:
                       "elapsedMs": int((time.monotonic() - t0) * 1000)})
         status = "FAILED" if not got else ("PARTIAL" if failed or stats["stoppedBy"] else "DONE")
         runs.finish_run(run_id, status, stats, error=None if got else (stats["stoppedBy"] or "받은 휴일이 없습니다"))
-    except Exception as e:
+    except BaseException as e:  # Ctrl-C 에도 기록을 닫음(test_layers)
         runs.finish_run(run_id, "FAILED", stats, error=f"{type(e).__name__}: {e}")
         raise
     finally:

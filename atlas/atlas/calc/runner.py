@@ -158,7 +158,7 @@ def execute_calc_run(calc_run_id: uuid.UUID, engine: Engine | None = None) -> di
                               WHERE calc_run_id = :id"""), {"s": json.dumps(stats), "id": calc_run_id})
         log.info("calc done", extra={"calcRunId": str(calc_run_id), **{k: v for k, v in stats.items() if k != "dq"}})
         return stats
-    except Exception as e:
+    except BaseException as e:  # Ctrl-C 에도 기록을 닫음(test_layers)
         with eng.begin() as c:
             c.execute(text("""UPDATE mart.calc_run SET status = 'FAILED', error = :e, finished_at = now()
                               WHERE calc_run_id = :id"""), {"e": safe_error(f"{type(e).__name__}: {e}"), "id": calc_run_id})

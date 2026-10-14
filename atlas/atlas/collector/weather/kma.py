@@ -148,7 +148,7 @@ def collect_kma(now: datetime | None = None) -> uuid.UUID:
         stats.update({"calls": fetcher.calls, "errors": fetcher.errors, "elapsedMs": int((time.monotonic() - t0) * 1000)})
         status = "DONE" if stats["done"] == stats["grids"] else ("PARTIAL" if stats["done"] else "FAILED")
         runs.finish_run(run_id, status, stats, error=stats["stoppedBy"] if status == "FAILED" else None)
-    except Exception as e:
+    except BaseException as e:  # Ctrl-C 에도 기록을 닫음(test_layers)
         stats["calls"] = fetcher.calls
         runs.finish_run(run_id, "FAILED", stats, error=f"{type(e).__name__}: {e}")
         raise

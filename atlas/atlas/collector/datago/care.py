@@ -103,7 +103,7 @@ def collect_care() -> uuid.UUID:
                       "elapsedMs": int((time.monotonic() - t0) * 1000)})
         status = "DONE" if all(done) else ("PARTIAL" if any(done) or stats["rows"] else "FAILED")
         runs.finish_run(run_id, status, stats, error=stats["stoppedBy"] if status == "FAILED" else None)
-    except Exception as e:
+    except BaseException as e:  # Ctrl-C 에도 기록을 닫음(test_layers)
         stats["calls"] = fetcher.calls
         runs.finish_run(run_id, "FAILED", stats, error=f"{type(e).__name__}: {e}")
         raise

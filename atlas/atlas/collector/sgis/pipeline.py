@@ -145,7 +145,7 @@ def collect_population(year: int | None = None, levels: list[int] | None = None)
                       "elapsedMs": int((time.monotonic() - t0) * 1000)})
         status = "DONE" if not stats["failedCodes"] else ("PARTIAL" if stats["doneCodes"] else "FAILED")
         runs.finish_run(run_id, status, stats)
-    except Exception as e:
+    except BaseException as e:  # Ctrl-C 에도 기록을 닫음(test_layers)
         stats["calls"] = fetcher.calls
         runs.finish_run(run_id, "FAILED", stats, error=f"{type(e).__name__}: {e}")
         raise
@@ -279,7 +279,7 @@ def collect_boundaries(year: int | None = None, levels: list[int] | None = None)
                       "elapsedMs": int((time.monotonic() - t0) * 1000)})
         status = "DONE" if not stats["failedCodes"] else ("PARTIAL" if stats["doneCodes"] else "FAILED")
         runs.finish_run(run_id, status, stats)
-    except Exception as e:
+    except BaseException as e:  # Ctrl-C 에도 기록을 닫음(test_layers)
         stats["calls"] = fetcher.calls
         runs.finish_run(run_id, "FAILED", stats, error=f"{type(e).__name__}: {e}")
         raise

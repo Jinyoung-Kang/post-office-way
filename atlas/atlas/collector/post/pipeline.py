@@ -156,7 +156,7 @@ def collect_post(scope: list[str] | None = None, resume: uuid.UUID | None = None
         runs.finish_run(run_id, status, stats)
         log.info("post collect finished", extra={"runId": str(run_id), "status": status,
                                                  "rows": stats["rows"], "failed": len(stats["failedCodes"])})
-    except Exception as e:
+    except BaseException as e:  # Ctrl-C 에도 기록을 닫음(test_layers)
         stats["calls"] = calls_before + fetcher.calls
         runs.finish_run(run_id, "FAILED", stats, error=f"{type(e).__name__}: {e}")
         raise

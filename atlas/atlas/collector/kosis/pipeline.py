@@ -193,7 +193,7 @@ def collect_kosis(year: int | None = None) -> uuid.UUID | None:
         status = "DONE" if not stats["failedCodes"] else ("PARTIAL" if stats["doneCodes"] else "FAILED")
         runs.finish_run(run_id, status, stats)
         log.info("kosis done", extra={"runId": str(run_id), "matched": counts, "sgisAreas": n_sgis})
-    except Exception as e:
+    except BaseException as e:  # Ctrl-C 에도 기록을 닫음(test_layers)
         stats["calls"] = fetcher.calls
         runs.finish_run(run_id, "FAILED", stats, error=f"{type(e).__name__}: {e}")
         raise
