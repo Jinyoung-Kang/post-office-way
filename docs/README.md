@@ -92,6 +92,7 @@ NaN·뒤집힌 `bbox` 포함. 웹 프록시(:3100)는 GET·HEAD·POST 만 넘기
 | V21 | `ops.error_ack` — 오류 로그 지우기(확인 표시, API 역할은 INSERT 만) |
 | V22 | 실행 기록(`collect_run`·`calc_run`·`walk_run`)에 작업 id — 워커가 죽어 작업을 정리할 때 그 실행 기록도 닫음 |
 | V23 | 같은 종류 작업은 '대기 중' 하나만(실행 중 하나 + 대기 중 하나) — 계산 중에 끝난 수집의 재계산이 빠지지 않게 |
+| V24 | 생활 거점 지표(마지막 생활 거점·생활 서비스 공백) 정의 문구를 계산에 맞춰 '은행·금고 지점'으로 — 값은 그대로 |
 
 - 지표 계산 SQL: `atlas/atlas/sql/calc/00_snapshot.sql` ~ `11_bank_impact.sql` (계산 실행 `calc_run` 단위로 결과 보존)
 - 판정 규칙: 금융 가능 `R-FIN-01` (`domain/rules.py`), 방문 여건 `VISIT-1` (`domain/visit.py`), 영업일·영업 상태 (`domain/calendar.py`),

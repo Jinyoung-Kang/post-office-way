@@ -265,7 +265,7 @@
   {
    "available": false,
    "code": "POST_SOLE_HUB_PPLTN",
-   "formula": "2km 안 금융 우체국은 있지만 은행 지점·약국·의원이 모두 없는 집계구 인구 합.",
+   "formula": "2km 안 금융 우체국은 있지만 은행·금고 지점(새마을금고·저축은행 포함)·약국·의원이 모두 없는 집계구 인구 합.",
    "higherIsWorse": true,
    "limitation": "⚠ 우체국이 닫히면 2km 안 생활 거점이 모두 사라지는 곳. 직선거리.",
    "name": "우체국이 마지막 생활 거점인 인구",
@@ -275,7 +275,7 @@
   {
    "available": false,
    "code": "LIFE_DESERT_PPLTN",
-   "formula": "2km 안에 금융 우체국·은행 지점·약국·의원이 하나도 없는 집계구 인구 합.",
+   "formula": "2km 안에 금융 우체국·은행·금고 지점(새마을금고·저축은행 포함)·약국·의원이 하나도 없는 집계구 인구 합.",
    "higherIsWorse": true,
    "limitation": "직선거리·집계구 대표점 기준.",
    "name": "생활 서비스 공백 인구",

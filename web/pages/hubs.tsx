@@ -33,7 +33,7 @@ export default function HubsPage() {
   return (
     <Layout title="생활 거점">
       <Hero title="생활 거점"
-        sub="약국·의원·은행 지점이 2km 안에 없는 곳에서 우체국은 유일한 생활 거점입니다. 집계구(평균 약 500명)마다 판정해, 닫히면 대신할 곳이 없는 우체국을 찾습니다." />
+        sub="약국·의원·은행·금고 지점이 2km 안에 없는 곳에서 우체국은 유일한 생활 거점입니다. 집계구(평균 약 500명)마다 판정해, 닫히면 대신할 곳이 없는 우체국을 찾습니다." />
 
       <div className="mx-auto max-w-page space-y-5 px-4 pb-20">
         {err && (noData ? <NoDataGuide /> : <ErrorBox error={err} />)}
@@ -50,7 +50,7 @@ export default function HubsPage() {
           <>
             <div className="rise grid grid-cols-2 gap-3 md:grid-cols-4">
               <Stat label="우체국이 마지막 생활 거점인 인구" value={`${num(t.soleHubPpltn)}명`} tone="bad"
-                note="2km 안 은행·약국·의원 없이 우체국만" />
+                note="2km 안 은행·금고·약국·의원 없이 우체국만" />
               <Stat label="대체할 곳이 없는 우체국" value={`${num(sum.facilities.withSoleHub)}곳`}
                 note={`닫히면 생활 거점이 사라지는 주민이 있음 · 담당 ${num(sum.facilities.served)}곳\u00a0중`} />   {/* '중'만 다음 줄로 가지 않게 붙임 */}
               <Stat label="의료 공백 인구" value={`${num(t.careDesertPpltn)}명`} note="2km 안 약국·의원·보건소 모두 없음" />
@@ -60,7 +60,7 @@ export default function HubsPage() {
             <div className="rise grid grid-cols-2 gap-3 md:grid-cols-4">
               <Stat label="약국까지 (인구 가중)" value={dist(t.popwPharmacyM)} note={`약국 ${num(sum.care.pharmacy)}곳`} />
               <Stat label="의원·병원까지 (인구 가중)" value={dist(t.popwClinicM)} note={`의원·병원·보건소 ${num(sum.care.clinic)}곳`} />
-              <Stat label="생활 서비스 공백 인구" value={`${num(t.lifeDesertPpltn)}명`} note="우체국·은행·약국·의원 모두 2km 밖" />
+              <Stat label="생활 서비스 공백 인구" value={`${num(t.lifeDesertPpltn)}명`} note="우체국·은행·금고·약국·의원 모두 2km 밖" />
               <Stat label="공휴일에 여는 곳" value={`${num(sum.care.holidayOpen)}곳`} note={`자료 ${dt(sum.care.asOf)} · 국립중앙의료원`} />
             </div>
           </>
@@ -77,7 +77,7 @@ export default function HubsPage() {
           </div>}>
           <p className="-mt-2 px-6 pb-3 text-[13px] text-ink-2">
             <b className="text-ink">담당 인구</b> 이 우체국이 가장 가까운(2km 안) 집계구 인구 ·
-            <b className="text-ink"> 금융 대체 불가</b> 그중 다른 금융 우체국·은행 지점도 2km 안에 없는 인구 ·
+            <b className="text-ink"> 금융 대체 불가</b> 그중 다른 금융 우체국·은행·금고 지점도 2km 안에 없는 인구 ·
             <b className="text-ink"> 마지막 거점</b> 거기에 약국·의원도 없는 인구
           </p>
           {loadingList && !list ? <TableSkeleton /> : list && list.items.length ? (
@@ -132,8 +132,8 @@ export default function HubsPage() {
           </Card>
           <Card title="이렇게 판정합니다">
             <ol className="list-decimal space-y-2 pl-5 text-[14px] text-ink-2">
-              <li>집계구 대표점마다 가장 가까운 금융 우체국·두 번째 우체국·은행 지점·약국·의원(종합병원·병원·의원·보건소)까지 직선거리를 구합니다.</li>
-              <li>우체국은 2km 안에 있는데 은행·약국·의원이 모두 2km 밖이면 <b className="text-ink">우체국이 마지막 생활 거점</b>입니다.</li>
+              <li>집계구 대표점마다 가장 가까운 금융 우체국·두 번째 우체국·은행·금고 지점(새마을금고·저축은행 포함)·약국·의원(종합병원·병원·의원·보건소)까지 직선거리를 구합니다.</li>
+              <li>우체국은 2km 안에 있는데 은행·금고·약국·의원이 모두 2km 밖이면 <b className="text-ink">우체국이 마지막 생활 거점</b>입니다.</li>
               <li>그 우체국이 가장 가깝고 두 번째 우체국도 2km 밖이면, 닫혔을 때 그 주민은 생활 거점을 모두 잃습니다 → <b className="text-ink">대체 불가</b>.</li>
             </ol>
             <p className="mt-4 text-[12px] leading-relaxed text-ink-3">

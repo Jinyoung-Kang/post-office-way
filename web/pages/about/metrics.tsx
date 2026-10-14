@@ -68,7 +68,7 @@ export default function MetricsAbout() {
               </Card>
               <Card title="생활 거점 · 영업일" right={<a href="/hubs" className="link text-[13px]">화면 ›</a>}>
                 <ul className="space-y-2 text-[14px] text-ink-2">
-                  <li><Sents><b className="text-ink">마지막 생활 거점</b> — 집계구에서 2km 안 금융 우체국은 있지만 은행 지점·약국·의원(종합병원·병원·의원·보건소)은 없음.</Sents></li>
+                  <li><Sents><b className="text-ink">마지막 생활 거점</b> — 집계구에서 2km 안 금융 우체국은 있지만 은행·금고 지점(새마을금고·저축은행 포함)·약국·의원(종합병원·병원·의원·보건소)은 없음.</Sents></li>
                   <li><Sents><b className="text-ink">대체 불가</b> — 그 우체국이 가장 가깝고 두 번째 우체국도 2km 밖이라, 닫히면 생활 거점을 모두 잃음.</Sents></li>
                   <li><Sents><b className="text-ink">창구 휴무일</b> — 토·일 + 한국천문연구원 특일 정보의 공공기관 휴일(대체·임시공휴일 포함). 3일 이상 이어지면 연휴.</Sents></li>
                   <li><Sents><b className="text-ink">공휴일 의료 공백</b> — 국립중앙의료원 자료에 공휴일 진료시간이 등록된 약국·의원이 2km 안에 없음.</Sents></li>

@@ -94,7 +94,7 @@ SELECT :calc_run_id, adm_cd, m.code, level, m.v
  WHERE g.pop > 0 AND EXISTS (SELECT 1 FROM calc_bank);
 
 -- 우체국별 대체 불가능성: 이 우체국이 최근접(2km 안)인 집계구 중,
---   다른 금융 우체국·은행 지점도 2km 안에 없음(sole_fin) → 거기에 약국·의원도 없음(sole_hub)
+--   다른 금융 우체국·은행·금고 지점(새마을금고·저축은행 포함)도 2km 안에 없음(sole_fin) → 거기에 약국·의원도 없음(sole_hub)
 INSERT INTO mart.facility_hub (calc_run_id, hist_id, served_ppltn, sole_fin_ppltn, sole_hub_ppltn, oa_count)
 SELECT :calc_run_id, n.hist_id, sum(n.tot_ppltn),
        coalesce(sum(n.tot_ppltn) FILTER (WHERE coalesce(n.post2_m, 1e9) > CAST(:far_m AS numeric)
