@@ -217,7 +217,7 @@ restore-undo:
 
 # 테스트 DB(atlas_test)는 운영 DB 와 분리 — 테스트가 스키마를 지우고 다시 만듭니다.
 test: env
-	$(COMPOSE) up -d db redis
+	$(COMPOSE) up -d --wait db redis     # healthy 까지 기다림 — 차가운 상태에서 바로 psql 이 붙다 실패했음
 	@$(COMPOSE) exec -T db psql -U atlas -d atlas -tc "SELECT 1 FROM pg_database WHERE datname='atlas_test'" | grep -q 1 \
 	  || $(COMPOSE) exec -T db psql -U atlas -d atlas -c "CREATE DATABASE atlas_test"
 	$(COMPOSE) --profile batch run --rm --build --entrypoint pytest \
@@ -245,7 +245,7 @@ psql:
 
 # 호스트에서 직접 개발 (db·redis 는 compose 로)
 api-dev:
-	$(COMPOSE) up -d db redis
+	$(COMPOSE) up -d --wait db redis
 	cd atlas && MIGRATE_ON_START=true python3.13 -m uvicorn atlas.api.main:app --port 8100 --reload
 
 web-dev:
