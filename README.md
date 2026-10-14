@@ -136,11 +136,27 @@ API 문서: http://localhost:8100/docs · Prometheus 지표: http://localhost:81
 | `make migrate` | 스키마 마이그레이션 + API 역할 비밀번호 설정 (`make up` 이 자동 실행) | — |
 | `make backup` · `make restore FILE=…` · `make restore-undo` | DB 백업(`backups/`, `LITE=1` 은 원본 응답 제외) · 임시 DB 에 복원해 검증한 뒤 교체(이전 DB 는 `atlas_prev`) · 복원 되돌리기 | 백업 14초(경량 113MB) · 복원 약 50초 |
 | `make test` | Python 테스트 385개 (단위·계약·PostGIS SQL·응답 스냅숏·계층 의존 방향·What-if 동등성·k-최근접 정답 비교·은행 지점 영향·도보·수집 보호·작업 큐·권한·보안) | 약 50초 |
-| `make qa` · `make qa-lh` | 띄운 서비스 점검 — API 퍼징·11개 화면 크롤링·네트워크(중복·평문·CSP)·접근성·설명 줄바꿈 / Lighthouse 3회 중앙값 | 약 5분 · 약 20분 |
+| `make qa` · `make qa-lh` | 띄운 서비스 점검 — API 퍼징·11개 화면 크롤링·네트워크(중복·평문·CSP)·접근성·설명 줄바꿈 / Lighthouse 3회 중앙값 | 약 8분 · 약 20분 |
 | `make prune` | 오래된 원문·스냅샷은 종류별 최근 `KEEP=3` 수집만, 계산 결과는 최근 `KEEP_CALC=5` 만 | — |
 
 관리 API: `POST /api/v1/admin/jobs {"kind": "care"}` (헤더 `X-Admin-Token`) → 202 + `jobId`. 실행은 워커가 합니다.
 오류 로그 지우기도 같은 토큰을 씁니다(`POST /api/v1/admin/errors/ack`, 데이터·운영 화면의 '지우기' 버튼).
+
+### 경계 연도를 바꿀 때 (`STAT_YEAR`)
+1. `.env` 의 `STAT_YEAR` 를 새 해로 바꾸고 `make sgis`(인구·경계).
+   SGIS 에 그 해 경계가 아직 없으면(정상 응답 0건 또는 -100) 시도마다 직전 연도 경계로 대체합니다. 대체했는지는 실행 기록의 `sourceYear` 로 확인합니다.
+   HTTP 오류·그 밖의 오류 코드면 대체하지 않고 그 시도만 실패(PARTIAL)로 남습니다.
+2. 경계는 해마다 따로 쌓이고, 지난해 행은 지우지 않습니다(지난 계산 실행의 지도가 그대로 보이게).
+3. 같은 해를 다시 받으면 이전 적재에만 있던 코드가 남을 수 있습니다. 예: 대체 연도로 먼저 받았다가, 그 해 경계가 공개된 뒤 다시 받는 경우.
+   - **자동으로 지우지 않습니다**(되돌릴 수 없는 삭제라 사람이 판단 — [ADR-023](docs/adr/ADR-023-collector-data-guards.md)).
+   - 남은 코드는 아래로 확인하고, 지울 때는 `make backup` 뒤에 지웁니다.
+   - 지운 뒤에는 `make calc` 를 다시 돌립니다. 그해 시설↔지역 매핑은 경계를 받을 때 지워지고 다음 계산에서 다시 만들어집니다.
+   ```sql
+   SELECT adm_cd, adm_nm, level FROM mart.admin_area
+    WHERE stat_year = 2025 AND collect_run_id <> (SELECT collect_run_id FROM ops.collect_run
+          WHERE kind = 'SGIS_BND' AND status = 'DONE' AND scope LIKE '%year=2025' ORDER BY started_at DESC LIMIT 1);
+   ```
+4. `make kosis`(기준월 `KOSIS_PERIOD`, 비우면 그해 12월) → `make oa` → `make calc` 로 새 계산 실행을 만듭니다. 이전 해의 계산 실행은 그대로 남습니다.
 
 ---
 
