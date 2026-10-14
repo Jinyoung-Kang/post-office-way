@@ -1,11 +1,12 @@
 import dynamic from "next/dynamic";
 import type AtlasMapType from "@/components/AtlasMap";
 import { useRouter } from "next/router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Layout, { Card, Empty, ErrorBox, Hero, Segmented, Stat } from "@/components/Layout";
 import type { MapLabel, Marker } from "@/components/AtlasMap";
 import { api, qs, type Facility, type Feature, type Page, type WhatIf } from "@/lib/api";
 import { dist, num } from "@/lib/format";
+import { scenarioView } from "@/lib/scenario";
 import Sents from "@/components/Sents";
 import type { TipLines } from "@/lib/mapTip";
 
@@ -23,6 +24,9 @@ export default function WhatIfPage() {
   const [level, setLevel] = useState<2 | 3>(3);
   const [result, setResult] = useState<WhatIf | null>(null);
   const [geo, setGeo] = useState<ImpactFC | null>(null);
+  const [geoErr, setGeoErr] = useState<string | null>(null);
+  // 지금 보여 주려는 시나리오 — 주소를 바꾼 뒤 effect 가 같은 시나리오를 또 받지 않게, 늦게 온 다른 시나리오 응답은 버리게
+  const wanted = useRef<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [ms, setMs] = useState<number | null>(null);
@@ -37,15 +41,24 @@ export default function WhatIfPage() {
     return () => { alive = false; clearTimeout(t); };
   }, [q]);
 
-  const load = useCallback(async (id: string) => {
-    const [w, g] = await Promise.all([api<WhatIf>(`/whatif/${encodeURIComponent(id)}`), api<ImpactFC>(`/whatif/${encodeURIComponent(id)}/geojson`)]);
-    setResult(w); setGeo(g);
+  // 시나리오 하나를 보여 줌 — 주소에서 열 때(결과를 GET)와 방금 계산했을 때(POST 응답)가 같은 경로.
+  // 이전 지도는 바로 비우고, 결과와 지도는 함께 받아 한 번에 반영(lib/scenario). 지도만 실패하면 지도 자리에 오류
+  const show = useCallback(async (id: string, result: Promise<WhatIf>) => {
+    wanted.current = id;
+    setGeo(null); setGeoErr(null);
+    try {
+      const v = await scenarioView(result, api<ImpactFC>(`/whatif/${encodeURIComponent(id)}/geojson`));
+      if (wanted.current !== id) return;
+      setResult(v.result); setGeo(v.geo); setGeoErr(v.geoError?.message ?? null);
+    } catch (e) {
+      if (wanted.current === id) setErr((e as Error).message);
+    }
   }, []);
 
   // ?scenario= 재조회, ?add=histId (지도 시설 카드에서 넘어옴) 미리 선택
   useEffect(() => {
     const id = typeof router.query.scenario === "string" ? router.query.scenario : null;
-    if (id && id !== result?.scenarioId) load(id).catch((e) => setErr(e.message));
+    if (id && id !== wanted.current) void show(id, api<WhatIf>(`/whatif/${encodeURIComponent(id)}`));
     const add = typeof router.query.add === "string" ? Number(router.query.add) : null;
     if (add && !picked.some((p) => p.histId === add)) {
       api<Facility>(`/facilities/${encodeURIComponent(add)}`).then((f) => setPicked((prev) => prev.some((p) => p.histId === f.histId) ? prev : [...prev, f].slice(0, 5))).catch(() => null);
@@ -59,9 +72,10 @@ export default function WhatIfPage() {
     try {
       const w = await api<WhatIf>("/whatif", { method: "POST", body: JSON.stringify({ removeHistIds: picked.map((p) => p.histId), level }) });
       setMs(Math.round(performance.now() - t0));
-      setResult(w);
-      setGeo(await api<ImpactFC>(`/whatif/${encodeURIComponent(w.scenarioId)}/geojson`));
+      // 저장되면 주소부터 새 시나리오로 — 지도 요청이 실패해도 주소·표·지도가 같은 시나리오를 가리키게
+      const shown = show(w.scenarioId, Promise.resolve(w));
       router.replace({ query: { scenario: w.scenarioId } }, undefined, { shallow: true });
+      await shown;
     } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
   }
 
@@ -147,9 +161,11 @@ export default function WhatIfPage() {
                     note="새로 2km 밖이 되면서 은행·약국·의원도 2km 안에 없는 집계구" tone={s.lifeHubLostPpltn ? "bad" : undefined} />}
                 </div>
               )}
-              <div className="card overflow-hidden">
+              <div className="card relative overflow-hidden">
                 <AtlasMap<ImpactProps> className="h-[440px]" features={geo?.features || []} styleOf={styleOf} tooltipOf={tooltipOf}
                   markers={markers} labels={incLabels} geomKey={result.scenarioId} padding={[60, 40, 40, 40]} />
+                {geoErr && <div className="absolute inset-x-4 top-4 z-20 mx-auto max-w-md">
+                  <ErrorBox error={`영향 지도를 불러오지 못했습니다. ${geoErr}`} /></div>}
               </div>
               <Card title="영향 지역" right={<span className="text-[12px] text-ink-3">거리 증가 큰 순 · scenario {result.scenarioId.slice(0, 8)}</span>} pad={false}>
                 {result.areas.length ? (
