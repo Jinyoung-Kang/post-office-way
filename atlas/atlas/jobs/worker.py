@@ -71,10 +71,11 @@ def execute(job: dict[str, Any], worker: str | None = None, lane: str | None = N
         log.info("job done", extra={"jobId": jid, "kind": kind, "elapsedMs": result["elapsedMs"]})
         return True
     except Exception as e:  # 작업 실패는 기록만 하고 워커는 계속
-        queue.finish(jid, False, {"elapsedMs": int((time.monotonic() - t0) * 1000)},
-                     error=f"{type(e).__name__}: {e}", worker=worker)
-        try:   # 이 작업이 연 채 남은 실행 기록 — 격리 작업이 시간 초과·비정상 종료하면 자식의 정리 코드가 돌지 않음
-            if n := queue.close_runs(jid, f"작업 실패로 닫음 — {type(e).__name__}"):
+        owned = queue.finish(jid, False, {"elapsedMs": int((time.monotonic() - t0) * 1000)},
+                             error=f"{type(e).__name__}: {e}", worker=worker)
+        try:   # 이 작업이 연 채 남은 실행 기록 — 격리 작업이 시간 초과·비정상 종료하면 자식의 정리 코드가 돌지 않음.
+            # 작업을 아직 가진 경우만 — 정리(reap)된 뒤 다른 워커가 다시 가져갔으면 그 워커가 연 기록까지 닫게 됨(이때 내 기록은 reap 이 닫음)
+            if owned and (n := queue.close_runs(jid, f"작업 실패로 닫음 — {type(e).__name__}")):
                 log.warning("closed orphan runs", extra={"jobId": jid, "runs": n})
         except Exception:  # 정리 실패는 reap·다음 실행 판단에 맡김
             log.warning("close runs failed", extra={"jobId": jid})

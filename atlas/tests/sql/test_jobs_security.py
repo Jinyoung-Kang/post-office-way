@@ -636,3 +636,20 @@ def test_admin_calc_job_with_bad_params_is_400(client):
     for p in ({"params": {"radiusKm": [1.5]}}, {"levels": "2,3"}, {"statYear": "2024"}):
         r = client.post("/api/v1/admin/jobs", json={"kind": "calc", "params": p}, headers=h)
         assert r.status_code == 400 and r.json()["code"] == "VALIDATION_ERROR", (p, r.text)
+
+
+def test_late_failure_from_reaped_worker_keeps_new_owner_runs(fake_jobs, engine):
+    """정리(reap)된 처음 워커가 늦게 실패해도, 같은 작업을 다시 가져간 워커가 연 실행 기록은 닫지 않음 — 예전에는 finish 는
+    무시되면서 close_runs(job_id) 가 새 주인의 RUNNING 기록까지 FAILED 로 바꿨음(R8 의 소유 확인이 close_runs 에 빠짐)."""
+    jid = queue.enqueue("boom")
+    job_w1 = queue.claim("w1")
+    with engine.begin() as c:
+        c.execute(text("UPDATE ops.job SET heartbeat_at = now() - interval '1 hour' WHERE job_id = :j"), {"j": jid})
+    queue.reap()
+    assert queue.claim("w2")["job_id"] == jid
+    with engine.begin() as c:                                     # 새 주인(w2)이 연 실행 기록
+        rid = c.execute(text("""INSERT INTO ops.collect_run (kind, status, stats, job_id)
+                                VALUES ('POST_AREA', 'RUNNING', '{}'::jsonb, :j) RETURNING collect_run_id"""), {"j": jid}).scalar()
+    assert worker.execute(job_w1, worker="w1") is False           # 늦게 실패한 처음 워커
+    with engine.connect() as c:
+        assert c.execute(text("SELECT status FROM ops.collect_run WHERE collect_run_id = :r"), {"r": rid}).scalar() == "RUNNING"
