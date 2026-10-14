@@ -4,8 +4,8 @@ import { useBboxLayer } from "@/hooks/useBboxLayer";
 import { useKakaoMap } from "@/hooks/useKakaoMap";
 import { toPaths } from "@/lib/kakao";
 import { declutter, labelSize } from "@/lib/mapGeom";
-import { careHoursText, isBankEvaluable } from "@/lib/rules";
 import { esc, tipHtml, type TipLines } from "@/lib/mapTip";
+import { BANK_TONE, bankDot, CARE_TONE, careDot, FAC_TONE, facilityDot } from "@/lib/mapDots";
 
 export type Style = { fill: string; opacity?: number; stroke?: string };
 export type Marker = { lat: number; lon: number; label: string; tone: "removed" | "new" | "focus" };
@@ -34,10 +34,7 @@ type Props<P extends { admCd: string; admNm: string }> = {
   className?: string;
 };
 
-const FAC_TONE: Record<string, string> = { fin: "#ff9500", other: "#8e8e93", c365: "#34c759" };
 const MARKER_TONE: Record<Marker["tone"], string> = { removed: "#d70015", new: "#18782f", focus: "#1d1d1f" };
-const BANK_TONE = "#af52de";
-const CARE_TONE = { PHARMACY: "#30b0c7", CLINIC: "#ff2d55" } as const;
 
 // 긴 작업을 나눌 때 브라우저에 차례를 넘김 (scheduler.yield 가 있으면 우선순위를 지킨 채로)
 function yieldToMain(): Promise<void> {
@@ -331,44 +328,3 @@ export const FACILITY_LEGEND = [
   { label: "365코너", color: FAC_TONE.c365 },
   { label: "기타 시설", color: FAC_TONE.other },
 ];
-
-// 레이어 점 — 지도 SDK 오버레이에 넣을 DOM. 누를 수 있는 점은 키보드로도(초점·Enter·Space)
-function facilityDot(f: Facility, onPick: (f: Facility) => void): HTMLElement {
-  const tone = f.finAvailable ? "fin" : f.postDiv === 3 ? "c365" : "other";
-  const div = document.createElement("div");
-  div.className = "fac-dot";
-  div.style.background = FAC_TONE[tone];
-  div.title = `${f.name} (${f.divLabel})`;
-  div.setAttribute("role", "button");
-  div.setAttribute("aria-label", `${f.name} ${f.divLabel}`);
-  div.tabIndex = 0;
-  div.addEventListener("click", (e) => { e.stopPropagation(); onPick(f); });
-  div.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); onPick(f); }
-  });
-  return div;
-}
-
-function bankDot(p: Bank, onPick?: (b: Bank) => void): HTMLElement {
-  const div = document.createElement("div");
-  div.className = "fac-dot";
-  div.style.background = BANK_TONE;
-  div.style.borderRadius = "3px";
-  // 은행(새마을금고·저축은행 제외)만 영향평가 대상 — 누를 수 있다는 것을 제목으로 알림
-  const evaluable = isBankEvaluable(p);
-  div.title = `${p.name} · ${p.brand || (p.category || "").split(" > ").pop()}${evaluable && onPick ? " — 눌러서 문을 닫으면 영향 보기" : ""}`;
-  if (evaluable) {
-    div.style.cursor = "pointer";
-    div.addEventListener("click", (e) => { e.stopPropagation(); onPick?.(p); });
-  }
-  return div;
-}
-
-function careDot(p: CarePlace): HTMLElement {
-  const div = document.createElement("div");
-  div.className = "care-dot";
-  div.style.background = CARE_TONE[p.kind];
-  const hours = careHoursText(p.hours);
-  div.title = `${p.name} (${p.divName || ""})${hours ? ` — ${hours}` : ""}`;
-  return div;
-}
