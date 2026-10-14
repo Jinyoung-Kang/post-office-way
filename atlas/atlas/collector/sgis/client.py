@@ -53,6 +53,8 @@ class SgisClient:
         res = self.fetcher.get(f"{self.base}/auth/authentication.json",
                                {"consumer_key": s.sgis_consumer_key, "consumer_secret": s.sgis_consumer_secret},
                                source="SGIS_AUTH")
+        if not res.ok:   # 인증 호출의 HTTP 오류·시간 초과도 'SGIS 가 답하지 못함' — 경계 연도 대체로 오해되지 않게
+            raise SgisHttpError(res.status, res.error or "토큰 발급 실패(HTTP)")
         data = self._json(res.body)
         result = data.get("result") or {}
         if str(data.get("errCd", 0)) != "0" or not result.get("accessToken"):

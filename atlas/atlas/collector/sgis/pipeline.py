@@ -203,6 +203,9 @@ def load_features(c, features: list[dict[str, Any]], level: int, year: int, run_
     return n
 
 
+NO_DATA = "-100"   # SGIS '검색결과가 존재하지 않습니다' (집계구 수집 oa.py 도 같은 코드를 '자료 없음'으로 봄)
+
+
 def _fetch_bnd(sgis: SgisClient, year: int, adm_cd: str, low: int) -> list[dict[str, Any]]:
     data = sgis.get("boundary/hadmarea.geojson", {"year": year, "adm_cd": adm_cd, "low_search": low}, "SGIS_BND")
     return data.get("features") or []
@@ -222,7 +225,8 @@ def collect_boundaries(year: int | None = None, levels: list[int] | None = None)
         src_year = None
         for sido in sidos:
             # 경계 연도가 아직 없으면 직전 연도로 대체(행정경계는 해마다 거의 같음) — stats.sourceYear 에 기록.
-            # 대체는 SGIS 가 '그 해 자료 없음'으로 답했을 때만(0건 또는 오류 코드). HTTP 오류·시간 초과면 그 시도를 실패로 —
+            # 대체는 SGIS 가 '그 해 자료 없음'으로 답했을 때만(0건 또는 -100 검색결과 없음). HTTP 오류·시간 초과·그 밖의 오류 코드면
+            # 그 시도를 실패로 —
             # 예전에는 첫 시도의 일시 오류가 직전 연도를 골라 모든 시도에 고정해, 전국을 다른 해 경계로 덮고 DONE 이었음
             feats: list[dict[str, Any]] = []
             last_err: Exception | str = "빈 응답(features 0건)"
@@ -232,11 +236,10 @@ def collect_boundaries(year: int | None = None, levels: list[int] | None = None)
                     if feats:
                         src_year = y
                         break
-                except SgisHttpError as e:
-                    last_err = e
-                    break
                 except SgisError as e:
                     last_err = e
+                    if isinstance(e, SgisHttpError) or str(e.code) != NO_DATA:
+                        break
             if not feats:
                 stats["failedCodes"].append(f"{sido}:L2")
                 with begin() as c:

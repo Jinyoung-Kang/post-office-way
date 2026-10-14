@@ -230,7 +230,7 @@ def _feature(cd, nm, x0):
     return {"type": "Feature", "properties": {"adm_cd": cd, "adm_nm": nm}, "geometry": {"type": "Polygon", "coordinates": [ring]}}
 
 
-def _run_bnd(engine, monkeypatch, bnd):
+def _run_bnd(engine, monkeypatch, bnd, auth_fail_first=False):
     """실제 SgisClient(토큰·HTTP 오류 처리)를 거치게 모의 HTTP 로 — bnd(year, adm_cd) 가 httpx.Response 를 돌려줌."""
     import httpx
 
@@ -243,8 +243,13 @@ def _run_bnd(engine, monkeypatch, bnd):
         monkeypatch.setenv(k, v)
     config.get_settings.cache_clear()
 
+    auth_calls = []
+
     def handler(req: httpx.Request):
         if req.url.path.endswith("/auth/authentication.json"):
+            auth_calls.append(1)
+            if auth_fail_first and len(auth_calls) == 1:
+                return httpx.Response(503)
             return httpx.Response(200, json={"errCd": 0, "result": {"accessToken": "TOKEN123", "accessTimeout": 9e9}})
         return bnd(int(req.url.params["year"]), req.url.params["adm_cd"])
 
@@ -294,3 +299,29 @@ def test_sgis_year_without_data_falls_back(clean, engine, monkeypatch):
 
     st, stats, codes = _run_bnd(engine, monkeypatch, bnd)
     assert st == "DONE" and stats["sourceYear"] == 2023 and codes == ["11010", "21010"]
+
+
+def _bnd_by_year(year, cd):
+    import httpx
+
+    return httpx.Response(200, json={"errCd": 0, "features": [_feature(f"{cd}{year % 100:02d}0", f"{year} 경계", 950_000)]})
+
+
+def test_sgis_auth_failure_does_not_switch_year(clean, engine, monkeypatch):
+    """토큰 발급 호출의 일시 오류(503)도 SGIS 가 답하지 못한 것 — 예전에는 '자료 없음'처럼 직전 연도로 넘어가 전국을 그 해로 고정했음."""
+    st, stats, codes = _run_bnd(engine, monkeypatch, _bnd_by_year, auth_fail_first=True)
+    assert stats["sourceYear"] == 2024 and "11230" not in codes and st == "PARTIAL"
+
+
+def test_sgis_other_error_code_does_not_switch_year(clean, engine, monkeypatch):
+    """직전 연도 대체는 '자료 없음'(0건·-100)만 — 그 밖의 오류 코드는 그 시도를 실패로(계획 D4)."""
+    import httpx
+
+    def bnd(year, cd):
+        if cd == "11" and year == 2024:
+            return httpx.Response(200, json={"errCd": -200, "errMsg": "파라미터 오류"})
+        return _bnd_by_year(year, cd)
+
+    st, stats, codes = _run_bnd(engine, monkeypatch, bnd)
+    assert st == "PARTIAL" and stats["failedCodes"] == ["11:L2"] and stats["sourceYear"] == 2024 and codes == ["21240"]
+
