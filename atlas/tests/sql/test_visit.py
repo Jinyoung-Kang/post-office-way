@@ -195,3 +195,28 @@ def test_conditions_cache_follows_grid_commits(weather, engine, monkeypatch):
     with engine.connect() as c:
         done = json.loads(visit.conditions_json(c, "2026-09-25"))
     assert "RAIN" not in done["summary"]["byReason"]
+
+
+def test_kma_stop_cancels_queued_and_keeps_in_flight(clean, engine, monkeypatch):
+    """중단이 일찍 오면 아직 시작하지 않은 격자는 부르지 않고, 그때 돌고 있던 격자의 결과는 저장 — 취소 경로(독립 검토의 테스트 공백)."""
+    import threading
+    import time as _t
+
+    from atlas.collector.datago.client import DataGoStop
+
+    calls, lock = [], threading.Lock()
+
+    def fetch(nx):
+        with lock:
+            calls.append(nx)
+        if nx == 0:
+            raise DataGoStop("22 일일 호출 한도")
+        _t.sleep(0.05)
+        return {datetime(2026, 9, 24, 6): {"tmp": 20}}
+
+    _kma_with(monkeypatch, fetch, grids=40)
+    rid = kma.collect_kma(now=datetime(2026, 9, 24, 5, 30))
+    with engine.connect() as c:
+        st, stats = c.execute(text("SELECT status, stats FROM ops.collect_run WHERE collect_run_id = :r"), {"r": rid}).one()
+    assert len(calls) < 40 and stats["stoppedBy"] and st == "PARTIAL"
+    assert stats["done"] == len(calls) - 1                  # 부른 격자 가운데 중단 하나를 뺀 나머지는 모두 저장

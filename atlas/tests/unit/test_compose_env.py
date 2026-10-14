@@ -28,3 +28,16 @@ def test_walk_defaults_match_config():
         m = re.search(rf"^\s+{name}: \$\{{{name}:-([^}}]+)\}}", compose, re.M)
         assert m, name
         assert type(getattr(s, attr))(m.group(1)) == getattr(s, attr), name
+
+
+def test_walk_env_reaches_worker_and_collector_only():
+    """도보 설정은 계산하는 worker·collector 에만 — api 는 쓰지 않음(외부 설정을 받을 이유가 없음)."""
+    compose = COMPOSE.read_text()
+
+    def env_merge(service):
+        block = re.search(rf"^  {service}:\n(.*?)(?=^  [a-z]+:\n|^volumes:)", compose, re.M | re.S).group(1)
+        return re.search(r"environment:\n\s+<<: (.+)", block).group(1)
+
+    assert "*walk-env" in env_merge("worker") and "*walk-env" in env_merge("collector")
+    assert "*walk-env" not in env_merge("api")
+
