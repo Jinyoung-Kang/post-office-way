@@ -226,3 +226,23 @@ def test_small_shortfall_is_still_complete(clean, engine, monkeypatch, tmp_path)
     _collect_with_pages(engine, monkeypatch, tmp_path, FULL)
     st, stats, n = _collect_with_pages(engine, monkeypatch, tmp_path, [FULL[0], FULL[1], FULL[2][:-2]])
     assert st == "DONE" and stats["doneCodes"] == ["100"] and n == 118
+
+
+def test_rule_change_updates_unchanged_facilities(clean, engine, monkeypatch):
+    """금융 가능 판정 규칙(R-FIN-01)을 바꾸고 다시 수집하면 원천 필드가 같은 시설도 새 판정이 되어야 함.
+    예전에는 row_hash(원천 필드만)가 같으면 이력을 건드리지 않아, 계산은 옛 판정·화면 표시는 새 규칙 판이었음 (rules.py 머리말의 절차)."""
+    from atlas.collector.post import parser
+
+    load(engine, [item("P1", postFinanceTime="00:00~00:00")])
+    fin = lambda: c.execute(text("SELECT fin_available, valid_from FROM mart.post_facility_hist "   # noqa: E731
+                                 "WHERE is_current AND post_id = 'P1'")).one()
+    with engine.connect() as c:
+        before = fin()
+    assert before.fin_available is False
+    monkeypatch.setattr(parser, "fin_available", lambda div, ft, center: div in (0, 1) and not center)   # 규칙 v2 흉내
+    load(engine, [item("P1", postFinanceTime="00:00~00:00")])
+    with engine.connect() as c:
+        after = fin()
+        n = c.execute(text("SELECT count(*) FROM mart.post_facility_hist WHERE post_id = 'P1'")).scalar_one()
+    assert after.fin_available is True
+    assert n == 1 and after.valid_from == before.valid_from   # 판정은 파생 값 — 시설 변경 이력을 새로 만들지 않고 제자리 갱신

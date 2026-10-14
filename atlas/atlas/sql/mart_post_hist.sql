@@ -4,6 +4,8 @@
 --   · 이번 run 에서 '성공한' 지역코드(:done_codes)에 속했는데 사라진 시설: 이력 닫기
 --     (실패한 지역코드의 시설은 건드리지 않음 → 일시 오류로 문 닫은 것처럼 처리되는 일 방지)
 --   · 좌표가 없거나 국내 범위 밖이면 mart 에 넣지 않음 (DQ ERROR 로 이미 기록)
+--   · 판정 열(fin_available·is_center)은 원천이 아니라 규칙(RULE_VERSION)에서 나온 파생 값 — row_hash 가 같아도 이번 판정과
+--     다르면 현재 행을 제자리 갱신(이력은 새로 만들지 않음). 예전에는 규칙을 바꿔도 원천이 같은 시설은 옛 판정이 남았음
 
 UPDATE mart.post_facility_hist h
    SET valid_to = now(), is_current = false
@@ -31,3 +33,9 @@ SELECT s.post_id, s.post_div, s.name, s.addr, s.tel,
  WHERE s.collect_run_id = :run
    AND s.lat BETWEEN 33 AND 39 AND s.lon BETWEEN 124 AND 132
    AND NOT EXISTS (SELECT 1 FROM mart.post_facility_hist h WHERE h.is_current AND h.post_id = s.post_id);
+
+UPDATE mart.post_facility_hist h
+   SET fin_available = s.fin_available, is_center = s.is_center
+  FROM stg.post_facility s
+ WHERE h.is_current AND s.collect_run_id = :run AND s.post_id = h.post_id AND s.row_hash = h.row_hash
+   AND (s.fin_available IS DISTINCT FROM h.fin_available OR s.is_center IS DISTINCT FROM h.is_center);
