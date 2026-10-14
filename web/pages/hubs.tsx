@@ -2,7 +2,8 @@ import Link from "next/link";
 import Layout, { Card, Empty, ErrorBox, Hero, NoDataGuide, Segmented, Stat } from "@/components/Layout";
 import { StatSkeletons, TableSkeleton } from "@/components/Skeleton";
 import { useApi } from "@/hooks/useApi";
-import { isNoData, qs, type HubFacility, type HubSummary, type Page, type Region } from "@/lib/api";
+import { useRegions } from "@/hooks/useRegions";
+import { isNoData, qs, type HubFacility, type HubSummary, type Page } from "@/lib/api";
 import { dist, dt, num, shortSido } from "@/lib/format";
 import { useQueryState } from "@/lib/useQueryState";
 import Sents from "@/components/Sents";
@@ -16,7 +17,7 @@ const SIZE = 20;
 export default function HubsPage() {
   const sumQ = useApi<HubSummary>("/hubs/summary", { cacheMs: 60_000 });
   const sum = sumQ.data;
-  const regions = useApi<{ items: Region[] }>("/meta/regions", { cacheMs: 600_000 }).data?.items ?? [];
+  const regions = useRegions().items;     // 고르지 않아도 되는 거르기(전국 기본)라 실패해도 '전국'만 남음
   const [sido, setSido, ready] = useQueryState<string>("sido", "");
   const [sort, setSort] = useQueryState<Sort>("sort", "soleHub", ["soleHub", "soleFin", "served"]);
   const [pageStr, setPageStr] = useQueryState<string>("page", "1");

@@ -3,7 +3,9 @@ import { useRouter } from "next/router";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import Layout, { Card, Empty, ErrorBox, Hero, NoDataGuide, Segmented } from "@/components/Layout";
 import { useApi } from "@/hooks/useApi";
-import { isNoData, qs, type MetricDef, type Region } from "@/lib/api";
+import { useRegions } from "@/hooks/useRegions";
+import { isNoData, qs, type MetricDef } from "@/lib/api";
+import { emdNeed, NO_EMD_TEXT, regionsErrorText } from "@/lib/regions";
 import { groupMetrics, num, shortSido, withUnit } from "@/lib/format";
 import { TableSkeleton } from "@/components/Skeleton";
 import { useQueryState } from "@/lib/useQueryState";
@@ -15,7 +17,7 @@ type Resp = { items: Row[]; total: number; metric: { code: string; name: string;
 export default function Rankings() {
   const router = useRouter();
   const metrics = (useApi<{ items: MetricDef[] }>("/metrics", { cacheMs: 600_000 }).data?.items ?? []).filter((m) => m.available);
-  const regions = useApi<{ items: Region[] }>("/meta/regions", { cacheMs: 600_000 }).data?.items ?? [];
+  const regions = useRegions();
   // 모든 조건을 주소에 반영 (?metric=&level=3&sido=37&sort=asc) — 공유·새로고침에도 같은 순위
   const [metric, setMetric, ready] = useQueryState<string>("metric", "ACCESS_GAP_SCORE");
   const [levelStr, setLevelStr] = useQueryState<"2" | "3">("level", "2", ["2", "3"]);
@@ -23,13 +25,15 @@ export default function Rankings() {
   const setLevel = (l: 2 | 3) => setLevelStr(String(l) as "2" | "3");
   const [sidoQ, setSido] = useQueryState<string>("sido", "");
   const [sort, setSort] = useQueryState<"desc" | "asc">("sort", "desc", ["desc", "asc"]);
-  const sido = sidoQ || regions.find((r) => r.emdCount > 0)?.admCd || "";
+  const sido = sidoQ || regions.emdAvailable[0]?.admCd || "";
 
   // 시군구 순위는 시도와 무관 — 시도 목록이 늦게 와 기본 시도가 정해져도 다시 요청하지 않게 요청에 쓰는 값만 의존
   const parent = level === 3 ? sido : "";
   const { data, error } = useApi<Resp>(!ready || (level === 3 && !parent) ? null
     : `/areas${qs({ level, metric, parent: parent || undefined, sort, size: 20 })}`);
   const err = error?.message ?? null;
+  // 읍면동인데 시도를 정하지 못했으면 요청이 없음 — 시도 목록을 받는 중일 때만 자리 표시, 실패·고를 시도 없음은 그렇게 표시
+  const regionNeed = level === 3 && !parent ? emdNeed(regions) : "ok";
 
   const unit = data?.metric.unit || "";
   const worseFirst = data ? (data.metric.higherIsWorse ? sort === "desc" : sort === "asc") : true;
@@ -54,15 +58,17 @@ export default function Rankings() {
             options={[{ value: 2, label: "시군구 · 전국" }, { value: 3, label: "읍면동 · 시도 안" }]} />
           {level === 3 && (
             <select name="sido" className="field max-w-[180px]" value={sido} onChange={(e) => setSido(e.target.value)} aria-label="시도">
-              {regions.filter((r) => r.emdCount > 0).map((r) => <option key={r.admCd} value={r.admCd}>{r.admNm}</option>)}
+              {regions.emdAvailable.map((r) => <option key={r.admCd} value={r.admCd}>{r.admNm}</option>)}
             </select>
           )}
           <span className="flex-1" />
           <Segmented ariaLabel="정렬" value={sort} onChange={setSort}
             options={[{ value: "desc", label: "큰 값 20" }, { value: "asc", label: "작은 값 20" }]} />
         </div>
+        {level === 3 && regions.error && <ErrorBox error={regionsErrorText(regions.error)} />}
+        {regionNeed === "none" && <Empty>{NO_EMD_TEXT}</Empty>}
         {err && (noData ? <NoDataGuide /> : <ErrorBox error={err} />)}
-        {!data && !err && <div className="card pt-6"><TableSkeleton rows={8} /></div>}
+        {!data && !err && (regionNeed === "ok" || regionNeed === "loading") && <div className="card pt-6"><TableSkeleton rows={8} /></div>}
         {data && (
           <>
             <Card title={data.metric.name}

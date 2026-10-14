@@ -25,6 +25,11 @@ CASES = [
     # 은행 지점 목록이 실패하면 상세 칸 자리 표시가 끝나지 않고 목록에는 '조건에 맞는 지점이 없습니다'가 보였음
     ("/banks", "/api/v1/banks/impact?", 500, "점검용 실패"),
     ("/banks", "/api/v1/banks/impact?", 404, "아직 계산된 데이터가 없습니다", "BANK_IMPACT_NOT_FOUND"),
+    # 시도 목록(/meta/regions) 실패를 빈 목록으로 삼켜 읍면동 순위는 끝없는 자리 표시, 배치 제안은 이유 없는 비활성 버튼,
+    # 보고서 목록은 빈 화면이었음
+    ("/rankings?level=3", "/api/v1/meta/regions", 500, "점검용 실패"),
+    ("/plan", "/api/v1/meta/regions", 500, "점검용 실패"),
+    ("/report", "/api/v1/meta/regions", 500, "점검용 실패"),
 ]
 
 

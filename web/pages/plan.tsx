@@ -7,7 +7,9 @@ import Layout, { Card, Empty, ErrorBox, Hero, Segmented, Stat } from "@/componen
 import MapWarmup from "@/components/MapWarmup";
 import type { MapLabel, Marker } from "@/components/AtlasMap";
 import { useApi } from "@/hooks/useApi";
-import { api, qs, type AreaFC, type AreaProps, type PlanClose, type PlanOpen, type Region } from "@/lib/api";
+import { useRegions } from "@/hooks/useRegions";
+import { api, qs, type AreaFC, type AreaProps, type PlanClose, type PlanOpen } from "@/lib/api";
+import { emdNeed, NO_EMD_TEXT, regionsErrorText } from "@/lib/regions";
 import { classOf, NO_DATA, quantileBreaks, SEQ } from "@/lib/choropleth";
 import { dist, num } from "@/lib/format";
 import Sents from "@/components/Sents";
@@ -19,7 +21,7 @@ type Mode = "close" | "open";
 
 // ⑤ 배치 제안 — What-if 를 뒤집어, 범위 안에서 '닫아도 영향이 가장 작은 조합' / '열면 효과가 가장 큰 곳'
 export default function PlanPage() {
-  const regions = useApi<{ items: Region[] }>("/meta/regions", { cacheMs: 600_000 }).data?.items ?? [];
+  const regions = useRegions();
   // 조건은 주소에 (?mode=open&scope=37520&k=4&weight=pop) — 결과 화면을 그대로 공유
   const [mode, setMode, ready] = useQueryState<Mode>("mode", "close", ["close", "open"]);
   const [scopeQ, setScopeQ] = useQueryState<string>("scope", "");
@@ -31,7 +33,7 @@ export default function PlanPage() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  const first = regions.find((x) => x.emdCount > 0);
+  const first = regions.emdAvailable[0];
   const scope = scopeQ || (first ? first.sigungu[0]?.admCd || first.admCd : "");
   const sido = scope.slice(0, 2);
   const sgg = scope.length === 5 ? scope : "";
@@ -72,7 +74,7 @@ export default function PlanPage() {
   const markers: Marker[] = useMemo(() => !res ? [] : res.mode === "close"
     ? res.steps.map((s, i) => ({ lat: s.lat, lon: s.lon, label: `${i + 1}. ✕ ${s.name}`, tone: "removed" as const }))
     : res.steps.map((s, i) => ({ lat: s.lat, lon: s.lon, label: `${i + 1}. ＋ ${s.siteNm || s.siteCd}`, tone: "new" as const })), [res]);
-  const sgus = regions.find((r) => r.admCd === sido)?.sigungu || [];
+  const sgus = regions.items.find((r) => r.admCd === sido)?.sigungu || [];
   const wLabel = (w: string) => (w === "aged65" ? "65세 이상" : "인구");
 
   return (
@@ -87,7 +89,7 @@ export default function PlanPage() {
                 options={[{ value: "close", label: "닫을 곳 찾기" }, { value: "open", label: "열 곳 찾기" }]} />
               <div className="grid grid-cols-2 gap-2">
                 <select name="sido" className="field" value={sido} aria-label="시도" onChange={(e) => { setSido(e.target.value); setRes(null); }}>
-                  {regions.filter((r) => r.emdCount > 0).map((r) => <option key={r.admCd} value={r.admCd}>{r.admNm}</option>)}
+                  {regions.emdAvailable.map((r) => <option key={r.admCd} value={r.admCd}>{r.admNm}</option>)}
                 </select>
                 <select name="sgg" className="field" value={sgg} aria-label="시군구" onChange={(e) => { setSgg(e.target.value); setRes(null); }}>
                   <option value="">시도 전체</option>
@@ -103,6 +105,9 @@ export default function PlanPage() {
                 <Segmented ariaLabel="가중치" value={weight} onChange={setWeight}
                   options={[{ value: "aged65", label: "65세 이상" }, { value: "pop", label: "전체 인구" }]} />
               </div>
+              {/* 범위를 정하지 못하면 버튼이 비활성인 이유를 보임 — 시도 목록 실패를 삼켜 버튼만 영구 비활성이었음 */}
+              {regions.error && <ErrorBox error={regionsErrorText(regions.error)} />}
+              {!scope && emdNeed(regions) === "none" && <Empty>{NO_EMD_TEXT}</Empty>}
               <button className="btn w-full" disabled={!scope || busy} onClick={run}>{busy ? "계산 중…" : "제안 받기"}</button>
             </div>
           </Card>

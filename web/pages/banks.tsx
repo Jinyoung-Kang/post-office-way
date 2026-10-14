@@ -7,8 +7,9 @@ import Layout, { Card, Empty, ErrorBox, Hero, NoDataGuide, Segmented, Stat } fro
 import MapWarmup from "@/components/MapWarmup";
 import { TableSkeleton } from "@/components/Skeleton";
 import { useApi } from "@/hooks/useApi";
+import { useRegions } from "@/hooks/useRegions";
 import { isNoData, qs, type BankImpact, type BankImpactDetail, type BankImpactList, type CatchmentProps,
-  type Feature, type Region } from "@/lib/api";
+  type Feature } from "@/lib/api";
 import { BANK_REASON_SHORT, dist, dt, GRADE_BADGE, GRADE_LABEL, num, shortSido, walkMin } from "@/lib/format";
 import { useQueryState } from "@/lib/useQueryState";
 import Sents from "@/components/Sents";
@@ -32,7 +33,7 @@ const ALT_BANDS = [
 ];
 
 export default function BanksPage() {
-  const regions = useApi<{ items: Region[] }>("/meta/regions", { cacheMs: 600_000 }).data?.items ?? [];
+  const regions = useRegions().items;     // 고르지 않아도 되는 거르기(전국 기본)라 실패해도 '전국'만 남음
   const [sido, setSido, ready] = useQueryState<string>("sido", "");
   const [grade, setGrade] = useQueryState<Grade>("grade", "", ["", "HIGH", "MID", "LOW"]);
   const [sort, setSort] = useQueryState<Sort>("sort", "lost", ["lost", "catch", "aged", "walk", "far"]);

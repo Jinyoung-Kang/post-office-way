@@ -7,12 +7,14 @@ import MapWarmup from "@/components/MapWarmup";
 import RegionCard, { FacilityCard } from "@/components/RegionCard";
 import { BANK_LEGEND, CARE_LEGEND, FACILITY_LEGEND, type CareLayer, type FacilityLayer, type MapLabel } from "@/components/AtlasMap";
 import { useApi } from "@/hooks/useApi";
+import { useRegions } from "@/hooks/useRegions";
 import { worstFirst } from "@/lib/rules";
-import { cachedApi, isNoData, type AreaFC, type AreaProps, type Facility, type MetricDef, type Region } from "@/lib/api";
+import { cachedApi, isNoData, type AreaFC, type AreaProps, type Facility, type MetricDef } from "@/lib/api";
 import { classOf, legendRows, minOnlyValue, NO_DATA, quantileBreaks, SEQ } from "@/lib/choropleth";
 import { groupMetrics, num, withUnit } from "@/lib/format";
 import { cardRunOf, DEFAULT_METRIC, geojsonPathOf, mapQueryFrom, mapQueryOf, mapStateOf, queryMatches, sameMapQuery, type MapQuery } from "@/lib/mapQuery";
 import type { TipLines } from "@/lib/mapTip";
+import { emdNeed, NO_EMD_TEXT, regionsErrorText } from "@/lib/regions";
 
 const AtlasMap = dynamic(() => import("@/components/AtlasMap"), { ssr: false }) as typeof AtlasMapType;
 
@@ -20,7 +22,7 @@ export default function MapPage() {
   const router = useRouter();
   const { calc } = useDataBasis();
   const metrics = (useApi<{ items: MetricDef[] }>("/metrics", { cacheMs: 600_000 }).data?.items ?? []).filter((m) => m.available);
-  const regions = useApi<{ items: Region[] }>("/meta/regions", { cacheMs: 600_000 }).data?.items ?? [];
+  const regions = useRegions();
   const [metric, setMetric] = useState(DEFAULT_METRIC);
   const [level, setLevel] = useState<2 | 3>(2);
   const [parent, setParent] = useState<string>("");
@@ -79,6 +81,12 @@ export default function MapPage() {
     return () => { alive = false; };
   }, [geoPath]);
 
+  // 시도 목록이 오기 전에 '읍면동'을 눌렀으면 목록이 온 뒤 첫 시도로 — 그대로 두면 상위 지역이 비어 아무것도 받지 않았음
+  const firstEmd = regions.emdAvailable[0]?.admCd;
+  useEffect(() => { if (level === 3 && !parent && firstEmd) setParent(firstEmd); }, [level, parent, firstEmd]);
+  // 읍면동인데 상위 지역을 정하지 못한 이유(시도 목록 받는 중·실패·고를 시도 없음)
+  const regionNeed = level === 3 && !parent ? emdNeed(regions) : "ok";
+
   // 지표·선택 지역을 주소에 반영 → 새로고침·공유·뒤로 가기에도 같은 화면
   useEffect(() => {
     if (!router.isReady || !hydrated) return;
@@ -109,7 +117,7 @@ export default function MapPage() {
     [`인구 ${num(p.totPpltn)}명`]], [fc]);
 
   const sido = parent.slice(0, 2);
-  const sigunguOptions = regions.find((r) => r.admCd === sido)?.sigungu || [];
+  const sigunguOptions = regions.items.find((r) => r.admCd === sido)?.sigungu || [];
   const noData = isNoData(failure);
   const vals = useMemo(() => (fc?.features || []).map((f) => f.properties.value).filter((v): v is number => v !== null), [fc]);
   // 마우스를 올리지 않아도 보이게 — 취약한 쪽 상위 8곳을 순위·값과 함께 지도에 표시
@@ -126,7 +134,7 @@ export default function MapPage() {
 
   const chooseLevel = (l: 2 | 3) => {
     setLevel(l); setSelected(null); setFocusCd(null);
-    if (l === 2) setParent(""); else if (!parent) setParent(regions.find((r) => r.emdCount > 0)?.admCd || "");
+    if (l === 2) setParent(""); else if (!parent) setParent(firstEmd || "");
   };
 
   return (
@@ -171,7 +179,7 @@ export default function MapPage() {
                 <div className="grid grid-cols-2 gap-2">
                   <select name="sido" className="field" value={sido} aria-label="시도"
                     onChange={(e) => { setParent(e.target.value); setSelected(null); setFocusCd(null); }}>
-                    {regions.filter((r) => r.emdCount > 0).map((r) => <option key={r.admCd} value={r.admCd}>{r.admNm}</option>)}
+                    {regions.emdAvailable.map((r) => <option key={r.admCd} value={r.admCd}>{r.admNm}</option>)}
                   </select>
                   <select name="sgg" className="field" value={parent.length === 5 ? parent : ""} aria-label="시군구"
                     onChange={(e) => { setParent(e.target.value || sido); setSelected(null); setFocusCd(null); }}>
@@ -255,8 +263,10 @@ export default function MapPage() {
         </aside>
       )}
 
-      {loading && <div className="glass absolute left-1/2 top-4 z-20 -translate-x-1/2 rounded-full px-4 py-1.5 text-[13px]">불러오는 중…</div>}
+      {(loading || regionNeed === "loading") && <div className="glass absolute left-1/2 top-4 z-20 -translate-x-1/2 rounded-full px-4 py-1.5 text-[13px]">불러오는 중…</div>}
       {error && <div className="absolute inset-x-4 top-24 z-30 mx-auto max-w-md">{noData ? <NoDataGuide /> : <ErrorBox error={error} />}</div>}
+      {regionNeed === "error" && regions.error && <div className="absolute inset-x-4 top-24 z-30 mx-auto max-w-md"><ErrorBox error={regionsErrorText(regions.error)} /></div>}
+      {regionNeed === "none" && <div className="absolute inset-x-4 top-24 z-30 mx-auto max-w-md"><div className="glass p-4 text-[14px] text-ink-2">{NO_EMD_TEXT}</div></div>}
 
       <div className="glass absolute bottom-4 left-4 z-10 hidden max-w-[60%] truncate rounded-full px-3 py-1 text-[11px] text-ink-2 md:block">
         {basisText(calc)} · 공식 통계 아님
