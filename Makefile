@@ -239,8 +239,11 @@ qa: $(QA_PY)
 qa-lh: $(QA_PY)
 	$(QA_PY) scripts/qa/lighthouse.py $(or $(N),3)
 
+# 호스트 파이썬 — 저장소의 .venv 가 있으면 그것(README 9장: python3.13 -m venv .venv && .venv/bin/pip install -e './atlas[dev,walk]')
+PY := $(if $(wildcard .venv/bin/python),$(CURDIR)/.venv/bin/python,python3.13)
+
 test-unit:
-	cd atlas && python3.13 -m pytest -q tests/unit tests/contract
+	cd atlas && $(PY) -m pytest -q tests/unit tests/contract
 
 psql:
 	$(COMPOSE) exec db psql -U atlas -d atlas
@@ -248,10 +251,12 @@ psql:
 # 호스트에서 직접 개발 (db·redis 는 compose 로)
 api-dev:
 	$(COMPOSE) up -d --wait db redis
-	cd atlas && MIGRATE_ON_START=true python3.13 -m uvicorn atlas.api.main:app --port 8100 --reload
+	cd atlas && MIGRATE_ON_START=true $(PY) -m uvicorn atlas.api.main:app --port 8100 --reload
 
+# Next 는 web/ 의 .env* 만 읽어 루트 .env 의 카카오 키를 못 봄 — 브라우저용 키 하나만 넘김(값은 명령에 찍히지 않음).
+# docker 의 web 이 3100 을 쓰고 있으면 먼저 멈춤(카카오 도메인 등록이 localhost:3100 이라 포트를 바꿀 수 없음)
 web-dev:
-	cd web && npm install && npm run dev
+	cd web && npm install && KAKAO_JS_KEY="$$(sed -n 's/^NEXT_PUBLIC_KAKAO_JS_KEY=//p' ../.env 2>/dev/null)" npm run dev
 
 reset:
 	@read -p "DB 볼륨을 지우고 처음부터 시작합니다. 계속할까요? [y/N] " a && [ "$$a" = y ]

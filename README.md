@@ -297,8 +297,9 @@ gzip 캐시 + ETag 304, 순위 사전 계산, `json`→`text` 전달, 입력 버
 ## 9. 개발
 
 ```bash
+python3.13 -m venv .venv && .venv/bin/pip install -e './atlas[dev,walk]'   # 처음 한 번 — make api-dev·test-unit 이 이 .venv 를 씀
 make api-dev     # 호스트에서 FastAPI (--reload, 소유자 역할로 접속해 기동 때 마이그레이션)
-make web-dev     # 호스트에서 Next.js dev 서버 :3100
+docker compose stop web && make web-dev   # 호스트에서 Next.js dev 서버 :3100 (루트 .env 의 카카오 키를 넘김)
 make test        # Python 285개 (PostGIS 테스트 DB)
 cd web && npm test && npm run lint   # 웹 단위 테스트 41개 (vitest) + React Hook 린트
 make qa          # 띄운 서비스 점검 (scripts/qa — 퍼징·크롤링·네트워크·접근성, 설치된 Chrome 사용)
