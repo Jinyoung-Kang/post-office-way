@@ -64,7 +64,13 @@ def record(reports: list[dict[str, Any]]) -> None:
         if _ignored(r):
             continue
         directive = str(r.get("directive") or "unknown")[:40]
-        blocked = _clean(r.get("blocked"))
+        try:   # 주소 정규화를 먼저 — 깨진 주소(http://[)는 urlsplit 이 ValueError. 브라우저는 보내지 않으므로 버림
+            blocked = _clean(r.get("blocked"))
+            page = urlsplit(r.get("document") or "").path[:200] or "-"
+            src = _clean(r.get("source"))
+        except ValueError:                             # 예전에는 500 → 처리하지 못한 예외로 기록되어 아래 상한을 우회했음
+            log.warning("csp report dropped (malformed url)", extra={"directive": directive})
+            continue
         blocked_origin = blocked.split("/", 3)[2] if "://" in blocked else blocked
         if not cache.set_nx(f"csp:{directive}:{blocked_origin}", "1", ttl=3600):
             continue                                   # 같은 위반은 1시간에 한 번만 (Redis 가 없으면 기록하지 않음)
@@ -72,8 +78,6 @@ def record(reports: list[dict[str, Any]]) -> None:
         if n is None or n > HOURLY_MAX:                # 출처를 바꿔 가며 보내도 시간당 상한까지만 (S7)
             log.warning("csp report dropped (hourly cap)", extra={"directive": directive, "blocked": blocked_origin})
             continue
-        page = urlsplit(r.get("document") or "").path[:200] or "-"
-        src = _clean(r.get("source"))
         msg = f"{directive} 가 {blocked or '?'} 를 막음" + (f" (스크립트 {src}:{r.get('line')})" if src else "")
         try:
             with get_engine().begin() as c:

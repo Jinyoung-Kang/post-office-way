@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import logging
+import threading
+import time
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -66,8 +68,32 @@ def install(app: FastAPI) -> None:
         return JSONResponse(_body(request, "INTERNAL", "서버 내부 오류"), status_code=500)
 
 
+# 처리하지 못한 예외 기록의 시간당 상한(전체) — 공개 경로에 500 버그가 생겨도 오류 로그가 범람해 실제 오류를 덮지 않게.
+# 넘으면 서버 로그(traceId)에만 남음. Redis 가 없으면 프로세스 안에서 셈
+APP_ERROR_HOURLY_MAX = 300
+_local = {"hour": None, "n": 0}
+_lock = threading.Lock()
+
+
+def _allow_record() -> bool:
+    from atlas.core import cache
+
+    hour = int(time.time() // 3600)
+    n = cache.incr(f"apperr:hour:{hour}", ttl=3600)
+    if n is None:
+        with _lock:
+            if _local["hour"] != hour:
+                _local.update(hour=hour, n=0)
+            _local["n"] += 1
+            n = _local["n"]
+    return n <= APP_ERROR_HOURLY_MAX
+
+
 def record(trace_id: str | None, method: str, path: str, exc: BaseException) -> None:
     """처리하지 못한 예외를 ops.app_error 에 남김 — 실패해도(DB 장애 등) 응답에는 영향 없음. 키는 마스킹."""
+    if not _allow_record():
+        log.warning("app_error record dropped (hourly cap)", extra={"traceId": trace_id, "path": path[:200]})
+        return
     try:
         from sqlalchemy import text
 

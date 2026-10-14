@@ -28,7 +28,7 @@ async def csp_report(request: Request) -> Response:
             return Response(status_code=413)
     try:
         reports = csp_reports.normalize(json.loads(raw or b"null"))
-    except (ValueError, UnicodeDecodeError):
+    except (ValueError, UnicodeDecodeError, RecursionError):   # 깊게 중첩된 JSON('['*15000)은 RecursionError
         return Response(status_code=204)
     await run_in_threadpool(csp_reports.record, reports)          # DB·Redis 는 동기 — 이벤트 루프를 막지 않게
     return Response(status_code=204)

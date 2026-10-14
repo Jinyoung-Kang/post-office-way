@@ -584,3 +584,47 @@ def test_isolated_job_timeout_closes_its_runs(fake_jobs, engine, monkeypatch):
     with engine.connect() as c:
         rows = c.execute(text("SELECT status, error FROM ops.collect_run WHERE job_id = :j"), {"j": job["job_id"]}).all()
     assert rows and all(r[0] == "FAILED" for r in rows), rows
+
+
+def test_csp_report_with_malformed_url_or_deep_json_is_204(fake_jobs, engine, monkeypatch):
+    """CSP 보고는 공개 경로라 형식이 깨진 주소(http://[)나 깊게 중첩된 JSON 에도 늘 204 — 예전에는 urlsplit·json.loads 의
+    예외가 500 이 되고 '처리하지 못한 예외'로 ops.app_error 에 상한 없이 쌓였음(CSP 의 중복 억제·시간당 상한을 우회)."""
+    from atlas.api.main import app
+    from atlas.core import cache
+
+    keys: list[str] = []
+    monkeypatch.setattr(cache, "set_nx", lambda k, v, ttl: keys.append(k) or True)
+    monkeypatch.setattr(cache, "incr", lambda k, ttl: 1)
+    h = {"Content-Type": "application/csp-report"}
+    bad = [{"csp-report": {"effective-directive": "img-src", "blocked-uri": "http://[::1"}},
+           {"csp-report": {"effective-directive": "img-src", "blocked-uri": "https://ok.example/x.png", "document-uri": "http://["}},
+           {"csp-report": {"effective-directive": "script-src", "blocked-uri": "inline", "source-file": "http://ex℀ample.com/a.js"}}]
+    with TestClient(app, raise_server_exceptions=False) as cl:
+        for b in bad:
+            assert cl.post("/api/v1/csp-report", json=b, headers=h).status_code == 204
+        assert cl.post("/api/v1/csp-report", content=b"[" * 15000, headers=h).status_code == 204
+    with engine.connect() as c:
+        assert c.execute(text("SELECT count(*) FROM ops.app_error")).scalar() == 0
+    assert keys == []                    # 버린 보고는 중복 억제 키·시간당 예산을 쓰지 않음
+
+
+def test_unhandled_error_records_are_capped_per_hour(clean, engine, monkeypatch):
+    """처리하지 못한 예외 기록(ops.app_error)에도 시간당 상한 — 공개 경로에 500 버그가 하나 생겨도 오류 로그가 범람하지 않게.
+    Redis 가 없으면 프로세스 안에서 셈."""
+    from atlas.api import errors
+    from atlas.core import cache
+
+    monkeypatch.setattr(errors, "APP_ERROR_HOURLY_MAX", 3)
+    count = lambda: c.execute(text("SELECT count(*) FROM ops.app_error WHERE source = 'api'")).scalar()   # noqa: E731
+    n = iter(range(1, 100))
+    monkeypatch.setattr(cache, "incr", lambda k, ttl: next(n))
+    for _ in range(5):
+        errors.record("t", "GET", "/api/v1/x", RuntimeError("boom"))
+    with engine.connect() as c:
+        assert count() == 3
+    monkeypatch.setattr(cache, "incr", lambda k, ttl: None)             # Redis 없음
+    monkeypatch.setattr(errors, "_local", {"hour": None, "n": 0})
+    for _ in range(5):
+        errors.record("t", "GET", "/api/v1/x", RuntimeError("boom"))
+    with engine.connect() as c:
+        assert count() == 6
