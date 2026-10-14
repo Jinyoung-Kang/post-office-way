@@ -1,6 +1,7 @@
 """요청·계산 파라미터 해석 — 식별자 형식, 페이지 범위. 규칙에 어긋나면 Invalid."""
 from __future__ import annotations
 
+import math
 import uuid
 from typing import Any
 
@@ -46,9 +47,12 @@ def pick_level(params: dict[str, Any], level: int | None) -> int:
 
 
 def parse_bbox(bbox: str) -> tuple[float, float, float, float]:
-    """지도 범위 'minLon,minLat,maxLon,maxLat' → 숫자 4개."""
+    """지도 범위 'minLon,minLat,maxLon,maxLat' → 숫자 4개. 유한한 경위도이고 min < max 여야 함 — 뒤집힌 범위는 PostGIS 가
+    바로잡아 주므로 그대로 두면 넓이 상한 검사(음수 넓이)를 피했고, NaN 은 오류 없이 빈 목록이 됐음."""
     try:
         x1, y1, x2, y2 = (float(v) for v in bbox.split(","))
     except ValueError as e:
         raise Invalid("bbox 는 minLon,minLat,maxLon,maxLat 입니다.") from e
+    if not all(math.isfinite(v) for v in (x1, y1, x2, y2)) or not (-180 <= x1 < x2 <= 180 and -90 <= y1 < y2 <= 90):
+        raise Invalid("bbox 는 경도 -180~180·위도 -90~90 안에서 min 이 max 보다 작아야 합니다.")
     return x1, y1, x2, y2

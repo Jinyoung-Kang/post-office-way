@@ -40,3 +40,15 @@ def test_parse_bbox():
     for bad in ("1,2,3", "1,2,3,4,5", "a,b,c,d", ""):
         with pytest.raises(Invalid, match="bbox"):
             parse_bbox(bad)
+
+
+@pytest.mark.parametrize("bad", ["nan,nan,nan,nan", "inf,33,127,38", "126,33,-inf,38",
+                                 "132,33,124,39",          # 경도가 뒤집힘 — 넓이 검사(음수)를 피해 전국 5,000곳을 받았음
+                                 "124,39,132,33", "200,33,201,34", "126,-91,127,38", "126,37,126,38"])
+def test_parse_bbox_rejects_non_finite_inverted_or_out_of_range(bad):
+    """NaN·무한대·뒤집힌 범위·경위도 밖·넓이 0 은 400 — 예전에는 float 변환만 해서 '범위가 너무 넓음' 검사를 피하거나
+    (ST_MakeEnvelope 가 뒤집힌 범위를 바로잡음) NaN 이 오류 없이 빈 목록 200 이 됐음."""
+    from atlas.domain.params import parse_bbox
+
+    with pytest.raises(Invalid, match="bbox"):
+        parse_bbox(bad)
