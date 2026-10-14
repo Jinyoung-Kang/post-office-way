@@ -68,3 +68,25 @@ def test_region_code_lengths():
     assert parse_region_code("11") == "11" and parse_region_code("37520") == "37520"
     with pytest.raises(Invalid):
         parse_region_code("11", lengths=(5,))
+
+
+@pytest.mark.parametrize("bad", [{"radiusKm": [1.5]}, {"radiusKm": [1, 1]}, {"radiusKm": ["2"]}, {"radiusKm": [0]},
+                                 {"radiusKm": []}, {"farKm": -1}, {"farKm": "2"}, {"snapM": 0}, {"weights": {"dist": 2}},
+                                 {"weights": {"x": 0.5}}, {"farKm": float("nan")}])
+def test_calc_params_rejects_bad_values(bad):
+    """계산 설정이 잘못되면 시작 전에 Invalid — 예전에는 radiusKm 1.5 가 '반경 1km' 이름에 1.5km 값으로 저장되고,
+    [1, 1.5] 는 PK 위반, ['2'] 는 TypeError 로 계산 전체가 실패했음(관리 API 는 202 를 주고 워커에서 실패)."""
+    from atlas.domain.params import calc_params
+
+    with pytest.raises(Invalid):
+        calc_params(bad)
+
+
+def test_calc_params_and_levels_ok():
+    from atlas.domain.params import calc_levels, calc_params
+
+    assert calc_params({"radiusKm": [1, 2, 5], "farKm": 2, "weights": {"dist": 0.6, "aged": 0.4}})["radiusKm"] == [1, 2, 5]
+    assert calc_params(None) == {} and calc_levels([3, 2]) == [2, 3] and calc_levels(None) is None
+    for bad in ([1], [2, "3"], "2,3", []):
+        with pytest.raises(Invalid):
+            calc_levels(bad)

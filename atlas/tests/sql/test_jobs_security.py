@@ -628,3 +628,11 @@ def test_unhandled_error_records_are_capped_per_hour(clean, engine, monkeypatch)
         errors.record("t", "GET", "/api/v1/x", RuntimeError("boom"))
     with engine.connect() as c:
         assert count() == 6
+
+
+def test_admin_calc_job_with_bad_params_is_400(client):
+    """관리 API 로 넣는 계산 작업의 설정도 요청 시점에 400 — 예전에는 202 를 주고 워커에서 실패했음."""
+    h = {"X-Admin-Token": "t" * 32}
+    for p in ({"params": {"radiusKm": [1.5]}}, {"levels": "2,3"}, {"statYear": "2024"}):
+        r = client.post("/api/v1/admin/jobs", json={"kind": "calc", "params": p}, headers=h)
+        assert r.status_code == 400 and r.json()["code"] == "VALIDATION_ERROR", (p, r.text)

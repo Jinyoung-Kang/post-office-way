@@ -67,3 +67,12 @@ def test_interrupted_osm_refresh_is_closed(clean, monkeypatch, tmp_path):
     with pytest.raises(KeyboardInterrupt):
         osm.refresh()
     assert runs.running_run("OSM_WALK") is None
+
+
+def test_bad_calc_params_rejected_before_run(clean, engine):
+    from atlas.calc.runner import create_calc_run
+
+    with pytest.raises(Invalid):
+        create_calc_run(params={"radiusKm": [1, 1.5]})
+    with engine.connect() as c:
+        assert c.execute(text("SELECT count(*) FROM mart.calc_run")).scalar() == 0     # 실행 행이 생기지 않음

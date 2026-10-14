@@ -49,3 +49,8 @@ def test_holidays_accepts_single_year(monkeypatch):
     monkeypatch.setattr(holiday, "collect_holidays", lambda years=None: got.update(years=years))
     registry.JOBS["holidays"].run({"years": 2027})
     assert got["years"] == [2027]
+
+
+def test_bad_calc_params_are_a_message(captured, capsys):
+    assert _run("calc", "--param", 'params={"radiusKm": [1.5]}') == 2 and "radiusKm" in capsys.readouterr().err
+    assert "kind" not in captured

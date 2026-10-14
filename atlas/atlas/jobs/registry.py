@@ -175,6 +175,14 @@ def get(kind: str) -> JobSpec:
     return JOBS[kind]
 
 
+def check_params(kind: str, params: dict[str, Any]) -> None:
+    """작업 요청 시점의 매개변수 검증 — 관리 API(400)·CLI 가 같은 기준. 지금은 계산 설정만(잘못되면 워커에서 계산 전체가 실패했음)."""
+    if kind == "calc":
+        from atlas.domain.params import calc_job_params
+
+        calc_job_params(params)
+
+
 def run(kind: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
     spec = get(kind)
     if miss := spec.missing():

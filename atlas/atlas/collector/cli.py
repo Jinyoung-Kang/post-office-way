@@ -34,6 +34,7 @@ from atlas.core.config import get_settings
 from atlas.core.db import get_engine
 from atlas.core.logging import setup_logging
 from atlas.core.migrate import migrate
+from atlas.domain.errors import DomainError
 
 
 def _print(obj) -> None:
@@ -212,7 +213,8 @@ def cmd_enqueue(a: argparse.Namespace) -> int:
         return 2
     try:
         params = parse_params(a.param or [])
-    except ValueError as e:
+        registry.check_params(a.kind, params)
+    except (ValueError, DomainError) as e:       # 계산 설정 등이 잘못됨 — API 의 400 과 같은 판단
         print(f"오류: {e}", file=sys.stderr)
         return 2
     try:
@@ -318,7 +320,7 @@ def main(argv: list[str] | None = None) -> int:
         migrate(get_engine())
     try:
         return args.fn(args)
-    except RuntimeError as e:
+    except (RuntimeError, DomainError) as e:     # DomainError: 잘못된 계산 설정 등(make calc LEVELS=1)
         print(f"\n오류: {e}", file=sys.stderr)
         return 2
 

@@ -14,7 +14,7 @@ from typing import Any
 
 from sqlalchemy import Engine, text
 
-from atlas.domain.params import far_meters
+from atlas.domain.params import calc_levels, calc_params, far_meters
 from atlas.ops.dq import CALC_RULES, DQRecorder
 from atlas.core.config import get_settings
 from atlas.core.db import get_engine, run_sql_file
@@ -51,8 +51,8 @@ def create_calc_run(stat_year: int | None = None, levels: list[int] | None = Non
     eng = engine or get_engine()
     if rid := running_calc(eng):
         raise CalcRunInProgress(f"계산이 이미 실행 중입니다 (calcRunId={rid})")
-    p = {**DEFAULT_PARAMS, **(params or {})}
-    p["levels"] = sorted(levels or p.get("levels") or s.levels)
+    p = {**DEFAULT_PARAMS, **calc_params(params)}       # 잘못된 설정이면 실행 행을 만들기 전에 Invalid
+    p["levels"] = calc_levels(levels) or calc_levels(p.get("levels")) or s.levels
     p["ruleVersion"] = RULE_VERSION
     with eng.begin() as c:
         return c.execute(text("""INSERT INTO mart.calc_run (stat_year, facility_as_of, params, status, job_id)

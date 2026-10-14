@@ -49,6 +49,50 @@ def far_meters(params: dict[str, Any]) -> float:
     return float(params.get("farKm", DEFAULT_FAR_KM)) * 1000
 
 
+def _num(v: Any) -> bool:
+    return isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
+
+
+def calc_params(params: dict[str, Any] | None) -> dict[str, Any]:
+    """계산 설정(calc_run.params 의 사용자 값) 검증 — 계산 실행·관리 API 작업 요청·CLI 가 같은 기준으로.
+    예전에는 검사가 없어 radiusKm 1.5 가 'FAC_CNT_R1KM'(반경 1km) 이름에 1.5km 값으로, [1, 1.5] 는 PK 위반으로 계산 전체가 실패했음."""
+    p = dict(params or {})
+    if "radiusKm" in p:
+        r = p["radiusKm"]
+        if (not isinstance(r, list) or not r or len(set(map(str, r))) != len(r)
+                or not all(isinstance(x, int) and not isinstance(x, bool) and 1 <= x <= 50 for x in r)):
+            raise Invalid("radiusKm 은 서로 다른 1~50 정수 목록입니다 (지표 코드 FAC_CNT_R{n}KM).")
+    for k in ("farKm", "snapM", "missCheckM"):
+        if k in p and not (_num(p[k]) and p[k] > 0):
+            raise Invalid(f"{k} 는 0 보다 큰 수입니다.")
+    if "weights" in p:
+        w = p["weights"]
+        if not isinstance(w, dict) or set(w) - {"dist", "aged"} or not all(_num(v) and 0 <= v <= 1 for v in w.values()):
+            raise Invalid("weights 는 {dist, aged} 0~1 숫자입니다.")
+    return p
+
+
+def calc_levels(levels: Any) -> list[int] | None:
+    """계산할 레벨 — 2(시군구)·3(읍면동) 중에서. 생략이면 None."""
+    if levels is None:
+        return None
+    if not isinstance(levels, list) or not levels or not all(isinstance(x, int) and not isinstance(x, bool) and x in (2, 3)
+                                                             for x in levels):
+        raise Invalid("levels 는 2(시군구)·3(읍면동) 중에서 고른 목록입니다 (예: [2, 3]).")
+    return sorted(set(levels))
+
+
+def calc_job_params(p: dict[str, Any]) -> None:
+    """계산 작업 요청 {statYear, levels, params} 검증 — 잘못되면 요청 시점에 Invalid(관리 API 400)."""
+    y = p.get("statYear")
+    if y is not None and not (isinstance(y, int) and not isinstance(y, bool) and 2000 <= y <= 2100):
+        raise Invalid("statYear 는 2000~2100 정수입니다.")
+    calc_levels(p.get("levels"))
+    if p.get("params") is not None and not isinstance(p["params"], dict):
+        raise Invalid("params 는 객체입니다.")
+    calc_params(p.get("params"))
+
+
 def pick_level(params: dict[str, Any], level: int | None) -> int:
     """요청 레벨 — 생략하면 계산한 가장 세밀한 레벨. 계산하지 않은 레벨이면 Invalid."""
     levels = [int(x) for x in params.get("levels", [2])]

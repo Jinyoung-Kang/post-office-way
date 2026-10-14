@@ -53,6 +53,7 @@ def _enqueue(request: Request, kind: str, params: dict) -> JSONResponse:
         raise ApiError(400, "VALIDATION_ERROR", f"kind 는 {sorted(registry.JOBS)} 중 하나입니다.") from e
     if miss := spec.missing():
         raise ApiError(400, "KEY_MISSING", f".env 에 {', '.join(miss)} 가 없습니다.")
+    registry.check_params(kind, params)          # 잘못된 설정은 Invalid → 400 (예전에는 202 뒤 워커에서 실패)
     ip = client_ip(request)
     try:
         jid = queue.enqueue(kind, params, source="api", requested_by=ip)
