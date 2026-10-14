@@ -80,7 +80,7 @@ open http://localhost:3100/overview
 | `DATA_GO_KR_KEY` | 공공데이터포털 **일반 인증키(Decoding)** — 기상청 단기예보·에어코리아 대기오염정보·국립중앙의료원 약국/병의원·한국천문연구원 특일 정보 활용신청 | 선택 | 방문 여건·생활 거점·영업일 |
 | `ADMIN_TOKEN` · `API_DB_PASSWORD` | `make up`(make env)이 무작위로 생성 | 자동 | 관리 API 토큰 · API 전용 DB 역할 비밀번호 |
 | `ATLAS_SCHEDULE` | 기본 `weather,holidays,care` (`post` 추가 가능, 빈 값이면 자동 실행 끔) | 선택 | 워커 자동 실행 그룹 |
-| `OSM_PBF_URL` · `WALK_SPEED_MPS` · `WALK_LIMIT_M` · `WALK_MINUTES` | 키 없음 — 기본 Geofabrik 한국 추출본(약 275MiB, ODbL), 0.8m/s, 3000m, 30분 | 선택 | 걸어서 지표 |
+| `OSM_PBF_URL` · `WALK_LIMIT_M` · `WALK_SNAP_MAX_M` | 키 없음 — 기본 Geofabrik 한국 추출본(약 275MiB, ODbL), 탐색 한도 3000m, 도로에서 1000m 넘게 먼 점 제외. 걷는 속도 0.8m/s·30분 기준은 화면 문구에 맞춰 고정 | 선택 | 걸어서 지표 |
 
 ---
 

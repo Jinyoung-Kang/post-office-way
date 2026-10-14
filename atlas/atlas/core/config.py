@@ -1,4 +1,4 @@
-"""설정 — 환경변수 / 저장소 루트 .env 에서 읽습니다. 키는 서버 코드에서만 사용."""
+"""설정 — 환경변수에서 읽습니다(컨테이너는 compose 가 넘긴 변수만, 호스트 개발은 저장소 루트 .env 도). 키는 서버 코드에서만 사용."""
 from __future__ import annotations
 
 from functools import lru_cache

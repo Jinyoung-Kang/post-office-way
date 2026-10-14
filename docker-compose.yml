@@ -40,6 +40,13 @@ x-atlas-env: &atlas-env
   KAKAO_CALL_DELAY_MS: ${KAKAO_CALL_DELAY_MS:-60}
   TZ: Asia/Seoul
 
+# ② 도보 — OSM 을 받고 도보 거리를 계산하는 worker·collector 만. 기본값은 core/config.py 와 같게(tests/unit/test_compose_env.py).
+# 걷는 속도(0.8m/s)·'N분 안'(30분)은 화면 문구가 고정이라 설정으로 두지 않음
+x-walk-env: &walk-env
+  OSM_PBF_URL: ${OSM_PBF_URL:-https://download.geofabrik.de/asia/south-korea-latest.osm.pbf}
+  WALK_LIMIT_M: ${WALK_LIMIT_M:-3000}
+  WALK_SNAP_MAX_M: ${WALK_SNAP_MAX_M:-1000}
+
 services:
   db:
     restart: unless-stopped
@@ -132,7 +139,7 @@ services:
       migrate: { condition: service_completed_successfully }
       redis: { condition: service_healthy }
     environment:
-      <<: *atlas-env
+      <<: [*atlas-env, *walk-env]
       # 워커 DB 세션의 문장 시간 제한 — 잠금에 걸리거나 멈춘 쿼리가 차선을 영원히 막지 않게 (가장 긴 계산 문장은 20초 안팎)
       DB_STATEMENT_TIMEOUT_MS: ${DB_STATEMENT_TIMEOUT_MS:-1800000}
     command: ["worker"]
@@ -160,7 +167,7 @@ services:
       db: { condition: service_healthy }
       redis: { condition: service_healthy }
     environment:
-      <<: *atlas-env
+      <<: [*atlas-env, *walk-env]
     volumes:
       # discover 결과(seed/area_codes.csv)와 스모크 응답을 호스트에 남깁니다.
       - ./seed:/app/seed
