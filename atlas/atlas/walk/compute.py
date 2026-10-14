@@ -156,7 +156,7 @@ def run_walk(calc_run_id: str | None = None, graph=None) -> dict[str, Any]:
             # (같은 트랜잭션 안에서 넣은 행도 ANALYZE 가 표본으로 셈)
             c.execute(text("ANALYZE mart.oa_walk"))
             c.execute(text("ANALYZE mart.bank_impact"))
-            _metrics(c, rid, levels, limit, within)
+            _metrics(c, rid, year, levels, limit, within)
             _bank_impact(c, rid, within)
             c.execute(text("""UPDATE mart.walk_run SET status = 'DONE', stats = CAST(:s AS jsonb), finished_at = now(),
                                      speed_mps = :sp, limit_m = :lim, graph = CAST(:g AS jsonb), error = NULL, job_id = :j
@@ -173,8 +173,9 @@ def run_walk(calc_run_id: str | None = None, graph=None) -> dict[str, Any]:
         raise
 
 
-def _metrics(c, rid: uuid.UUID, levels: list[int], limit: float, within: float) -> None:
-    """지역 지표 — 3km 안에서 닿지 않는 집계구는 거리 3km(하한)로, 30분 밖으로 셈."""
+def _metrics(c, rid: uuid.UUID, year: int, levels: list[int], limit: float, within: float) -> None:
+    """지역 지표 — 3km 안에서 닿지 않는 집계구는 거리 3km(하한)로, 30분 밖으로 셈.
+    지역은 그 계산 실행의 경계 연도로만 — 경계는 해마다 쌓이므로 연도 없이 조인하면 지역마다 해 수만큼 행이 늘어남."""
     c.execute(text("DELETE FROM mart.access_metric WHERE calc_run_id = :r AND metric_code = ANY(:m)"),
               {"r": rid, "m": list(WALK_METRICS)})
     c.execute(text("""
@@ -196,12 +197,12 @@ def _metrics(c, rid: uuid.UUID, levels: list[int], limit: float, within: float) 
                        sum(pop) FILTER (WHERE post_m > :w) AS no_fin,
                        sum(pop) FILTER (WHERE least(post_m, bank_m) > :w) AS no_cash
                   FROM walk_oa GROUP BY 1) g
-             JOIN mart.admin_area a ON a.adm_cd = g.adm_cd AND a.level = :lvl
+             JOIN mart.admin_area a ON a.adm_cd = g.adm_cd AND a.stat_year = :y AND a.level = :lvl
              CROSS JOIN LATERAL (VALUES ('POPW_FIN_WALK_M', round(CAST(g.popw AS numeric), 1)),
                                         ('WALK30_NO_FIN_PPLTN', coalesce(g.no_fin, 0)),
                                         ('WALK30_NO_FIN_SHARE', round(CAST(100.0 * coalesce(g.no_fin, 0) / nullif(g.pop, 0) AS numeric), 1)),
                                         ('WALK30_NO_CASH_PPLTN', coalesce(g.no_cash, 0))) m(code, v)
-             WHERE g.pop > 0"""), {"r": rid, "lvl": level, "w": within})
+             WHERE g.pop > 0"""), {"r": rid, "y": year, "lvl": level, "w": within})
     # 순위·백분위 — 지표 계산과 같은 SQL (전체 다시 매겨도 수 초)
     from atlas.calc.runner import run_sql_file
 

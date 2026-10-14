@@ -163,3 +163,24 @@ def test_stale_graph_version_is_not_used(terrain, engine, monkeypatch, tmp_path)
     out = compute.run_walk()
     assert "skipped" in out and "make osm" in out["skipped"]
 
+
+
+def test_walk_with_two_boundary_years(terrain, engine):
+    """경계를 두 해 적재해 둔 상태(연례 갱신 — 이전 해 행은 지우지 않음)에서도 도보 지표가 그 해 경계로 한 번씩만 들어가야 함.
+    예전에는 admin_area 를 연도 없이 조인해 같은 (계산, 지역, 지표)가 두 번 INSERT 되어 PK 위반으로 도보 계산이 늘 실패했음."""
+    from atlas.walk.compute import WALK_METRICS, run_walk
+
+    with engine.begin() as c:
+        c.execute(text("""
+            INSERT INTO mart.admin_area (adm_cd, stat_year, adm_nm, level, parent_cd, geom, geom_5179, geom_simple,
+                                         rep_point, rep_point_5179, src_crs)
+            SELECT adm_cd, 2025, adm_nm, level, parent_cd, geom, geom_5179, geom_simple, rep_point, rep_point_5179, src_crs
+              FROM mart.admin_area WHERE stat_year = 2024"""))
+        add_oa(c, "99010010000001", 5_000, 3_000, 100)
+    rid = run_calc(stat_year=2024, levels=[2])
+    run_walk(str(rid), graph=grid_graph(engine))
+    with engine.connect() as c:
+        assert c.execute(text("SELECT status FROM mart.walk_run WHERE calc_run_id = :r"), {"r": rid}).scalar() == "DONE"
+        assert c.execute(text("""SELECT count(*) FROM mart.access_metric
+                                  WHERE calc_run_id = :r AND adm_cd = '99010' AND metric_code = ANY(:m)"""),
+                         {"r": rid, "m": list(WALK_METRICS)}).scalar() == len(WALK_METRICS)
