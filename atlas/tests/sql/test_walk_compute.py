@@ -184,3 +184,51 @@ def test_walk_with_two_boundary_years(terrain, engine):
         assert c.execute(text("""SELECT count(*) FROM mart.access_metric
                                   WHERE calc_run_id = :r AND adm_cd = '99010' AND metric_code = ANY(:m)"""),
                          {"r": rid, "m": list(WALK_METRICS)}).scalar() == len(WALK_METRICS)
+
+
+def _k1_setup(engine):
+    with engine.begin() as c:
+        add_oa(c, "99010010000001", 5_000, 3_000, 100)
+        add_oa(c, "99010010000002", 1_000, 8_000, 300)
+        add_oa(c, "99010010000003", 2_000, 7_500, 50)
+        add_branch(c, "K1", 2_000, 7_000, "KB국민은행")
+        add_branch(c, "S1", 18_000, 18_000, "신한은행")
+    return run_calc(stat_year=2024, levels=[2])
+
+
+def _k1(engine, rid):
+    with engine.connect() as c:
+        return c.execute(text("""SELECT walk_now_m, coalesce(walk_lost_ppltn, 0) AS lost, reasons
+                                   FROM mart.bank_impact WHERE calc_run_id = :r AND place_id = 'K1'"""), {"r": rid}).one()
+
+
+def test_walk_rerun_clears_stale_bank_walk_values(terrain, engine, monkeypatch):
+    """같은 계산 실행을 다시 도보 계산할 때 이번에 어느 집계구의 '걸어서 가장 가까운 지점'도 아닌 지점은 도보 값이 비어야 함.
+    예전에는 이번 결과에 나온 지점만 갱신해, 빠진 지점에 이전 값·사유(NO_ALT_WALK30)·등급이 남았음."""
+    from atlas.core.config import get_settings
+    from atlas.walk.compute import run_walk
+
+    rid = _k1_setup(engine)
+    g = grid_graph(engine)
+    run_walk(str(rid), graph=g)
+    assert _k1(engine, rid).lost == 50
+    monkeypatch.setattr(get_settings(), "walk_limit_m", 400.0)      # OA3 → K1 500m 가 한도 밖
+    run_walk(str(rid), graph=g)
+    k1 = _k1(engine, rid)
+    assert k1.walk_now_m is None and k1.lost == 0 and "NO_ALT_WALK30" not in k1.reasons
+
+
+def test_walk_uses_bank_set_of_its_calc_run(terrain, engine):
+    """도보가 쓰는 은행 지점은 그 계산 실행(bank_impact)의 지점 — 계산 뒤 새로 수집된 지점이 섞이면, 그 지점을 가장 가까운
+    지점으로 둔 집계구가 영향평가에서 조용히 빠지고 지역 지표와 기준이 어긋났음."""
+    from atlas.walk.compute import run_walk
+
+    rid = _k1_setup(engine)
+    with engine.begin() as c:
+        add_branch(c, "K2", 2_000, 7_500, "우리은행")                 # 계산 뒤 OA3 바로 옆에 생긴 지점
+    run_walk(str(rid), graph=grid_graph(engine))
+    with engine.connect() as c:
+        stray = c.execute(text("""SELECT DISTINCT w.target FROM mart.oa_walk w
+                                    LEFT JOIN mart.bank_impact b ON b.calc_run_id = w.calc_run_id AND b.place_id = w.target
+                                   WHERE w.calc_run_id = :r AND w.kind = 'BANK' AND b.place_id IS NULL"""), {"r": rid}).all()
+    assert stray == [] and _k1(engine, rid).lost == 50

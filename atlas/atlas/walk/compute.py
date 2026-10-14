@@ -121,9 +121,12 @@ def run_walk(calc_run_id: str | None = None, graph=None) -> dict[str, Any]:
                 SELECT CAST(hist_id AS text), ST_X(geom), ST_Y(geom) FROM mart.post_facility_hist
                  WHERE valid_from <= :a AND (valid_to IS NULL OR valid_to > :a) AND fin_available AND NOT is_center
                  ORDER BY hist_id"""), {"a": run["facility_as_of"]}).all()
+            # 은행 지점은 그 계산 실행의 영향평가 대상(계산 때의 bank_branch_current 중 BANK) — 지금 목록을 읽으면 계산 뒤 새로 받은
+            # 지점이 섞여, 그 지점을 가장 가까운 지점으로 둔 집계구가 영향평가에서 조용히 빠지고 지역 지표와 기준이 어긋났음
             banks = c.execute(text("""
-                SELECT b.place_id, ST_X(b.geom), ST_Y(b.geom) FROM mart.bank_branch_current b
-                  JOIN mart.bank_brand bb ON bb.brand = b.brand AND bb.grp = 'BANK' ORDER BY b.place_id""")).all()
+                SELECT bi.place_id, ST_X(b.geom), ST_Y(b.geom) FROM mart.bank_impact bi
+                  JOIN mart.bank_place b ON b.place_id = bi.place_id
+                 WHERE bi.calc_run_id = :r ORDER BY bi.place_id"""), {"r": rid}).all()
         if not oa:
             raise RuntimeError("집계구 최근접(oa_nearest)이 없습니다 — 집계구 수집(make oa) 뒤 지표를 다시 계산하세요.")
         snapper = Snapper(graph.lon, graph.lat)
@@ -211,7 +214,10 @@ def _metrics(c, rid: uuid.UUID, year: int, levels: list[int], limit: float, with
 
 def _bank_impact(c, rid: uuid.UUID, within: float) -> None:
     """은행 지점 영향평가의 도보 열 — 걸어서 가장 가까운 은행 지점이 X 인 주민 기준.
-    잃는 주민 = 지금은 걸어서 30분 안에 X 가 있는데, 닫히면 30분 안에 대체 창구가 없어지는 주민."""
+    잃는 주민 = 지금은 걸어서 30분 안에 X 가 있는데, 닫히면 30분 안에 대체 창구가 없어지는 주민.
+    먼저 모두 비움 — 이번 결과에 나오지 않은 지점(어느 집계구의 '걸어서 가장 가까운 지점'도 아님)에 이전 값·사유가 남지 않게."""
+    c.execute(text("""UPDATE mart.bank_impact SET walk_now_m = NULL, walk_alt_m = NULL, walk_lost_ppltn = NULL
+                      WHERE calc_run_id = :r"""), {"r": rid})
     c.execute(text("""
         WITH oa AS (
             SELECT n.oa_cd, coalesce(n.tot_ppltn, 0) AS pop, b1.target AS x, b1.walk_m AS now_m,
