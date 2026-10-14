@@ -59,13 +59,10 @@ export default function MapPage() {
     const q = mapQueryFrom({ adm: router.query.adm, metric: router.query.metric, in: router.query.in });
     // 이 화면이 방금 주소에 쓴 값이면 다시 확대하지 않음 (지역을 누를 때마다 지도가 튀지 않게)
     if (sameMapQuery(q, written.current)) return;
+    // 바깥에서 온 주소(공유 링크·뒤로 가기·머리글의 '/')는 화면 상태 전부를 주소대로 — 시설 카드도 닫음
     const next = mapStateOf(q);
-    if (next.metric !== undefined) setMetric(next.metric);
-    if (next.level !== undefined) setLevel(next.level);
-    if (next.parent !== undefined) setParent(next.parent);
-    if (next.selected !== undefined) setSelected(next.selected);
-    if (next.focus !== undefined) setFocusCd(next.focus);
-    if (next.selected) setFacility(null);
+    setMetric(next.metric); setLevel(next.level); setParent(next.parent);
+    setSelected(next.selected); setFocusCd(next.focus); setFacility(null);
   }, [router.isReady, router.query.adm, router.query.metric, router.query.in]);
 
   // 주소를 상태에 반영한 뒤(hydrated)에만 요청 — 그 전 상태는 기본값

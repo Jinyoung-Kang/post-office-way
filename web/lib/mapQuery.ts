@@ -8,6 +8,7 @@ export const DEFAULT_METRIC = "ACCESS_GAP_SCORE";
 
 export type MapQuery = { metric?: string; adm?: string; in?: string };
 export type MapState = { metric: string; level: 2 | 3; parent: string; selected: string | null; focus: string | null };
+export const MAP_DEFAULTS: MapState = { metric: DEFAULT_METRIC, level: 2, parent: "", selected: null, focus: null };
 type RawQuery = Record<string, string | string[] | undefined>;
 
 // router.query 에서 이 화면이 쓰는 값만 (문자열이 아닌 값 — ?adm=1&adm=2 — 은 없는 것으로)
@@ -29,24 +30,32 @@ export function queryMatches(raw: RawQuery, q: MapQuery): boolean {
   return (raw.metric ?? undefined) === q.metric && (raw.adm ?? undefined) === q.adm && (raw.in ?? undefined) === q.in;
 }
 
-// 주소 → 바꿀 상태. 주소에 있는 값만 반영 (순위·개요 화면에서 ?adm=…&metric=… 으로 이동)
-export function mapStateOf(q: MapQuery): Partial<MapState> {
-  const s: Partial<MapState> = {};
-  if (q.metric) s.metric = q.metric;
-  if (q.in && !q.adm) { s.level = 3; s.parent = q.in; s.selected = null; s.focus = null; }
-  if (q.adm) {
-    if (q.adm.length > 5) { s.level = 3; s.parent = q.adm.slice(0, 5); } else { s.level = 2; s.parent = ""; }
-    s.selected = q.adm; s.focus = q.adm;
-  }
-  return s;
+// 읍면동을 고른 채 볼 범위: in 이 그 읍면동을 품는 시도(2자리)·시군구(5자리)면 in, 아니면 그 읍면동의 시군구
+function emdParent(adm: string, within: string | undefined): string {
+  return within && (within.length === 2 || within.length === 5) && adm.startsWith(within) ? within : adm.slice(0, 5);
 }
 
-// 상태 → 주소 (새로고침·공유·뒤로 가기에도 같은 화면). 값이 없는 키는 넣지 않음
+// 주소 → 화면 상태 전부 (순위·개요 화면에서 ?adm=…&metric=… 으로 이동, 뒤로 가기, 머리글의 '/' 링크).
+// 주소에 없는 값은 기본값 — 있는 값만 반영하면 파라미터 없는 '/' 로 와도 이전 지표·선택이 남았음
+export function mapStateOf(q: MapQuery): MapState {
+  const metric = q.metric || DEFAULT_METRIC;
+  if (q.adm) {
+    return q.adm.length > 5
+      ? { metric, level: 3, parent: emdParent(q.adm, q.in), selected: q.adm, focus: q.adm }
+      : { metric, level: 2, parent: "", selected: q.adm, focus: q.adm };
+  }
+  if (q.in) return { metric, level: 3, parent: q.in, selected: null, focus: null };
+  return { ...MAP_DEFAULTS, metric };
+}
+
+// 상태 → 주소 (새로고침·공유·뒤로 가기에도 같은 화면). 값이 없는 키는 넣지 않음.
+// 읍면동을 골랐을 때 in 은 그 읍면동의 시군구와 다를 때만(시도 전체를 보던 중) — 같으면 adm 으로 알 수 있음
 export function mapQueryOf(s: Pick<MapState, "metric" | "level" | "parent" | "selected">): MapQuery {
   const q: MapQuery = {};
   if (s.metric !== DEFAULT_METRIC) q.metric = s.metric;
   if (s.selected) q.adm = s.selected;
-  if (s.level === 3 && s.parent && !(s.selected && s.selected.length > 5)) q.in = s.parent;
+  const derivable = !!s.selected && s.selected.length > 5 && s.parent === s.selected.slice(0, 5);
+  if (s.level === 3 && s.parent && !derivable) q.in = s.parent;
   return q;
 }
 

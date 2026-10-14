@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cardRunOf, geojsonPathOf, mapQueryFrom, mapQueryOf, mapStateOf, queryMatches, regionPathOf, sameMapQuery } from "./mapQuery";
+import { cardRunOf, geojsonPathOf, MAP_DEFAULTS, mapQueryFrom, mapQueryOf, mapStateOf, queryMatches, regionPathOf, sameMapQuery } from "./mapQuery";
 
 describe("지도 화면 주소 읽기", () => {
   it("이 화면이 쓰는 문자열 값만 꺼냄", () => {
@@ -14,15 +14,26 @@ describe("지도 화면 주소 읽기", () => {
   });
 
   it("읍면동 지역 → 그 시군구의 읍면동 단위로", () => {
-    expect(mapStateOf({ adm: "4711155" })).toEqual({ level: 3, parent: "47111", selected: "4711155", focus: "4711155" });
+    expect(mapStateOf({ adm: "4711155" })).toEqual(
+      { metric: "ACCESS_GAP_SCORE", level: 3, parent: "47111", selected: "4711155", focus: "4711155" });
   });
 
   it("in 만 있으면 그 범위의 읍면동을 선택 없이", () => {
-    expect(mapStateOf({ in: "47" })).toEqual({ level: 3, parent: "47", selected: null, focus: null });
+    expect(mapStateOf({ in: "47" })).toEqual({ metric: "ACCESS_GAP_SCORE", level: 3, parent: "47", selected: null, focus: null });
   });
 
-  it("빈 값은 반영하지 않음", () => {
-    expect(mapStateOf({ adm: "", metric: "", in: "" })).toEqual({});
+  it("주소에 없는 값은 기본값 — 파라미터 없는 '/'(머리글 링크)로 오면 처음 화면으로", () => {
+    expect(mapStateOf({})).toEqual(MAP_DEFAULTS);
+    expect(MAP_DEFAULTS).toEqual({ metric: "ACCESS_GAP_SCORE", level: 2, parent: "", selected: null, focus: null });
+    expect(mapStateOf({ adm: "", metric: "", in: "" })).toEqual(MAP_DEFAULTS);
+    expect(mapStateOf({ metric: "FAR2KM_SHARE" })).toEqual({ ...MAP_DEFAULTS, metric: "FAR2KM_SHARE" });
+  });
+
+  it("읍면동을 고른 채 시도 전체를 보던 주소(?adm=읍면동&in=시도)는 시도 전체로", () => {
+    expect(mapStateOf({ adm: "4711155", in: "47" })).toEqual(
+      { metric: "ACCESS_GAP_SCORE", level: 3, parent: "47", selected: "4711155", focus: "4711155" });
+    expect(mapStateOf({ adm: "4711155", in: "11" }).parent).toBe("47111");     // 그 지역을 품지 않는 범위는 무시
+    expect(mapStateOf({ adm: "47190", in: "47" })).toMatchObject({ level: 2, parent: "" });   // 시군구 단위는 in 을 쓰지 않음
   });
 
   it("비교 — 같은 값인지, 주소에 그대로 있는지", () => {
@@ -50,6 +61,21 @@ describe("지도 화면 주소 쓰기", () => {
     expect(mapQueryOf({ ...base, level: 3, parent: "47" })).toEqual({ in: "47" });
     expect(mapQueryOf({ ...base, level: 3, parent: "47111", selected: "4711155" })).toEqual({ adm: "4711155" });
   });
+
+  it("시도 전체를 보며 읍면동을 고르면 in 도 남김 — 새로고침해도 시도 전체", () => {
+    expect(mapQueryOf({ ...base, level: 3, parent: "47", selected: "4711155" })).toEqual({ adm: "4711155", in: "47" });
+  });
+
+  it("주소로 쓰고 다시 읽으면 같은 화면", () => {
+    const states = [
+      { ...MAP_DEFAULTS },
+      { metric: "FAR2KM_SHARE", level: 2 as const, parent: "", selected: "47190", focus: "47190" },
+      { metric: "FAR2KM_SHARE", level: 3 as const, parent: "47", selected: "4711155", focus: "4711155" },
+      { metric: "ACCESS_GAP_SCORE", level: 3 as const, parent: "47111", selected: "4711155", focus: "4711155" },
+      { metric: "ACCESS_GAP_SCORE", level: 3 as const, parent: "47", selected: null, focus: null },
+    ];
+    for (const s of states) expect(mapStateOf(mapQueryOf(s))).toEqual(s);
+  });
 });
 
 describe("단계구분도 경로", () => {
@@ -67,9 +93,7 @@ describe("단계구분도 경로", () => {
   it("주소를 읽기 전에는 요청하지 않고, 읽은 뒤에는 주소의 지표로 한 번", () => {
     // ?adm=47190&metric=FAR2KM_SHARE 첫 렌더: 상태는 아직 기본값 — 기본 지표 전국 GeoJSON 을 받으면 안 됨
     expect(geojsonPathOf({ metric: "ACCESS_GAP_SCORE", level: 2, parent: "" }, false)).toBeNull();
-    const s = { metric: "ACCESS_GAP_SCORE", level: 2 as const, parent: "", selected: null, focus: null,
-      ...mapStateOf({ adm: "47190", metric: "FAR2KM_SHARE" }) };
-    expect(geojsonPathOf(s, true)).toBe("/areas/geojson?level=2&metric=FAR2KM_SHARE");
+    expect(geojsonPathOf(mapStateOf({ adm: "47190", metric: "FAR2KM_SHARE" }), true)).toBe("/areas/geojson?level=2&metric=FAR2KM_SHARE");
   });
 });
 
