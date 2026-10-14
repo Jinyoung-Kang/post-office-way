@@ -41,11 +41,12 @@ function within<T>(p: Promise<T>, ms = 300): Promise<T | "아직 기다림"> {
 }
 
 let loadKakao: () => Promise<unknown>;
+let RETRY_AFTER_MS: number;
 beforeEach(async () => {
   vi.resetModules();
-  ({ loadKakao } = await import("./kakao"));
+  ({ loadKakao, RETRY_AFTER_MS } = await import("./kakao"));
 });
-afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
+afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); vi.restoreAllMocks(); });
 
 describe("카카오 지도 SDK 로더", () => {
   it("본체 스크립트가 막히면(로드 실패) 거부하고, 다시 부르면 로더를 다시 붙이지 않고 본체만 다시 받음", async () => {
@@ -59,7 +60,12 @@ describe("카카오 지도 SDK 로더", () => {
     expect(listeners.error?.size ?? 0).toBe(0);                   // 기다리던 리스너 정리
     expect(listeners.securitypolicyviolation?.size ?? 0).toBe(0);
 
-    expect(await within(loadKakao())).toBe(win.kakao);           // 같은 SPA 세션에서 다시 시도
+    // 실패 직후에는 렌더마다 다시 시도하지 않고 같은 거부 (MapWarmup 이 렌더마다 부름)
+    await expect(within(loadKakao())).rejects.toThrow(/카카오 지도/);
+    expect(win.kakao!.maps.load).toHaveBeenCalledTimes(1);
+    const now = Date.now();
+    vi.spyOn(Date, "now").mockReturnValue(now + RETRY_AFTER_MS + 1);
+    expect(await within(loadKakao())).toBe(win.kakao);           // 잠시 뒤 같은 SPA 세션에서 다시 시도
     expect(appended.filter((e) => e.src.includes("sdk.js"))).toHaveLength(1);
     expect(fetch).toHaveBeenCalledTimes(1);
     expect(win.kakao!.maps.load).toHaveBeenCalledTimes(2);

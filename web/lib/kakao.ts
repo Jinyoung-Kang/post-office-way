@@ -4,6 +4,11 @@ declare global {
 }
 
 let loading: Promise<any> | null = null;
+let failed: { at: number; promise: Promise<any> } | null = null;
+
+// 실패한 뒤 이 시간 안에는 다시 시도하지 않고 같은 거부를 돌려줌 — 지도 화면은 렌더마다 loadKakao 를 부르므로(MapWarmup)
+// 바로 다시 시도하면 렌더마다 본체 요청·20초 타이머가 새로 생겼음
+export const RETRY_AFTER_MS = 15_000;
 
 const SDK_TIMEOUT_MS = 20_000;     // 아무 신호 없이 본체가 오지 않을 때의 마지막 수단
 const BODY_BLOCKED = "카카오 지도 본체를 불러오지 못했습니다. 광고 차단 프로그램·보안 정책(CSP)·네트워크를 확인한 뒤 다시 시도하세요.";
@@ -57,6 +62,7 @@ export function loadKakao(): Promise<any> {
   if (typeof window === "undefined") return Promise.reject(new Error("browser only"));
   if (window.kakao?.maps?.LatLng) return Promise.resolve(window.kakao);
   if (loading) return loading;
+  if (failed && Date.now() - failed.at < RETRY_AFTER_MS) return failed.promise;
   loading = (async () => {
     // 다시 시도할 때 로더(sdk.js)를 이미 받았으면 다시 붙이지 않고 본체만 다시 요청
     if (typeof window.kakao?.maps?.load !== "function") {
@@ -82,8 +88,9 @@ export function loadKakao(): Promise<any> {
     await waitForMaps();
     return window.kakao;
   })();
-  loading.catch(() => { loading = null; });
-  return loading;
+  const attempt = loading;
+  attempt.catch(() => { failed = { at: Date.now(), promise: attempt }; loading = null; });
+  return attempt;
 }
 
 /** GeoJSON (Multi)Polygon → 카카오 Polygon path 목록 (파트마다 [외곽, 구멍…]) */
