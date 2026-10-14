@@ -46,9 +46,11 @@ def install(app: FastAPI) -> None:
 
     @app.exception_handler(StarletteHTTPException)
     async def _http(request: Request, exc: StarletteHTTPException):
-        code = {404: "NOT_FOUND", 405: "METHOD_NOT_ALLOWED", 401: "UNAUTHORIZED",
+        code = {400: "VALIDATION_ERROR", 404: "NOT_FOUND", 405: "METHOD_NOT_ALLOWED", 401: "UNAUTHORIZED",
                 413: "PAYLOAD_TOO_LARGE"}.get(exc.status_code, "HTTP_ERROR")
-        return JSONResponse(_body(request, code, str(exc.detail)), status_code=exc.status_code)
+        # FastAPI 는 본문 해석 실패 중 JSON 문법 오류가 아닌 것(UTF-8 오류·깊은 중첩)을 HTTPException(400, 영어)으로 냄
+        msg = "요청 본문을 해석할 수 없습니다." if exc.status_code == 400 else str(exc.detail)
+        return JSONResponse(_body(request, code, msg), status_code=exc.status_code)
 
     # 안전망: 입력값 때문에 DB 가 거부한 경우(숫자 범위 초과·형식 오류)는 서버 오류가 아니라 잘못된 요청 (fuzz 로 찾은 버그)
     from sqlalchemy.exc import DataError

@@ -165,3 +165,12 @@ def test_facility_status_during_lunch_break(client, engine, terrain, monkeypatch
     monkeypatch.setattr(facilities, "now_kst", lambda: datetime(2026, 9, 29, 12, 10))
     st = client.get(f"/api/v1/facilities/{terrain['F2']}").json()["status"]
     assert st["state"] == "lunch" and "13:00" in st["label"]
+
+
+@pytest.mark.parametrize("body", [b'{"removeHistIds":["\xff"]}', b"[" * 10000])
+def test_unparseable_body_is_validation_error(client, body):
+    """본문을 해석할 수 없으면(UTF-8 오류·깊은 중첩) 다른 잘못된 JSON 과 같은 400 VALIDATION_ERROR·한국어 — 예전에는 FastAPI 가
+    낸 400 이 코드 표에 없어 HTTP_ERROR·'There was an error parsing the body' 로 나가 클라이언트가 코드로 구분할 수 없었음."""
+    r = client.post("/api/v1/whatif", content=body, headers={"Content-Type": "application/json"})
+    assert r.status_code == 400 and r.json()["code"] == "VALIDATION_ERROR"
+    assert "parsing" not in r.json()["message"]
