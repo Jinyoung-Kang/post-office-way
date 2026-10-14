@@ -122,7 +122,8 @@ def _care(_: dict[str, Any]) -> dict[str, Any]:
 def _holidays(p: dict[str, Any]) -> dict[str, Any]:
     from atlas.collector.datago.holiday import collect_holidays
 
-    return _ids(collect_holidays(years=p.get("years")))
+    years = p.get("years")
+    return _ids(collect_holidays(years=[years] if isinstance(years, int) else years))   # 해 하나(2027)도 받음
 
 
 def _calc(p: dict[str, Any]) -> dict[str, Any]:

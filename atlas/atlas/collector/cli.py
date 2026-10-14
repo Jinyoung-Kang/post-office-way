@@ -26,6 +26,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from typing import Any
 
 from sqlalchemy import text
 
@@ -179,11 +180,41 @@ def cmd_worker_check(a: argparse.Namespace) -> int:
     return 1
 
 
+# 숫자처럼 보여도 문자열인 매개변수 — 지역코드 목록(scope=100,101)·실행 id
+_STRING_PARAMS = {"scope", "resume", "calcRunId"}
+
+
+def parse_params(pairs: list[str]) -> dict[str, Any]:
+    """--param k=v → API(JSON)와 같은 형으로: false→False, 500→500, [2027]→목록. JSON 이 아니면 문자열 그대로.
+    예전에는 모두 문자열이라 refresh=false 가 참(집계구 전체 재수집), maxCalls=500 이 TypeError 였음."""
+    out: dict[str, Any] = {}
+    for kv in pairs:
+        if "=" not in kv:
+            raise ValueError(f"--param 은 key=value 입니다: {kv}")
+        k, v = kv.split("=", 1)
+        try:
+            out[k] = v if k in _STRING_PARAMS else json.loads(v)
+        except json.JSONDecodeError:
+            out[k] = v
+    return out
+
+
 def cmd_enqueue(a: argparse.Namespace) -> int:
     from atlas.jobs import queue, registry
 
-    registry.get(a.kind)
-    params = dict(kv.split("=", 1) for kv in a.param or [])
+    try:
+        spec = registry.get(a.kind)
+    except KeyError:
+        print(f"오류: 작업 종류는 {', '.join(sorted(registry.JOBS))} 중 하나입니다.", file=sys.stderr)
+        return 2
+    if miss := spec.missing():                   # API 의 KEY_MISSING 과 같은 판단 — 워커에서 실패하기 전에
+        print(f"오류: .env 에 {', '.join(miss)} 가 없습니다.", file=sys.stderr)
+        return 2
+    try:
+        params = parse_params(a.param or [])
+    except ValueError as e:
+        print(f"오류: {e}", file=sys.stderr)
+        return 2
     try:
         jid = queue.enqueue(a.kind, params, source="cli", requested_by="cli")
     except queue.JobConflict as e:
@@ -261,7 +292,7 @@ def build_parser() -> argparse.ArgumentParser:
     wc.set_defaults(fn=cmd_worker_check)
     q = sub.add_parser("enqueue", help="작업을 큐에 넣기 (워커가 실행)")
     q.add_argument("kind")
-    q.add_argument("--param", action="append", help="key=value")
+    q.add_argument("--param", action="append", help="key=value — 값은 JSON 으로 해석(false·500·[2027]), 아니면 문자열")
     q.set_defaults(fn=cmd_enqueue)
     j = sub.add_parser("jobs", help="최근 작업")
     j.add_argument("--limit", type=int, default=20)
