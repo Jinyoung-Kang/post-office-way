@@ -152,3 +152,16 @@ def test_region_codes_reject_non_ascii_digits(client, path):
 def test_plan_scope_rejects_non_ascii_digits(client):
     r = client.post("/api/v1/plan/close", json={"scope": "²²", "k": 1, "weight": "aged65"})
     assert r.status_code == 400 and r.json()["code"] == "VALIDATION_ERROR"
+
+
+def test_facility_status_during_lunch_break(client, engine, terrain, monkeypatch):
+    """점심 휴무 우체국의 상세 상태 — 점심시간이면 'lunch'(화면은 '영업 중' 초록이 아님)."""
+    from datetime import datetime
+
+    from atlas.features import facilities
+
+    with engine.begin() as c:
+        c.execute(text("UPDATE mart.post_facility_hist SET lunch_time = '12:00~13:00' WHERE hist_id = :h"), {"h": terrain["F2"]})
+    monkeypatch.setattr(facilities, "now_kst", lambda: datetime(2026, 9, 29, 12, 10))
+    st = client.get(f"/api/v1/facilities/{terrain['F2']}").json()["status"]
+    assert st["state"] == "lunch" and "13:00" in st["label"]

@@ -35,8 +35,10 @@ def holiday_run(d: date, holidays: dict[date, str]) -> list[date]:
     return [lo + timedelta(days=i) for i in range((hi - lo).days + 1)]
 
 
-def business_status(finance_time: str | None, now: datetime, hol: dict[date, str]) -> dict[str, Any]:
-    """금융 창구 기준 지금 상태 — open / before / after / closed(휴무일) / unknown."""
+def business_status(finance_time: str | None, now: datetime, hol: dict[date, str],
+                    lunch_yn: str | None = None, lunch_time: str | None = None) -> dict[str, Any]:
+    """금융 창구 기준 지금 상태 — open / lunch(점심 휴무 시간) / before / after / closed(휴무일) / unknown.
+    점심 휴무(lunch_yn='Y', 지표 LUNCH_CLOSED_RATIO 와 같은 해석)이고 점심 시간 형식이 맞을 때만 lunch."""
     st = day_status(now.date(), hol)
     if st["closed"]:
         return {"state": "closed", "label": f"오늘 휴무 · {st['reason']}", "reason": st["reason"]}
@@ -48,4 +50,7 @@ def business_status(finance_time: str | None, now: datetime, hol: dict[date, str
         return {"state": "before", "label": f"영업 전 · {tr.start_str} 시작", "reason": None}
     if t >= tr.end_min:
         return {"state": "after", "label": f"오늘 영업 종료 · {tr.end_str}까지", "reason": None}
+    lunch = parse_range(lunch_time) if lunch_yn == "Y" else None
+    if lunch and not lunch.is_zero and lunch.start_min <= t < lunch.end_min:
+        return {"state": "lunch", "label": f"점심시간 · {lunch.end_str} 다시 열림", "reason": None}
     return {"state": "open", "label": f"영업 중 · {tr.end_str}까지", "reason": None}

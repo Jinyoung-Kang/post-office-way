@@ -70,6 +70,18 @@ def test_business_status():
     assert business_status(None, datetime(2026, 9, 29, 10), hol)["state"] == "unknown"
 
 
+def test_business_status_lunch_break():
+    """점심 휴무(lunch_yn=Y)인 우체국은 점심시간에 '영업 중'이 아님 — 예전에는 금융 시간만 봐서 금융 우체국 82%(1,964곳)가
+    점심시간에도 초록 '영업 중'이었음. 점심 휴무가 아니거나(N) 점심 시간 형식이 틀리면 지금처럼 금융 시간만."""
+    day = datetime(2026, 9, 29)
+    st = lambda h, m, yn="Y", lt="12:00~13:00": business_status("09:00~16:30", day.replace(hour=h, minute=m), {},  # noqa: E731
+                                                                 lunch_yn=yn, lunch_time=lt)
+    assert st(11, 59)["state"] == "open"
+    assert st(12, 0) == {"state": "lunch", "label": "점심시간 · 13:00 다시 열림", "reason": None}
+    assert st(12, 59)["state"] == "lunch" and st(13, 0)["state"] == "open"
+    assert st(12, 10, yn="N")["state"] == "open" and st(12, 10, lt="점심")["state"] == "open"
+
+
 def test_scheduler_due_and_next():
     entries = scheduler.enabled("weather,care")
     assert {e.kind for e in entries} == {"kma", "air", "care"}

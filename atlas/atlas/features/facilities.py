@@ -85,7 +85,8 @@ def facility_detail(c: Connection, hist_id: int) -> dict[str, Any]:
     hol = calendar.holidays(c, now.date(), now.date())
     out = facility_json(dict(r))
     out["hub"] = hub
-    out["status"] = business_status(r["finance_time"], now, hol) if r["fin_available"] else None
+    out["status"] = (business_status(r["finance_time"], now, hol, r["lunch_yn"], r["lunch_time"])
+                     if r["fin_available"] else None)
     out["validTo"] = jsonable(r["valid_to"])
     out["coordSource"] = r["coord_source"]
     out["geocheck"] = jsonable({"status": geo["status"], "distM": geo["dist_m"], "addrLat": geo["addr_lat"],
