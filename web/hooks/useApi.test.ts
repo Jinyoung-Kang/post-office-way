@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { startRequest, type Outcome } from "./useApi";
+import { startRequest, tableView, type Outcome } from "./useApi";
 import { ApiError, clearApiCache } from "@/lib/api";
 
 // fetch 를 손으로 끝내는 가짜 — 응답 순서를 바꿔 '늦게 온 이전 응답'을 만들어 봄
@@ -51,5 +51,17 @@ describe("startRequest", () => {
     calls[0].resolve({ items: [] });
     await tick(); await tick();
     expect(got).toEqual([{ data: { items: [] }, error: null }]);
+  });
+});
+
+describe("tableView — 표가 보일 것", () => {
+  const n = (d: { items: unknown[] }) => d.items.length;
+  it("처음 받는 중이나 실패를 '없음'으로 보이지 않게", () => {
+    expect(tableView({ data: null, error: null }, n)).toBe("loading");
+    expect(tableView({ data: null, error: new Error("점검용 실패") }, n)).toBe("error");
+  });
+  it("받았고 비었을 때만 빈 상태, 있으면 행", () => {
+    expect(tableView({ data: { items: [] }, error: null }, n)).toBe("empty");
+    expect(tableView({ data: { items: [1] }, error: null }, n)).toBe("rows");
   });
 });

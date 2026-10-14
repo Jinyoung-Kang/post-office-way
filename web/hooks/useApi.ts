@@ -22,6 +22,15 @@ export function startRequest<T>(path: string, cacheMs: number | undefined, done:
   return () => { alive = false; ctl.abort(); };
 }
 
+// 표 하나가 보일 것 — 처음 받는 중(자리 표시) · 오류 · 받았고 비어 있음 · 행. 받는 중이나 실패를 '없음'으로 보이지 않게.
+// 다시 받는 동안(keep)에는 이전 data 가 있어 이전 행을 그대로 보임
+export type TableView = "loading" | "error" | "empty" | "rows";
+export function tableView<T>(s: { data: T | null; error: Error | null }, size: (d: T) => number): TableView {
+  if (s.error) return "error";
+  if (s.data === null) return "loading";
+  return size(s.data) ? "rows" : "empty";
+}
+
 export function useApi<T>(path: string | null, { cacheMs, keep = true }: Opts = {}): ApiState<T> {
   const [s, setS] = useState<{ data: T | null; error: Error | null; loading: boolean }>(
     { data: null, error: null, loading: path !== null });

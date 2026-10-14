@@ -17,6 +17,8 @@ from _common import WEB, launch, report
 CASES = [
     # (화면, 실패시킬 API 경로 조각, 상태, 화면에 보여야 할 글자[, 오류 코드])
     ("/quality", "/api/v1/dq/summary", 500, "점검용 실패"),
+    # 이슈 목록이 실패하면 표에 '조건에 맞는 이슈가 없습니다'가 보였음(받는 중에도)
+    ("/quality", "/api/v1/dq/issues", 500, "점검용 실패"),
     ("/banks?id=NO_SUCH_PLACE", "/api/v1/banks/impact/NO_SUCH_PLACE", 404, "점검용 실패"),
     ("/overview", "/api/v1/overview", 500, "점검용 실패"),
     ("/rankings", "/api/v1/areas?", 500, "점검용 실패"),

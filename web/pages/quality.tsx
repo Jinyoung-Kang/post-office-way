@@ -1,6 +1,7 @@
 import { useState } from "react";
 import Layout, { Card, Empty, ErrorBox, Hero, Segmented } from "@/components/Layout";
-import { useApi } from "@/hooks/useApi";
+import { tableView, useApi } from "@/hooks/useApi";
+import { TableSkeleton } from "@/components/Skeleton";
 import { qs, type Page } from "@/lib/api";
 import { dt, num, short } from "@/lib/format";
 import JobsPanel from "@/components/JobsPanel";
@@ -38,13 +39,17 @@ export default function Quality() {
   // 머리글 배지와 같은 요청을 하나로 (운영 화면이라 짧게)
   const sumQ = useApi<Summary>("/dq/summary", { cacheMs: 5_000 });
   const sum = sumQ.data;
-  const runs = useApi<Page<CollectRun>>("/meta/collect-runs?size=12").data?.items ?? [];
-  const calcs = useApi<Page<CalcRun>>("/meta/calc-runs?size=5").data?.items ?? [];
+  // 받는 중·실패를 빈 표로 보이지 않게 — 받는 중은 자리 표시, 실패는 오류 상자 (tableView)
+  const runsQ = useApi<Page<CollectRun>>("/meta/collect-runs?size=12");
+  const calcsQ = useApi<Page<CalcRun>>("/meta/calc-runs?size=5");
+  const runs = runsQ.data?.items ?? [];
+  const calcs = calcsQ.data?.items ?? [];
   const sel = filter.run;
   const issuesQ = useApi<Page<Issue>>(`/dq/issues${qs({ collectRunId: sel?.scope === "collect" ? sel.runId : undefined,
     calcRunId: sel?.scope === "calc" ? sel.runId : undefined, checkCode: filter.code, severity: filter.severity,
     scope: filter.scope, page: filter.page, size: 30 })}`);
   const issues = issuesQ.data;
+  const issuesView = tableView(issuesQ, (d) => d.items.length);
   const err = (sumQ.error ?? issuesQ.error)?.message ?? null;
 
   return (
@@ -97,7 +102,9 @@ export default function Quality() {
               options={[{ value: "latest", label: "최신 run" }, { value: "all", label: "전체 기록" }]} />
             <button className="btn-ghost" onClick={() => setFilter({ scope: "latest", page: 1 })}>초기화</button>
           </div>}>
-          {issues && issues.items.length ? (
+          {issuesView === "loading" ? <TableSkeleton rows={5} />
+          : issuesView === "error" ? <div className="px-6 pb-6"><ErrorBox error={issuesQ.error?.message ?? ""} /></div>
+          : issues && issuesView === "rows" ? (
             <div className="px-3 pb-3">
               <div className="overflow-x-auto">
                 <table className="tbl">
@@ -127,6 +134,8 @@ export default function Quality() {
 
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
           <Card title="최근 수집" pad={false}>
+            {runsQ.error ? <div className="px-6 pb-6"><ErrorBox error={runsQ.error.message} /></div>
+            : !runsQ.data ? <TableSkeleton rows={5} /> : (
             <div className="overflow-x-auto px-3 pb-3">
               <table className="tbl">
                 <thead><tr><th>종류</th><th>상태</th><th className="num">행</th><th className="num">호출</th><th>시작</th></tr></thead>
@@ -143,8 +152,11 @@ export default function Quality() {
                 </tbody>
               </table>
             </div>
+            )}
           </Card>
           <Card title="최근 계산" pad={false}>
+            {calcsQ.error ? <div className="px-6 pb-6"><ErrorBox error={calcsQ.error.message} /></div>
+            : !calcsQ.data ? <TableSkeleton rows={5} /> : (
             <div className="overflow-x-auto px-3 pb-3">
               <table className="tbl">
                 <thead><tr><th>calcRun</th><th>상태</th><th className="num">지역</th><th className="num">시설</th><th className="num">소요</th></tr></thead>
@@ -161,6 +173,7 @@ export default function Quality() {
                 </tbody>
               </table>
             </div>
+            )}
           </Card>
         </div>
       </div>
