@@ -22,6 +22,10 @@ class SgisError(RuntimeError):
         self.code, self.msg = code, msg
 
 
+class SgisHttpError(SgisError):
+    """SGIS 가 답하지 못함(HTTP 오류·시간 초과·해석 불가 응답) — SGIS 가 오류 코드로 답한 것과 달리 일시적일 수 있음."""
+
+
 def parse_timeout(v: Any) -> float:
     """accessTimeout — 문서는 '1970년 1월1일 0시부터 현재까지의 초'. 실제로 ms 로 오는 경우도 수용."""
     t = float(v)
@@ -64,7 +68,7 @@ class SgisClient:
         try:
             return json.loads(body) if body else {}
         except json.JSONDecodeError as e:
-            raise SgisError("PARSE", f"JSON 파싱 실패: {e}") from e
+            raise SgisHttpError("PARSE", f"JSON 파싱 실패: {e}") from e
 
     def get(self, path: str, params: dict[str, Any], source: str) -> dict[str, Any]:
         """토큰 만료 오류(-401)면 한 번 재발급 후 재시도."""
@@ -72,7 +76,7 @@ class SgisClient:
             res = self.fetcher.get(f"{self.base}/{path}", {"accessToken": self.token(force=attempt == 2), **params},
                                    source=source)
             if not res.ok:
-                raise SgisError(res.status, res.error or "HTTP 오류")
+                raise SgisHttpError(res.status, res.error or "HTTP 오류")
             data = self._json(res.body)
             code = data.get("errCd", 0)
             if code in TOKEN_ERRORS and attempt == 1:

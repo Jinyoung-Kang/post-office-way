@@ -190,3 +190,76 @@ def test_empty_holiday_year_keeps_existing(clean, engine, monkeypatch):
     holiday.collect_holidays(years=[2027])
     with engine.connect() as c:
         assert c.execute(text("SELECT count(*) FROM mart.holiday")).scalar_one() == 1
+
+
+# ---- SGIS 경계: 일시 오류가 직전 연도 경계로 바꾸면 안 됨 (2차 리뷰 D4) ----
+
+def _feature(cd, nm, x0):
+    ring = [[x0, 1_950_000], [x0 + 1000, 1_950_000], [x0 + 1000, 1_951_000], [x0, 1_951_000], [x0, 1_950_000]]
+    return {"type": "Feature", "properties": {"adm_cd": cd, "adm_nm": nm}, "geometry": {"type": "Polygon", "coordinates": [ring]}}
+
+
+def _run_bnd(engine, monkeypatch, bnd):
+    """실제 SgisClient(토큰·HTTP 오류 처리)를 거치게 모의 HTTP 로 — bnd(year, adm_cd) 가 httpx.Response 를 돌려줌."""
+    import httpx
+
+    from atlas.collector import http as http_mod
+    from atlas.collector.sgis import pipeline
+    from atlas.core import config
+
+    for k, v in {"SGIS_CONSUMER_KEY": "TESTKEY1", "SGIS_CONSUMER_SECRET": "TESTSECRET", "SGIS_SIDO": "all",
+                 "HTTP_RETRIES": "0"}.items():
+        monkeypatch.setenv(k, v)
+    config.get_settings.cache_clear()
+
+    def handler(req: httpx.Request):
+        if req.url.path.endswith("/auth/authentication.json"):
+            return httpx.Response(200, json={"errCd": 0, "result": {"accessToken": "TOKEN123", "accessTimeout": 9e9}})
+        return bnd(int(req.url.params["year"]), req.url.params["adm_cd"])
+
+    orig_init = http_mod.Fetcher.__post_init__
+
+    def patched(self):
+        orig_init(self)
+        self._client = httpx.Client(transport=httpx.MockTransport(handler))
+
+    monkeypatch.setattr(http_mod.Fetcher, "__post_init__", patched)
+    monkeypatch.setattr(pipeline, "_sido_list", lambda sgis, y: {"11": "서울특별시", "21": "부산광역시"})
+    rid = pipeline.collect_boundaries(year=2024, levels=[2])
+    config.get_settings.cache_clear()
+    with engine.connect() as c:
+        st, stats = c.execute(text("SELECT status, stats FROM ops.collect_run WHERE collect_run_id = :r"), {"r": rid}).one()
+        codes = [r[0] for r in c.execute(text("SELECT adm_cd FROM mart.admin_area WHERE stat_year = 2024 ORDER BY 1"))]
+    return st, stats, codes
+
+
+def test_sgis_transient_error_does_not_switch_year(clean, engine, monkeypatch):
+    """첫 시도(서울)의 2024 경계 호출이 502 면 그 시도만 실패 — 예전에는 2023 경계로 대체하고 그 연도를 모든 시도에 고정해
+    전국을 직전 연도 경계로 덮어쓰고 DONE 이었음(다른 해 코드가 섞여 남음)."""
+    import httpx
+
+    def bnd(year, cd):
+        if cd == "11" and year == 2024:
+            return httpx.Response(502)
+        feats = {("11", 2023): [_feature("11999", "서울특별시 옛구", 950_000)],
+                 ("21", 2024): [_feature("21010", "부산광역시 중구", 1_100_000)],
+                 ("21", 2023): [_feature("21999", "부산광역시 옛구", 1_100_000)]}.get((cd, year), [])
+        return httpx.Response(200, json={"errCd": 0, "features": feats})
+
+    st, stats, codes = _run_bnd(engine, monkeypatch, bnd)
+    assert codes == ["21010"]                       # 2023 코드(11999·21999)가 2024 로 들어가지 않음
+    assert st == "PARTIAL" and stats["failedCodes"] == ["11:L2"] and stats["sourceYear"] == 2024
+
+
+def test_sgis_year_without_data_falls_back(clean, engine, monkeypatch):
+    """그 해 경계가 아직 없으면(정상 응답인데 0건, 또는 SGIS 가 오류 코드로 '결과 없음') 직전 연도로 대체 — 의도된 동작 유지."""
+    import httpx
+
+    def bnd(year, cd):
+        if year == 2024:
+            return httpx.Response(200, json={"errCd": -100, "errMsg": "검색결과가 존재하지 않습니다"} if cd == "11"
+                                  else {"errCd": 0, "features": []})
+        return httpx.Response(200, json={"errCd": 0, "features": [_feature(cd + "010", "옛 경계", 950_000)]})
+
+    st, stats, codes = _run_bnd(engine, monkeypatch, bnd)
+    assert st == "DONE" and stats["sourceYear"] == 2023 and codes == ["11010", "21010"]
