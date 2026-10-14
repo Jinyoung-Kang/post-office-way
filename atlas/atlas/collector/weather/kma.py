@@ -127,24 +127,30 @@ def collect_kma(now: datetime | None = None) -> uuid.UUID:
         with ThreadPoolExecutor(max_workers=max(1, get_settings().datago_concurrency), thread_name_prefix="kma") as pool:
             futs = {pool.submit(fetch_grid, fetcher, base, nx, ny): (nx, ny) for nx, ny in grids}
             pending = set(futs)
-            while pending:
-                done, pending = wait(pending, return_when=FIRST_EXCEPTION)
-                for f in done:
-                    nx, ny = futs[f]
-                    try:
-                        hours = f.result()
-                    except DataGoStop as e:          # 키·한도 오류 — 남은 격자는 취소
-                        stats["stoppedBy"] = str(e)[:200]
-                        for p in pending:
+            try:
+                while pending:
+                    done, pending = wait(pending, return_when=FIRST_EXCEPTION)
+                    if stats["stoppedBy"] is None and any(not f.cancelled() and isinstance(f.exception(), DataGoStop) for f in done):
+                        for p in pending:            # 키·한도 오류 — 아직 시작하지 않은 격자는 취소, 돌고 있던 것은 받아 둠
                             p.cancel()
-                        pending = set()
-                        break
-                    if hours is None:
-                        stats["failedGrids"].append(f"{nx},{ny}")
-                        continue
-                    with begin() as c:               # 적재는 이 스레드에서 차례로 (DB 쓰기 경합 없음)
-                        stats["rows"] += upsert_hours(c, run_id, base, nx, ny, hours)
-                    stats["done"] += 1
+                    for f in done:                   # 끝난 것은 모두 적재한 뒤 멈춤 — 예전에는 중단을 만나면 나머지를 버렸음
+                        nx, ny = futs[f]
+                        if f.cancelled():
+                            continue
+                        try:
+                            hours = f.result()
+                        except DataGoStop as e:
+                            stats["stoppedBy"] = stats["stoppedBy"] or str(e)[:200]
+                            continue
+                        if hours is None:
+                            stats["failedGrids"].append(f"{nx},{ny}")
+                            continue
+                        with begin() as c:           # 적재는 이 스레드에서 차례로 (DB 쓰기 경합 없음)
+                            stats["rows"] += upsert_hours(c, run_id, base, nx, ny, hours)
+                        stats["done"] += 1
+            except BaseException:
+                pool.shutdown(cancel_futures=True)   # 예상 밖 오류면 남은 격자를 부르지 않음(예전에는 모두 부른 뒤 버렸음)
+                raise
         stats.update({"calls": fetcher.calls, "errors": fetcher.errors, "elapsedMs": int((time.monotonic() - t0) * 1000)})
         status = "DONE" if stats["done"] == stats["grids"] else ("PARTIAL" if stats["done"] else "FAILED")
         runs.finish_run(run_id, status, stats, error=stats["stoppedBy"] if status == "FAILED" else None)

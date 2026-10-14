@@ -121,3 +121,52 @@ def test_available_dates_window(clean, engine):
                       {"n": n, "at": at})
         got = available_dates(c, date(2026, 10, 9))
     assert got == [date(2026, 10, 9), date(2026, 10, 11), date(2026, 10, 12), date(2026, 10, 13)]
+
+
+def _kma_with(monkeypatch, fetch, grids=20):
+    from atlas.core.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "datago_concurrency", 4)
+    monkeypatch.setattr(kma, "make_fetcher", lambda *a: FakeFetcher())
+    monkeypatch.setattr(kma, "ensure_grids", lambda c, y: [(i, 1) for i in range(grids)])
+    monkeypatch.setattr(kma, "fetch_grid", lambda f, base, nx, ny: fetch(nx))
+
+
+def test_kma_stop_keeps_fetched_grids(clean, engine, monkeypatch):
+    """호출 한도(DataGoStop)로 멈춰도 그때까지 받은 격자 예보는 모두 저장 — 예전에는 끝난 결과를 임의 순서로 돌다 중단을
+    만나면 나머지를 버려, 한도를 쓴 예보 대부분이 사라졌음(datago/client 의 '이미 받은 결과는 남음'과 다름)."""
+    import time as _t
+
+    from atlas.collector.datago.client import DataGoStop
+
+    def fetch(nx):
+        if nx == 0:
+            _t.sleep(0.2)
+            raise DataGoStop("22 일일 호출 한도")
+        return {datetime(2026, 9, 24, 6): {"tmp": 20}}
+
+    _kma_with(monkeypatch, fetch)
+    for _ in range(3):                                   # 예전 결과는 집합 순서에 따라 달라 여러 번 확인
+        rid = kma.collect_kma(now=datetime(2026, 9, 24, 5, 30))
+        with engine.connect() as c:
+            st, stats = c.execute(text("SELECT status, stats FROM ops.collect_run WHERE collect_run_id = :r"), {"r": rid}).one()
+        assert stats["done"] == 19 and stats["stoppedBy"] and st == "PARTIAL"
+
+
+def test_kma_unexpected_error_cancels_remaining_calls(clean, engine, monkeypatch):
+    """예상 밖 오류면 남은 격자를 부르지 않고 끝냄 — 예전에는 남은 호출을 모두 한 뒤 결과를 버리고 FAILED 였음."""
+    import time as _t
+
+    calls = []
+
+    def fetch(nx):
+        calls.append(nx)
+        if nx == 0:
+            raise ValueError("해석할 수 없는 응답")
+        _t.sleep(0.05)
+        return {datetime(2026, 9, 24, 6): {"tmp": 20}}
+
+    _kma_with(monkeypatch, fetch, grids=40)
+    with pytest.raises(ValueError):
+        kma.collect_kma(now=datetime(2026, 9, 24, 5, 30))
+    assert len(calls) < 40
