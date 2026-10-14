@@ -1,4 +1,4 @@
-// FastAPI 호출 — 같은 출처 /api/v1 (next.config rewrites 가 api 컨테이너로 전달)
+// FastAPI 호출 — 같은 출처 /api/v1 (Next 의 프록시 라우트 pages/api/v1/[...path].ts 가 api 컨테이너로 전달)
 
 export type Meta = { calcRunId: string; statYear: number; facilityAsOf: string; [k: string]: unknown };
 

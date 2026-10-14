@@ -229,7 +229,7 @@ VISIT-1(09~18시 비·눈·더위·추위·바람·미세먼지 → 좋음/주�
 - **컨테이너**: 비루트, 읽기 전용 루트 FS + tmpfs, `cap_drop: ALL`, `no-new-privileges`.
 - **비밀값**: 키는 `.env`(git 제외)에만, 원본 응답은 키 마스킹 후 저장. CI 가 gitleaks·pip-audit·npm audit 로 막음(현재 취약점 0건).
   GitHub CodeQL·비밀값 스캔·푸시 보호·Dependabot 보안 업데이트.
-- **입력**: 범위를 넘는 값은 400 (퍼징 654건에서 5xx 0), 오류 로그에는 SQL·바인드 값을 남기지 않음.
+- **입력**: 범위를 넘는 값은 400 (퍼징 658건에서 5xx 0), 오류 로그에는 SQL·바인드 값을 남기지 않음.
 
 ## 7. 성능 (ADR-014, [벤치마크](docs/benchmarks.md))
 

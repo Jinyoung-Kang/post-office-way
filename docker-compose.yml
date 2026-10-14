@@ -7,7 +7,7 @@
 #   api       FastAPI :8100 — 최소 권한 역할 atlas_api 로 접속. 조회·What-if·작업 요청만 (ADR-012)
 #   worker    작업 큐 실행 + 스케줄러 (예보·공휴일·약국/병의원 자동 갱신)
 #   collector 배치 전용 (profile: batch) — make collect / make sgis / make calc / make test
-#   web       Next.js 15 :3100 — 모든 화면. /api/v1 은 같은 출처로 api 에 프록시
+#   web       Next.js 16 :3100 — 모든 화면. /api/v1 은 같은 출처로 api 에 프록시
 #
 # 모든 포트는 127.0.0.1 에만 바인딩합니다(NFR-06). 기존 매크로 대시보드
 # (3000/8080/8000/5432/6379)와 동시에 띄울 수 있도록 번호를 옮겼습니다.

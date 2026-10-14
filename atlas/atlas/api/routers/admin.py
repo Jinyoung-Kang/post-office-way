@@ -64,7 +64,7 @@ def _enqueue(request: Request, kind: str, params: dict) -> JSONResponse:
                         status_code=202)
 
 
-@router.post("/jobs", status_code=202, summary="작업 요청 — 워커가 실행 (kind: post·sgis·kosis·oa·banks·road·geocheck·kma·air·care·holidays·calc)")
+@router.post("/jobs", status_code=202, summary=f"작업 요청 — 워커가 실행 (kind: {'·'.join(registry.JOBS)})")   # 목록은 registry 에서
 def post_job(req: JobRequest, request: Request, x_admin_token: str | None = Header(None)):
     _auth(x_admin_token)
     return _enqueue(request, req.kind, req.params)

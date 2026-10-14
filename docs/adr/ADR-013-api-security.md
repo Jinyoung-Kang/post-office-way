@@ -8,9 +8,9 @@
 | 속도 제한 | Redis 고정 1분 창(`INCR`+`EXPIRE`, 파이프라인). 관리 10/분(토큰 대입 방지), What-if·배치 제안 30/분(계산 비용), 나머지 600/분. 429 + `Retry-After`·`X-RateLimit-*`. Redis 가 없으면 통과(fail-open, 캐시와 같은 선택 요소) |
 | 클라이언트 IP | 브라우저 → web(Next 프록시) → api 구조라 api 가 보는 주소는 web 컨테이너. **신뢰 프록시 대역(`TRUSTED_PROXIES`)에서 온 요청만** `X-Forwarded-For` 를 보고, **오른쪽부터 신뢰 대역을 건너뛴 첫 주소**를 씀. web 의 프록시 라우트(`pages/api/v1/[...path].ts`)는 받은 XFF 를 버리고 실제 접속 주소로 덮어씀. uvicorn `--no-proxy-headers` 로 이중 해석 방지 (2026-10-08 보완 — 아래) |
 | 보안 헤더 (API) | `nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, `CORP: same-origin`, JSON 응답 CSP `default-src 'none'`, 관리 API·POST 는 `Cache-Control: no-store` |
-| 보안 헤더 (웹) | CSP — 스크립트는 자기 출처 + 카카오 지도 SDK(`dapi.kakao.com`, `*.daumcdn.net`)만, `object-src 'none'`, `frame-ancestors 'none'`, `base-uri 'self'`. 스타일은 SSR style 속성·SDK 때문에 `'unsafe-inline'` 만 허용(스크립트는 인라인 불허). `Permissions-Policy`, COOP |
+| 보안 헤더 (웹) | CSP — 스크립트는 자기 출처 + 카카오 지도 SDK(`dapi.kakao.com`, 본체 `t1.kakaocdn.net`·예전 `t1.daumcdn.net`)만, `object-src 'none'`, `frame-ancestors 'none'`, `base-uri 'self'`. 스타일은 SSR style 속성·SDK 때문에 `'unsafe-inline'` 만 허용(스크립트는 인라인 불허). `Permissions-Policy`, COOP |
 | 관리 API | 토큰 상수 시간 비교, 작업 `kind` 정규식 검증 후 허용 목록 확인, 요청 IP 를 작업 행(`requested_by`)과 감사 로그(`atlas.audit`)에 기록 — 공개 작업 목록에는 IP 를 내보내지 않음 |
-| 컨테이너 | api·worker·migrate 비루트(uid 10001), web 비루트(node). `read_only` 루트 파일시스템 + `/tmp` tmpfs, `cap_drop: ALL`, `no-new-privileges`. 포트는 모두 `127.0.0.1` 바인딩 |
+| 컨테이너 | api·worker·migrate 비루트(uid 10001), web 비루트(node). api·worker·web 은 `read_only` 루트 파일시스템 + `/tmp` tmpfs(migrate 는 한 번 돌고 끝나는 컨테이너라 제외), 모두 `cap_drop: ALL`, `no-new-privileges`. 포트는 모두 `127.0.0.1` 바인딩 |
 | DB | 최소 권한 역할(ADR-012), 역할 단위 타임아웃 |
 | 공급망 | CI 에서 `pip-audit`(러너 pip·setuptools 포함)·`npm audit --audit-level=high`·gitleaks(전체 이력) 실패 시 병합 불가. Dependabot 은 minor·patch 만 묶어서 주 1회(메이저·런타임 이미지 버전은 계획해서 수동) |
 
