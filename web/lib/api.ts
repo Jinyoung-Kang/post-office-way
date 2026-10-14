@@ -38,7 +38,8 @@ export type Facility = {
   finAvailable: boolean; lunchYn: string | null; lunchTime: string | null; post365Yn: string | null;
   collectedAt: string; modDt?: string | null; coordSource?: string;
   geocheck?: { status: string; distM: number | null; addrLat: number | null; addrLon: number | null; checkedAt: string } | null;
-  status?: { state: "open" | "before" | "after" | "closed" | "unknown"; label: string; reason: string | null } | null;
+  // lunch = 점심 휴무 시간대('점심시간 · 13:00 다시 열림'). 화면은 open 만 영업 중(초록)으로 표시
+  status?: { state: "open" | "lunch" | "before" | "after" | "closed" | "unknown"; label: string; reason: string | null } | null;
   hub?: FacilityHub | null;
 };
 

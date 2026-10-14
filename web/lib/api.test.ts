@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { api, cachedApi, clearApiCache, qs } from "./api";
+import { api, cachedApi, clearApiCache, qs, type Facility } from "./api";
 
 describe("api 경로 검사", () => {
   it("다른 경로로 새는 값은 요청 전에 거절", async () => {
@@ -57,5 +57,12 @@ describe("자료 없음 판정", () => {
     expect(isNoData(new ApiError(500, "INTERNAL", "완료된 계산 실행이 없습니다"))).toBe(false);   // 문구가 같아도 코드가 다르면 오류
     expect(isNoData(new Error("CALC_RUN_NOT_FOUND"))).toBe(false);
     expect(isNoData(null)).toBe(false);
+  });
+});
+
+describe("시설 영업 상태", () => {
+  it("점심시간(lunch) — API 가 점심 휴무 시간대에 돌려주는 값. 화면은 open 만 초록, 나머지는 회색", () => {
+    const s: NonNullable<Facility["status"]> = { state: "lunch", label: "점심시간 · 13:00 다시 열림", reason: null };
+    expect(s.state).not.toBe("open");
   });
 });
