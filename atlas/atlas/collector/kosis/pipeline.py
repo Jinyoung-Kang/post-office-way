@@ -17,7 +17,7 @@ from sqlalchemy import text
 from atlas.ops import runs
 from atlas.ops.dq import DQRecorder
 from atlas.collector.http import Fetcher
-from atlas.collector.kosis.matching import KosisTree, SgisArea, aged_codes, infer_parent, match
+from atlas.collector.kosis.matching import KosisTree, SgisArea, aged_codes, infer_parent, match, norm
 from atlas.core.config import get_settings
 from atlas.core.db import begin
 
@@ -117,27 +117,37 @@ def collect_kosis(year: int | None = None) -> uuid.UUID | None:
         if not total_code or not aged:
             raise KosisError("META", "연령 분류(계·65세 이상)를 찾지 못했습니다.")
         kosis_sidos = {c: n for c, n in meta_regions.items() if len(c) == 2 and c != "00"}
+        with begin() as c:
+            sido_names = dict(c.execute(text("""SELECT adm_cd, adm_nm FROM mart.area_population
+                                                WHERE stat_year = :y AND length(adm_cd) = 2"""), {"y": year}).all())
+        # SGIS 경계 연도에 이름이 있는 시도 — 이 시도가 자료를 주지 않으면 '없던 시도'가 아니라 실패
+        active = {norm(n) for n in sido_names.values()}
 
         values: dict[str, dict[str, Any]] = {}
         for sido in sorted(kosis_sidos):
             try:
                 rows = fetch_sido(fetcher, sido, [total_code, *aged], period)
-                values.update(aggregate(rows, total_code, aged))
+                got = aggregate(rows, total_code, aged)
+                if not got and norm(kosis_sidos[sido]) in active:
+                    raise KosisError("EMPTY", "자료가 비어 있습니다")
+                values.update(got)
                 stats["doneCodes"].append(sido)
             except KosisError as e:
-                if e.code == "30":  # 조회결과 없음 — 그 시점에 없던(폐지·신설) 시도
+                # 조회결과 없음(30) — SGIS 에 없는 시도(그 시점에 없던 폐지·신설 시도)면 건너뜀. SGIS 에 있는 시도가 30 을 주면
+                # (공표 전 기간·일시 이상) 실패로 — 예전에는 모두 건너뛰어, 받은 값 없이 그 해 전체를 지우고 DONE 이 되었음
+                if e.code == "30" and norm(kosis_sidos[sido]) not in active:
                     continue
                 stats["failedCodes"].append(sido)
                 with begin() as c:
                     dq.add(c, "FETCH_FAILED", "mart.area_resident_pop", sido, {"error": str(e)})
             time.sleep(0.35)  # 분당 200건 제한 안쪽
+        if not values:   # 받은 자료가 없으면 아무것도 지우지 않음 — 실패로 끝나 재계산도 이어지지 않음 (R6)
+            raise KosisError("NODATA", f"{period} 자료를 받지 못했습니다 — 공표 전 기간이거나 KOSIS_PERIOD 가 잘못되었습니다.")
 
         # 계층은 '그 시점 자료'의 코드·이름으로 만듦 (예: 화성시는 2026년 구 신설 전후로 코드가 다름)
         names = {cd: v.get("name") or meta_regions.get(cd, cd) for cd, v in values.items()}
         tree = KosisTree.build([(cd, names[cd], infer_parent(cd, names)) for cd in values])
         with begin() as c:
-            sido_names = dict(c.execute(text("""SELECT adm_cd, adm_nm FROM mart.area_population
-                                                WHERE stat_year = :y AND length(adm_cd) = 2"""), {"y": year}).all())
             sgis = [SgisArea(*r) for r in c.execute(text("""SELECT adm_cd, adm_nm, level, parent_cd FROM mart.admin_area
                                                            WHERE stat_year = :y AND level IN (2, 3)"""), {"y": year})]
             pairs = match(tree, sido_names, sgis, kosis_sidos, available=set(values))

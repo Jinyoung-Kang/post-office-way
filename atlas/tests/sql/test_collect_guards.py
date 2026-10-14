@@ -85,7 +85,9 @@ def _kosis_area(c, cd, nm, level, parent):
               {"cd": cd, "nm": nm, "lvl": level, "p": parent})
 
 
-def _run_kosis(monkeypatch, fail: set[str]):
+def _run_kosis(monkeypatch, fail: set[str], no_data: set[str] = frozenset(), empty: set[str] = frozenset(),
+               extra_sidos: dict[str, str] | None = None):
+    """fail: 일시 오류(31) · no_data: '조회결과 없음'(30) · empty: 오류 없이 빈 목록 · extra_sidos: SGIS 에 없는 KOSIS 시도"""
     from atlas.collector.kosis import pipeline
     from atlas.core import config
 
@@ -93,11 +95,16 @@ def _run_kosis(monkeypatch, fail: set[str]):
     config.get_settings.cache_clear()
     meta = [{"OBJ_ID": "A", "ITM_ID": "11", "ITM_NM": "서울특별시"}, {"OBJ_ID": "A", "ITM_ID": "11110", "ITM_NM": "종로구"},
             {"OBJ_ID": "A", "ITM_ID": "26", "ITM_NM": "부산광역시"}, {"OBJ_ID": "A", "ITM_ID": "26110", "ITM_NM": "중구"},
+            *[{"OBJ_ID": "A", "ITM_ID": cd, "ITM_NM": nm} for cd, nm in (extra_sidos or {}).items()],
             {"OBJ_ID": "B", "ITM_ID": "0", "ITM_NM": "계"}, {"OBJ_ID": "B", "ITM_ID": "70", "ITM_NM": "65 - 69세"}]
 
     def fetch_sido(_f, sido, _codes, _period):
         if sido in fail:
             raise pipeline.KosisError("31", "일시 오류")
+        if sido in no_data or sido in (extra_sidos or {}):
+            raise pipeline.KosisError("30", "데이터가 존재하지 않습니다.")
+        if sido in empty:
+            return []
         sgg = sido + "110"
         return [{"C1": sgg, "C1_NM": meta[[m["ITM_ID"] for m in meta].index(sgg)]["ITM_NM"], "C2": "0", "DT": "1000",
                  "PRD_DE": "202412"},
@@ -125,6 +132,50 @@ def test_kosis_partial_failure_keeps_failed_sido(clean, engine, monkeypatch):
     _run_kosis(monkeypatch, fail={"26"})                    # 부산만 일시 오류
     with engine.connect() as c2:
         assert resident() == {"11010": 200, "21010": 200}   # 부산(21010)의 기존 값 유지
+
+
+def _kosis_seed(engine):
+    with engine.begin() as c:
+        _kosis_area(c, "11010", "종로구", 2, "11")
+        _kosis_area(c, "21010", "중구", 2, "21")
+        c.execute(text("""INSERT INTO mart.area_population (adm_cd, stat_year, adm_nm, tot_ppltn)
+                          VALUES ('11', 2024, '서울특별시', 1), ('21', 2024, '부산광역시', 1)"""))
+
+
+def _kosis_state(engine, rid):
+    with engine.connect() as c:
+        return (dict(c.execute(text("SELECT adm_cd, aged65_ppltn FROM mart.area_resident_pop WHERE stat_year = 2024")).all()),
+                c.execute(text("SELECT status FROM ops.collect_run WHERE collect_run_id = :r"), {"r": rid}).scalar())
+
+
+def test_kosis_no_data_for_every_sido_keeps_year(clean, engine, monkeypatch):
+    """아직 공표되지 않은 기간(KOSIS_PERIOD) 등으로 모든 시도가 '조회결과 없음(30)'이면 그 해 고령인구를 지우지 않고 실패로.
+    예전에는 30 을 '그 시점에 없던 시도'로만 보고 건너뛰어, 받은 값 없이 그 해 전체를 지우고 DONE 으로 끝났음(재계산까지 이어짐)."""
+    from atlas.collector.kosis import pipeline
+
+    _kosis_seed(engine)
+    _run_kosis(monkeypatch, fail=set())
+    with pytest.raises(pipeline.KosisError):
+        _run_kosis(monkeypatch, fail=set(), no_data={"11", "26"})
+    with engine.connect() as c:
+        rid = c.execute(text("SELECT collect_run_id FROM ops.collect_run ORDER BY started_at DESC LIMIT 1")).scalar()
+    assert _kosis_state(engine, rid) == ({"11010": 200, "21010": 200}, "FAILED")
+
+
+@pytest.mark.parametrize("how", ["no_data", "empty"])
+def test_kosis_active_sido_without_data_keeps_its_values(clean, engine, monkeypatch, how):
+    """SGIS 에 있는 시도가 30 이나 빈 목록을 주면 그 시도는 실패로 보고 기존 값을 남김(일부 실패와 같은 처리)."""
+    _kosis_seed(engine)
+    _run_kosis(monkeypatch, fail=set())
+    rid = _run_kosis(monkeypatch, fail=set(), **{how: {"26"}})
+    assert _kosis_state(engine, rid) == ({"11010": 200, "21010": 200}, "PARTIAL")
+
+
+def test_kosis_sido_missing_in_sgis_is_skipped(clean, engine, monkeypatch):
+    """SGIS 경계에 이름이 없는 KOSIS 시도(그 시점에 없던 폐지·신설 시도)의 30 은 지금처럼 건너뛰고 DONE."""
+    _kosis_seed(engine)
+    rid = _run_kosis(monkeypatch, fail=set(), extra_sidos={"12": "전남광주통합특별시"})
+    assert _kosis_state(engine, rid) == ({"11010": 200, "21010": 200}, "DONE")
 
 
 # ---- D5: 공휴일 응답이 비면(아직 발표 전·일시 이상) 그 해 기존 휴일을 지우지 않음 ----
