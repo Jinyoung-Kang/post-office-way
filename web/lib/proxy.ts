@@ -35,3 +35,27 @@ export function downstreamResponseHeaders(upstream: Headers): Record<string, str
   }
   return out;
 }
+
+// 요청 본문을 API 로 어떻게 넘길지. API 는 GET·POST 만 씀(HEAD 는 GET 과 같게).
+// GET·HEAD 는 본문을 넘기지 않음 — Node 의 http.request 는 GET 에 chunked 를 붙이지 않아(transfer-encoding 은 위에서 뺌)
+// 받은 본문 바이트가 경계 없이 API 연결에 그대로 쓰였고, 그 안에 숨긴 두 번째 요청을 API 가 따로 처리했음(요청 밀반입, 리뷰 S2).
+// 본문이 붙은 GET·HEAD 는 정상 화면이 보내지 않으므로 400, 그 밖의 메서드는 API 에 보내지 않고 405.
+export const ALLOWED_METHODS = ["GET", "HEAD", "POST"] as const;
+
+export type BodyRule =
+  | { kind: "pipe" }                    // 본문을 그대로 흘려보냄(POST — Node 가 chunked 로 다시 감쌈)
+  | { kind: "none" }                    // 본문 없이 보냄
+  | { kind: "reject"; status: 400 | 405; code: string; message: string };
+
+export function requestBodyRule(method: string | undefined, headers: Headers): BodyRule {
+  const m = (method || "").toUpperCase();
+  if (m === "POST") return { kind: "pipe" };
+  if (m !== "GET" && m !== "HEAD") {
+    return { kind: "reject", status: 405, code: "METHOD_NOT_ALLOWED", message: "이 주소는 GET·POST 요청만 받습니다." };
+  }
+  const cl = headers["content-length"];
+  if (headers["transfer-encoding"] !== undefined || (cl !== undefined && Number(cl) !== 0)) {
+    return { kind: "reject", status: 400, code: "VALIDATION_ERROR", message: "GET 요청에는 본문을 보낼 수 없습니다." };
+  }
+  return { kind: "none" };
+}

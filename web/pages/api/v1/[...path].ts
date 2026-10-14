@@ -1,6 +1,6 @@
 import http from "node:http";
 import type { NextApiRequest, NextApiResponse } from "next";
-import { downstreamResponseHeaders, upstreamRequestHeaders } from "@/lib/proxy";
+import { ALLOWED_METHODS, downstreamResponseHeaders, requestBodyRule, upstreamRequestHeaders } from "@/lib/proxy";
 
 // 브라우저 → 같은 출처 /api/v1/* → FastAPI. rewrites 대신 이 프록시를 쓰는 이유는 X-Forwarded-For 를
 // 실제 접속 주소로 덮어쓰기 위해서 (lib/proxy.ts, 리뷰 S1). 본문은 읽지 않고 그대로 흘려보내고(압축·ETag·304 유지),
@@ -16,6 +16,13 @@ function fail(res: NextApiResponse, status: number, code: string, message: strin
 }
 
 export default function proxy(req: NextApiRequest, res: NextApiResponse) {
+  // GET·HEAD 본문은 API 로 넘기지 않음(요청 밀반입 방지), API 가 쓰지 않는 메서드는 보내지 않음 — lib/proxy.ts
+  const body = requestBodyRule(req.method, req.headers);
+  if (body.kind === "reject") {
+    if (body.status === 405) res.setHeader("Allow", ALLOWED_METHODS.join(", "));
+    fail(res, body.status, body.code, body.message);
+    return;
+  }
   const up = http.request({
     protocol: API.protocol, hostname: API.hostname, port: API.port, method: req.method, path: req.url,
     headers: upstreamRequestHeaders(req.headers, req.socket.remoteAddress),
@@ -31,5 +38,6 @@ export default function proxy(req: NextApiRequest, res: NextApiResponse) {
     e.message === "timeout" ? "API 응답이 너무 늦습니다." : "API 서버에 연결할 수 없습니다."));
   // 브라우저가 먼저 끊으면(페이지 이동·요청 취소) API 요청도 끊음 — GET 은 요청 본문이 이미 끝나 req 'aborted' 가 오지 않음
   res.on("close", () => { if (!res.writableFinished) up.destroy(); });
-  req.pipe(up);
+  if (body.kind === "pipe") req.pipe(up);
+  else up.end();
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clientAddress, downstreamResponseHeaders, upstreamRequestHeaders } from "./proxy";
+import { clientAddress, downstreamResponseHeaders, requestBodyRule, upstreamRequestHeaders } from "./proxy";
 
 describe("API 프록시 헤더", () => {
   it("클라이언트가 보낸 X-Forwarded-For 는 버리고 실제 접속 주소로 덮어씀", () => {
@@ -25,5 +25,24 @@ describe("API 프록시 헤더", () => {
     const h = downstreamResponseHeaders({ "content-encoding": "gzip", etag: '"x"', connection: "close",
       "transfer-encoding": "chunked", "x-ratelimit-remaining": "29" });
     expect(h).toEqual({ "content-encoding": "gzip", etag: '"x"', "x-ratelimit-remaining": "29" });
+  });
+});
+
+describe("요청 본문 규칙 (요청 밀반입 막기)", () => {
+  it("POST 만 본문을 흘려보내고, 본문 없는 GET·HEAD 는 본문 없이", () => {
+    expect(requestBodyRule("POST", { "content-length": "10" })).toEqual({ kind: "pipe" });
+    expect(requestBodyRule("GET", {})).toEqual({ kind: "none" });
+    expect(requestBodyRule("HEAD", { "content-length": "0" })).toEqual({ kind: "none" });
+  });
+
+  it("본문이 붙은 GET·HEAD 는 400", () => {
+    expect(requestBodyRule("GET", { "transfer-encoding": "chunked" })).toMatchObject({ status: 400, code: "VALIDATION_ERROR" });
+    expect(requestBodyRule("HEAD", { "content-length": "5" })).toMatchObject({ status: 400 });
+  });
+
+  it("API 가 쓰지 않는 메서드는 405", () => {
+    for (const m of ["PUT", "DELETE", "PATCH", "OPTIONS", "TRACE", undefined]) {
+      expect(requestBodyRule(m, {})).toMatchObject({ kind: "reject", status: 405, code: "METHOD_NOT_ALLOWED" });
+    }
   });
 });
