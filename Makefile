@@ -158,8 +158,10 @@ calc: env
 	$(RUN) calc $(if $(LEVELS),--levels $(LEVELS),)
 	$(RUN) collect walk     # 도보 거리(그래프가 없으면 건너뜀) — 워커로 돌린 계산은 자동으로 이어짐
 
+# seed 의 지역코드가 없으면(주석·머리글만 있거나 파일이 없으면) 먼저 discover — 예전 조건은 머리글 'code,…' 도 세어 늘 건너뛰었음
 all-data: env
-	@if [ $$(grep -cE '^[0-9cC]' seed/area_codes.csv) -eq 0 ]; then $(MAKE) discover; fi
+	@n=$$(grep -vE '^[[:space:]]*(#|code,)' seed/area_codes.csv 2>/dev/null | grep -cE '^[0-9cC]' || true); \
+	  if [ "$${n:-0}" -eq 0 ]; then $(MAKE) discover; fi
 	$(MAKE) collect
 	$(MAKE) sgis
 	$(MAKE) kosis
