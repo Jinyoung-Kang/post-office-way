@@ -15,8 +15,13 @@ export default function RegionCard({ admCd, calcRunId, highlight, onDrill, onClo
   const { data: d, error } = useApi<AreaDetail>(regionPathOf(admCd, calcRunId), { keep: false });
   const err = error?.message ?? null;
 
-  if (err) return <ErrorBox error={err} />;
-  if (!d) return <p className="p-2 text-[14px] text-ink-3">불러오는 중…</p>;
+  // 불러오는 중·실패에도 닫을 수 있게 — 지도 응답(계산 실행)을 기다리는 동안 카드가 몇 초 남을 수 있음
+  if (err || !d) return (
+    <div className="flex items-start justify-between gap-2">
+      {err ? <ErrorBox error={err} /> : <p className="p-2 text-[14px] text-ink-3">불러오는 중…</p>}
+      {onClose && <CloseButton onClick={onClose} />}
+    </div>
+  );
   const hl = d.metrics.find((m) => m.code === highlight);
 
   return (
