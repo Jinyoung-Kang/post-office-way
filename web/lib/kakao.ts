@@ -138,3 +138,12 @@ export function pinContainer(el: { style: { overflow: string }; scrollLeft: numb
   el.scrollTop = 0;
   el.style.overflow = "clip";
 }
+
+/** 컨테이너 크기가 바뀐 것을 SDK 에 알리되 중심은 그대로 — SDK 의 relayout 은 화면 왼쪽 위를 고정해서, 창을 키우거나
+ *  브라우저 창이 열리는 동안 지도가 커지면 전국이 왼쪽 위로 밀렸음(브라우저에서 확인). relayout 전의 중심은 옛 크기 기준으로
+ *  맞게 나오므로 relayout 뒤에 다시 넣음 */
+export function relayoutKeepingCenter<C>(map: { getCenter(): C; relayout(): void; setCenter(c: C): void }) {
+  const center = map.getCenter();
+  map.relayout();
+  map.setCenter(center);
+}

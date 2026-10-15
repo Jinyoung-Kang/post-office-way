@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { qs, type Bank, type CarePlace, type Facility, type Feature, type Page } from "@/lib/api";
 import { useBboxLayer } from "@/hooks/useBboxLayer";
 import { useKakaoMap } from "@/hooks/useKakaoMap";
-import { keepInside, limitView, toPaths } from "@/lib/kakao";
+import { keepInside, limitView, relayoutKeepingCenter, toPaths } from "@/lib/kakao";
 import { declutter, labelSize } from "@/lib/mapGeom";
 import { esc, placeTip, tipHtml, type TipLines } from "@/lib/mapTip";
 import { BANK_TONE, bankDot, CARE_TONE, careDot, FAC_TONE, facilityDot } from "@/lib/mapDots";
@@ -100,7 +100,7 @@ export default function AtlasMap<P extends { admCd: string; admNm: string }>(pro
     }
   }
 
-  // 컨테이너 크기가 바뀌면(패널 열고 닫기·창 크기) 지도를 다시 배치하고, 축소 한계를 새 크기에 맞춘 뒤 다시 칠함.
+  // 컨테이너 크기가 바뀌면(패널 열고 닫기·창 크기) 중심을 지킨 채 지도를 다시 배치하고, 축소 한계를 새 크기에 맞춘 뒤 다시 칠함.
   // 탭이 다시 보일 때도 다시 칠함 — 일부 브라우저는 숨은 동안의 벡터 그리기를 건너뜀.
   // 끌거나 확대·축소한 뒤(idle) 화면이 타일 범위를 넘으면 부드럽게 안으로 — 지도 끝(하늘색 띠·흰 바탕)이 보이지 않게
   useEffect(() => {
@@ -112,7 +112,7 @@ export default function AtlasMap<P extends { admCd: string; admNm: string }>(pro
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => {
         if (!el.current) return;
-        m.relayout();
+        relayoutKeepingCenter(m);
         limitView(kakao, m, el.current);
         paint();
       });

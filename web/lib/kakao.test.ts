@@ -114,3 +114,21 @@ describe("지도 컨테이너 스크롤 막기", () => {
     expect(el).toEqual({ style: { overflow: "clip" }, scrollLeft: 0, scrollTop: 0 });
   });
 });
+
+describe("컨테이너 크기가 바뀔 때 중심 유지", () => {
+  // SDK 의 relayout 은 화면 왼쪽 위를 고정함 — 400×300 → 900×650 으로 키우면 원래 중심이 새 가운데(450, 325)가 아니라
+  // (201, 149)에 남아, 창을 키우거나 브라우저 창이 열리는 동안 전국이 한쪽으로 밀렸음
+  it("relayout 전의 중심을 relayout 뒤에 다시 가운데로", async () => {
+    const { relayoutKeepingCenter } = await import("./kakao");
+    const calls: string[] = [];
+    let center = "서울";
+    const map = {
+      getCenter: () => { calls.push("getCenter"); return center; },
+      relayout: () => { calls.push("relayout"); center = "왼쪽 위 고정으로 밀린 곳"; },
+      setCenter: (c: string) => { calls.push(`setCenter:${c}`); center = c; },
+    };
+    relayoutKeepingCenter(map);
+    expect(calls).toEqual(["getCenter", "relayout", "setCenter:서울"]);
+    expect(center).toBe("서울");
+  });
+});
