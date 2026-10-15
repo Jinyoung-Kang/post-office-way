@@ -104,12 +104,11 @@ API 이미지 Python 3.13.16 · FastAPI 0.141.1 · SQLAlchemy 2.1.1 · Starlette
   - 말풍선 위치 `f9bab61`
   - 웹 테스트 96 → 117
 - 브랜치 정리: `improve/20261015`(7bcfd91)·`improve/20261015-web`(dcb31f0)·`worktree-wf_2eb748b5-abc-1`(d91dccf) 삭제.
-  `claude/*` 두 개는 그 세션의 작업 트리라 세션 보관을 정할 때까지 남김.
+  끝난 두 세션(DB 이미지 교체·shm)을 보관한 뒤 `claude/distracted-chatelet-1470a9`(9e95e3e)·`claude/quirky-bartik-4f22ce`(33a0441)도 삭제.
 - `make qa` 다시 돌림: 6종 모두 통과(8분 8초, 워커 포함 스택). 그 뒤 이 기록 커밋까지 origin/main 에 push.
 
 ## 남은 일
 - 사용자 결정(2026-10-15): Q1 문구를 은행·금고로 → d51093b(V24), Q2 문서로만 → README 3장·ADR-023, Q3 별도 작업 → 완료.
-- 끝난 두 세션(DB 이미지 교체·shm)의 보관 여부 — 보관하면 그 작업 트리도 정리되고, 뒤이어 `claude/*` 브랜치를 지울 수 있음.
 - 늘 보이는 지역 라벨이 지도 가장자리에서 잘리는 것(휴대폰 방문 여건 지도의 파주시) — 별도 작업으로 제안해 둠.
 - REPORT.md 7장의 손 확인 항목(실제 카카오 SDK 재시도, What-if 지도 실패 경로 등).
 

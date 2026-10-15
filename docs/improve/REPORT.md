@@ -328,8 +328,9 @@
   - `improve/20261015`(`7bcfd91`)
   - `improve/20261015-web`(`dcb31f0`): 14개 모두 cherry-pick 으로 main 에 같은 변경이 있음
   - `worktree-wf_2eb748b5-abc-1`(`d91dccf`)
-- `claude/distracted-chatelet-1470a9`·`claude/quirky-bartik-4f22ce` 는 끝난 두 세션(DB 이미지 교체·shm)의 작업 트리라 남겼습니다.
-  둘 다 main 에 포함돼 있고, 세션을 보관하면 작업 트리와 함께 정리할 수 있습니다.
+  - `claude/distracted-chatelet-1470a9`(`9e95e3e`)·`claude/quirky-bartik-4f22ce`(`33a0441`): 끝난 두 세션(DB 이미지 교체·shm)을 보관한 뒤 삭제.
+    둘 다 main 에 포함돼 있었음. 작업 트리 폴더는 앱이 재사용하거나 정리하도록 둠.
+- 이제 로컬 브랜치는 main 하나입니다.
 - push 전에 `.env` 값 11개가 push 할 변경에 없는 것을 확인했습니다(값은 출력하지 않음). 그 뒤 origin/main 에 push 했습니다.
 
 **남은 것**
