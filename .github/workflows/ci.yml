@@ -10,15 +10,6 @@ jobs:
   python:
     runs-on: ubuntu-24.04
     services:
-      postgis:
-        image: postgis/postgis:16-3.5
-        env:
-          POSTGRES_USER: atlas
-          POSTGRES_PASSWORD: atlas
-          POSTGRES_DB: atlas_test
-        ports: ["5432:5432"]
-        options: >-
-          --health-cmd "pg_isready -U atlas -d atlas_test" --health-interval 5s --health-timeout 5s --health-retries 20
       # 캐시·속도 제한 경로도 시험 (테스트는 15번 DB 를 테스트마다 비움)
       redis:
         image: redis:7-alpine
@@ -31,6 +22,15 @@ jobs:
       ATLAS_MIGRATIONS_DIR: ${{ github.workspace }}/db/migrations
     steps:
       - uses: actions/checkout@v7
+      # PostGIS 는 로컬과 같은 db/Dockerfile·로케일(C.UTF-8) — 서비스 컨테이너는 미리 만든 이미지만 받아 직접 빌드해 띄움 (ADR-007).
+      # 준비 확인은 TCP 로 — 첫 초기화 중 임시 서버는 소켓에서만 받다가 한 번 재시작함
+      - name: PostGIS (db/Dockerfile)
+        run: |
+          docker build -q -t atlas-db db
+          docker run -d --name postgis -p 5432:5432 -e LANG=C.UTF-8 \
+            -e POSTGRES_USER=atlas -e POSTGRES_PASSWORD=atlas -e POSTGRES_DB=atlas_test atlas-db
+          for i in $(seq 60); do docker exec postgis pg_isready -q -h 127.0.0.1 -U atlas -d atlas_test && break; sleep 2; done
+          docker exec postgis psql -U atlas -d atlas_test -Atc "SELECT version(), datcollate FROM pg_database WHERE datname = current_database()"
       - uses: actions/setup-python@v7
         with: { python-version: "3.13" }
       # 러너 기본 파이썬의 pip·setuptools 도 감사 대상이라 함께 올림

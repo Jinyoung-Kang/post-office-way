@@ -1,5 +1,20 @@
 # 변경 이력
 
+## 2026-10-15 — DB 이미지 교체: 공식 postgres 16 + PGDG PostGIS (보안판을 받을 수 있게)
+
+과정·후보 비교·되돌리기는 [DB 이미지 교체](db-image-2026-10.md), 결정은 [ADR-007](adr/ADR-007-postgis-image.md).
+
+- `imresamu/postgis:16-3.6-bookworm`(2026-02 빌드에서 멈춤 — PG 16.11·Debian 12) → `db/Dockerfile`(공식 `postgres:16-trixie` + PGDG PostGIS 3.6).
+  PostgreSQL 16.15 · PostGIS 3.6.4 · GEOS 3.14.1 · PROJ 9.8.1 · Debian 13(glibc 2.41), arm64 네이티브.
+- 데이터 디렉터리는 그대로(같은 메이저). 전체 백업·볼륨 사본을 만든 뒤 교체했고, amcheck 로 btree 355개 확인, trigram GIN 1개는 다시 만듦.
+  같은 데이터·코드로 계산을 교체 전후 두 번 돌려 지표·최근접·은행 지점 영향·도보 등 표 9개(736,765행)가 모두 같음.
+- 경계 단순화(`ST_SimplifyPreserveTopology`)는 GEOS 수정으로 고르는 꼭짓점이 일부 달라짐(차이는 허용 오차 안, 잘못된 다각형은 없어짐).
+  화면 지도는 저장된 단순화 경계를 써서 그대로이고 다음 `make sgis` 때 반영. 좌표 변환은 마지막 자리(최대 2나노미터)만 다름.
+- `make db-update` — PostgreSQL 16 마이너·Debian·PostGIS 3.6 패치 보안판 받기(캐시 없이 다시 빌드 → db 재시작 → 확장 갱신).
+- CI 의 PostGIS 를 공식 `postgis/postgis:16-3.5`(PG 16.9·Debian 11·`en_US.utf8`) 대신 같은 `db/Dockerfile`·`C.UTF-8` 로.
+- db 컨테이너 `/dev/shm` 을 Docker 기본 64MB 에서 1GB 로(`shm_size: 1g`) — 병렬 해시 조인 한도(384MB, 계산 세션 768MB)보다 작아
+  해시 표가 60MB 를 넘는 조인이 `could not resize shared memory segment` 로 실패했음. 지금 앱 쿼리는 최대 11MB, 쓰는 만큼만 차지하는 상한.
+
 ## 2026-10-15 — 2차 코드 리뷰: 수집 보호의 빈틈, 요청 밀반입, 재현성, 화면 상태
 
 계획과 근거는 [improve/PLAN.md](improve/PLAN.md), 진행 기록은 [improve/PROGRESS.md](improve/PROGRESS.md), 결과는 [improve/REPORT.md](improve/REPORT.md).
