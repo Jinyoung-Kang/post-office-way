@@ -153,3 +153,4 @@ db 컨테이너의 `/dev/shm` 이 Docker 기본 64MB 인데 `work_mem=64MB` 병�
 - CI 는 바꾸지 않음: CI 의 db 는 compose 의 `-c work_mem=64MB` 없이 기본값(4MB → 병렬 해시 한도 24MB)이고 테스트 데이터가 작습니다.
   compose 와 같은 설정으로 띄우게 바꿀 때 `--shm-size` 도 함께 맞춥니다.
 - 검증: db 를 다시 만든 뒤 `docker compose up -d --build --wait api web`(워커 제외) 정상, `make test` 284 통과·1 건너뜀(7장과 같은 계약 테스트).
+  `make qa` 7분 53초 — 7장과 같은 결과(화면 상호작용·네트워크·접근성·설명 줄바꿈·실패 주입 문제 0, 퍼징 658건 5xx 0). 그동안 `/dev/shm` 최대 4MB, db 로그 오류 0건.
