@@ -54,6 +54,9 @@ services:
     # 느린 쿼리(500ms+) 로그 + pg_stat_statements (성능 분석용, V13)
     command: ["postgres", "-c", "shared_buffers=512MB", "-c", "work_mem=64MB", "-c", "maintenance_work_mem=256MB",
               "-c", "shared_preload_libraries=pg_stat_statements", "-c", "log_min_duration_statement=500"]
+    # 병렬 해시 조인 등이 쓰는 동적 공유 메모리(/dev/shm). Docker 기본 64MB 는 병렬 해시 하나의 한도(work_mem × 2 × 참가자 3
+    # = 384MB)보다 작아 큰 조인이 'could not resize shared memory segment' 로 실패함. 쓰는 만큼만 차지하는 상한 (ADR-007)
+    shm_size: 1g
     volumes:
       - db-data:/var/lib/postgresql/data
     ports:

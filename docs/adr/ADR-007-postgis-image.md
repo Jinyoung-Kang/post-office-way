@@ -12,6 +12,11 @@
      postgis 가 있는 DB 마다 `postgis_extensions_upgrade()`. 같은 메이저라 데이터 디렉터리는 그대로.
   3. PostGIS 마이너(3.6)는 고정 — 올릴 때는 계산 결과 비교를 함께 한다. 초기화 스크립트는 넣지 않음(확장은 마이그레이션 V1·V6·V13 이 만듦).
   4. CI 도 같은 Dockerfile 을 빌드해 `LANG=C.UTF-8` 로 띄운다(서비스 컨테이너는 미리 만든 이미지만 받음).
+  5. compose 의 db 에 `shm_size: 1g` (2026-10-15 추가). 병렬 해시 조인의 공유 해시 표는 `/dev/shm` 에 놓이고 한도가
+     `work_mem × hash_mem_multiplier(2) × 참가자(작업자 2 + 리더)` — compose 값으로 384MB, 계산 세션(`work_mem 128MB`)이면 768MB 인데
+     Docker 기본 `/dev/shm` 은 64MB 라 그보다 큰 조인이 `could not resize shared memory segment` 로 실패한다. 쓰는 만큼만 차지하는 상한이다.
+     지금 앱 쿼리는 최대 11MB 지만 여러 계산을 쌓아 둔 표의 점검·분석 조인은 64MB 를 넘는다. CI 는 `work_mem` 기본값(4MB)·작은 테스트 데이터라
+     그대로 둔다. 측정은 [DB 이미지 교체 8장](../db-image-2026-10.md).
 - 대안: 공식 `postgis/postgis:16-3.5`(에뮬레이션, PG 16.9, 16-3.6 태그 없음, 3.6→3.5 로 확장을 내릴 수 없음),
   `imresamu/postgis:16-3.6-alpine`(최근 빌드지만 libc 가 musl 로 바뀌고 여전히 testing 표기), `imresamu/postgis:16-3.6-trixie`(같이 멈춤).
 - 결과 (2026-10-15): PostgreSQL 16.15 · PostGIS 3.6.4 · GEOS 3.14.1 · PROJ 9.8.1 · Debian 13.7(glibc 2.41).

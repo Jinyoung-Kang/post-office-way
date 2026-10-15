@@ -118,6 +118,38 @@ Hausdorff 거리는 두 결과 사이 최대 거리(5179, m), 꼭짓점 수 변�
 
 **따로 발견한 것 (이번에 바꾸지 않음)**: 비교 쿼리(28만 행 해시 조인)가 `could not resize shared memory segment … No space left on device` 로 실패했습니다.
 db 컨테이너의 `/dev/shm` 이 Docker 기본 64MB 인데 `work_mem=64MB` 병렬 해시 조인이 그보다 큰 공유 메모리를 요구해서입니다. 이전·새 컨테이너가 같아
-이번 교체와는 무관하고, 지금 앱 쿼리에서는 나지 않았습니다. compose 의 db 에 `shm_size` 를 주는 것은 후속 과제로 남깁니다.
+이번 교체와는 무관하고, 지금 앱 쿼리에서는 나지 않았습니다. → 8장에서 compose 의 db 에 `shm_size: 1g` 를 줬습니다.
 
 남은 것: 볼륨 사본은 며칠 써 본 뒤 지웁니다(6장). 워커는 이번 검증에서 띄우지 않았습니다 — 다음 `docker compose up -d` 때 새 DB 에 붙습니다.
+
+## 8. 후속: db 의 `/dev/shm` (2026-10-15)
+
+7장의 공유 메모리 실패를 따로 확인하고 compose 의 db 에 `shm_size: 1g` 를 줬습니다. 결정은 [ADR-007](adr/ADR-007-postgis-image.md) 5항.
+
+- 원인: 병렬 해시 조인은 해시 표를 작업자와 나눠 쓰려고 동적 공유 메모리(`dynamic_shared_memory_type=posix` → `/dev/shm`)에 둡니다.
+  한도는 `work_mem × hash_mem_multiplier(2) × 참가자(작업자 2 + 리더)`(PG 16 `ExecChooseHashTableSize`) — compose 의 `work_mem=64MB` 로 384MB,
+  계산 세션(`SET LOCAL work_mem = '128MB'`)이면 768MB 인데 Docker 기본 `/dev/shm` 은 64MB 입니다. 공식 postgres 이미지 설명서도 이 오류와 `--shm-size` 를 안내합니다.
+- 앱 쿼리 — 운영 DB 는 읽기만 하고, 쓰는 계산은 복사본(`CREATE DATABASE … TEMPLATE atlas`, 끝나고 지움)에서. `/dev/shm` 사용량은 0.1초 간격으로 측정:
+
+| 대상 | 방법 | 병렬 해시 조인 | `/dev/shm` 최대 |
+|---|---|---|---|
+| API·워커가 실행한 쿼리 | `pg_stat_statements` 2,218개를 `EXPLAIN (GENERIC_PLAN)`, 병렬 계획이 나온 것은 실제 값으로 `EXPLAIN ANALYZE` | 도보 계산의 집계구 대표점 읽기(`walk/compute.py`, 해시 6MB) 하나. 전국 요약 두 개는 병렬 비트맵 스캔, `road_totals` 는 일반 계획에서만(7천 행) | 10.6MB |
+| 지표 계산·도보 (`calc` + `collect walk`) | 복사본에서 auto_explain (50ms 넘는 문장 54개) | 위 대표점 읽기 하나뿐 — 계산은 `INSERT … SELECT`·`UPDATE`(PG 가 병렬 계획을 만들지 않음)와 임시 표를 읽는 문장(병렬 작업자가 못 읽음)이라 `work_mem 128MB` 여도 없음 | 10.6MB |
+
+  `EXPLAIN` 이 안 된 나머지는 계산의 임시 표 문장(위 복사본 실행으로 확인)과 `interval $1` 처럼 상수 자리에 매개변수가 있는 작은 쿼리(최대 89ms)입니다.
+- 재현과 한도 (같은 db 를 64MB → 1g 로 다시 만듦, 데이터 볼륨 그대로):
+
+| 쿼리 | 해시 표 | 64MB | 1g (`/dev/shm` 최대) |
+|---|---|---|---|
+| `oa_walk` 160만 ⋈ `oa_nearest` 127만 행 | 96MB, 1배치 | **실패** `could not resize shared memory segment … No space left on device` | 통과 (111MB) |
+| `oa_walk` 자기 조인 (160만 행) | 117MB, 1배치 | — | 통과 (144MB) |
+| 합성 400만 행 자기 조인, `work_mem 64MB` | 한도를 넘어 8배치 | — | 통과 (398MB) |
+| 같은 조인, `work_mem 128MB` | 693MB, 1배치 | — | 통과 (816MB) |
+
+- 판단: 앱은 지금 11MB 로 64MB 안이지만, 한도가 PG 자신의 예산보다 훨씬 작아 여러 계산을 쌓아 둔 표(`oa_walk` 160만·`oa_nearest` 127만·
+  `access_metric` 106만 행)를 조인하는 점검·분석 쿼리가 실패하고, 앞으로 계산에 그런 조인이 생기면 한 트랜잭션인 계산 전체가 되돌아갑니다.
+  `/dev/shm` 은 tmpfs 라 쓰는 만큼만 메모리를 차지하고 쿼리가 끝나면 돌려줍니다(측정 뒤 1MB). 1g 는 계산 세션 값의 병렬 해시 하나(816MB)가
+  들어가는 크기로, Docker Desktop VM 7.9GB 의 13% 입니다. 512MB 면 마지막 경우가 실패합니다.
+- CI 는 바꾸지 않음: CI 의 db 는 compose 의 `-c work_mem=64MB` 없이 기본값(4MB → 병렬 해시 한도 24MB)이고 테스트 데이터가 작습니다.
+  compose 와 같은 설정으로 띄우게 바꿀 때 `--shm-size` 도 함께 맞춥니다.
+- 검증: db 를 다시 만든 뒤 `docker compose up -d --build --wait api web`(워커 제외) 정상, `make test` 284 통과·1 건너뜀(7장과 같은 계약 테스트).

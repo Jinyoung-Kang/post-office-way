@@ -12,6 +12,8 @@
   화면 지도는 저장된 단순화 경계를 써서 그대로이고 다음 `make sgis` 때 반영. 좌표 변환은 마지막 자리(최대 2나노미터)만 다름.
 - `make db-update` — PostgreSQL 16 마이너·Debian·PostGIS 3.6 패치 보안판 받기(캐시 없이 다시 빌드 → db 재시작 → 확장 갱신).
 - CI 의 PostGIS 를 공식 `postgis/postgis:16-3.5`(PG 16.9·Debian 11·`en_US.utf8`) 대신 같은 `db/Dockerfile`·`C.UTF-8` 로.
+- db 컨테이너 `/dev/shm` 을 Docker 기본 64MB 에서 1GB 로(`shm_size: 1g`) — 병렬 해시 조인 한도(384MB, 계산 세션 768MB)보다 작아
+  해시 표가 60MB 를 넘는 조인이 `could not resize shared memory segment` 로 실패했음. 지금 앱 쿼리는 최대 11MB, 쓰는 만큼만 차지하는 상한.
 
 ## 2026-10-09 — 코드 리뷰: 보안·데이터 보호·신뢰성, 지원 종료 대응, 코드 계층, 측정 기반 성능
 
