@@ -4,7 +4,7 @@ import { useBboxLayer } from "@/hooks/useBboxLayer";
 import { useKakaoMap } from "@/hooks/useKakaoMap";
 import { keepInside, limitView, toPaths } from "@/lib/kakao";
 import { declutter, labelSize } from "@/lib/mapGeom";
-import { esc, tipHtml, type TipLines } from "@/lib/mapTip";
+import { esc, placeTip, tipHtml, type TipLines } from "@/lib/mapTip";
 import { BANK_TONE, bankDot, CARE_TONE, careDot, FAC_TONE, facilityDot } from "@/lib/mapDots";
 import { isBankEvaluable } from "@/lib/rules";
 
@@ -55,6 +55,7 @@ export default function AtlasMap<P extends { admCd: string; admNm: string }>(pro
   const builtKey = useRef<string | null>(null);
   const focusedCd = useRef<string | null>(null);
   const tip = useRef<any>(null);
+  const tipEl = useRef<HTMLDivElement | null>(null);   // 말풍선 내용을 담는 상자 — 크기를 재고 위치를 옮김
   const markerOverlays = useRef<any[]>([]);
   const labelOverlays = useRef<any[]>([]);
   const pinned = useRef<string | null>(null);
@@ -71,7 +72,10 @@ export default function AtlasMap<P extends { admCd: string; admNm: string }>(pro
     const kakao = kakaoRef.current;
     if (!ready || !kakao) return;
     const m = map.current;
-    tip.current = new kakao.maps.CustomOverlay({ yAnchor: 1.35, zIndex: 10 });
+    tipEl.current = document.createElement("div");
+    tipEl.current.style.pointerEvents = "none";   // 말풍선이 마우스 아래로 와도 지역 도형의 오버·아웃을 가로막지 않게
+    // 기준점을 왼쪽 위(0, 0)로 두고 showTip 이 placeTip 결과만큼 옮김
+    tip.current = new kakao.maps.CustomOverlay({ content: tipEl.current, xAnchor: 0, yAnchor: 0, zIndex: 10 });
     const onClick = () => {
       if (performance.now() - shapeClickAt.current < 300) return;
       pinned.current = null; tip.current?.setMap(null);
@@ -152,7 +156,7 @@ export default function AtlasMap<P extends { admCd: string; admNm: string }>(pro
         const poly = new kakao.maps.Polygon({ path, strokeWeight: 1, strokeColor: "#ffffff",
           strokeOpacity: 1, fillColor: "#e5e5ea", fillOpacity: 0.75 });
         kakao.maps.event.addListener(poly, "mouseover", (e: any) => hover(entry.props, e.latLng, true));
-        kakao.maps.event.addListener(poly, "mousemove", (e: any) => { if (!pinned.current) tip.current?.setPosition(e.latLng); });
+        kakao.maps.event.addListener(poly, "mousemove", (e: any) => { if (!pinned.current && tip.current?.getMap()) showTip(e.latLng); });
         kakao.maps.event.addListener(poly, "mouseout", () => hover(entry.props, null, false));
         kakao.maps.event.addListener(poly, "click", (e: any) => {
           shapeClickAt.current = performance.now();
@@ -233,9 +237,22 @@ export default function AtlasMap<P extends { admCd: string; admNm: string }>(pro
   function pin(p: P, latLng: any) {
     if (pinned.current === p.admCd) { pinned.current = null; tip.current.setMap(null); return; }
     pinned.current = p.admCd;
-    tip.current.setContent(tipOf(p));
-    tip.current.setPosition(latLng);
-    tip.current.setMap(map.current);
+    showTip(latLng, tipOf(p));
+  }
+
+  // 말풍선을 가리킨 점에 띄우고, 지도 끝이나 떠 있는 패널에 가리지 않게 옮김(lib/mapTip.placeTip).
+  // html 을 주지 않으면 내용은 그대로 두고 위치만(마우스를 따라갈 때). SDK 는 setMap 때 바로 DOM 에 넣어 크기를 잴 수 있음
+  function showTip(latLng: any, html?: string) {
+    const t = tip.current, box = tipEl.current, m = map.current;
+    if (!t || !box || !m || !el.current) return;
+    if (html !== undefined) box.innerHTML = html;
+    t.setPosition(latLng);
+    if (!t.getMap()) t.setMap(m);
+    const pt = m.getProjection().containerPointFromCoords(latLng);
+    const inner = box.firstElementChild as HTMLElement | null;
+    const { left, top } = placeTip(pt.x, pt.y, { w: inner?.offsetWidth ?? 0, h: inner?.offsetHeight ?? 0 },
+      { w: el.current.clientWidth, h: el.current.clientHeight }, cb.current.padding);
+    box.style.transform = `translate(${left - pt.x}px, ${top - pt.y}px)`;
   }
 
   function hover(p: P, latLng: any, on: boolean) {
@@ -247,9 +264,7 @@ export default function AtlasMap<P extends { admCd: string; admNm: string }>(pro
       strokeColor: on || sel ? "#1d1d1f" : st.stroke || "#ffffff", strokeWeight: on || sel ? 2 : 1 }));
     if (pinned.current) return;          // 고정한 말풍선이 있으면 마우스로 바꾸지 않음
     if (on && latLng) {
-      tip.current.setContent(tipOf(p));
-      tip.current.setPosition(latLng);
-      tip.current.setMap(map.current);
+      showTip(latLng, tipOf(p));
     } else {
       tip.current.setMap(null);
     }
