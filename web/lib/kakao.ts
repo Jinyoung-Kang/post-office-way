@@ -129,3 +129,12 @@ export function maskOutside(kakao: any, map: any) {
       strokeWeight: 0, strokeOpacity: 0, fillColor: SEA_COLOR, fillOpacity: m.opacity });
   }
 }
+
+/** 지도 컨테이너가 스크롤되지 않게 — SDK 가 붙이는 overflow:hidden 상자는 사용자가 직접 스크롤할 수는 없어도
+ *  scrollIntoView(스크립트·페이지 찾기·보조 기술)로는 밀려, 타일·도형이 옆으로 밀리고 빈 회색 띠가 생기며 확대 단추 자리도 어긋났음.
+ *  clip 은 스크롤 상자가 아니라 밀리지 않음(Next 기본 대상 브라우저 모두 지원, SDK 의 relayout 도 되돌리지 않음). 이미 밀렸으면 되돌림 */
+export function pinContainer(el: { style: { overflow: string }; scrollLeft: number; scrollTop: number }) {
+  el.scrollLeft = 0;
+  el.scrollTop = 0;
+  el.style.overflow = "clip";
+}

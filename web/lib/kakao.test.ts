@@ -103,3 +103,14 @@ describe("카카오 지도 SDK 로더", () => {
     expect(await seen).toMatch(/카카오 지도/);
   });
 });
+
+describe("지도 컨테이너 스크롤 막기", () => {
+  // SDK 가 붙인 overflow:hidden 상자가 scrollIntoView(스크립트·찾기·보조 기술)로 493px 밀려, 지도 오른쪽 절반이 비고
+  // 확대 단추가 가운데로 옮겨졌던 상태 — clip 으로 바꾸고 밀린 스크롤도 되돌림
+  it("overflow 를 clip 으로 바꾸고 밀려 있던 스크롤을 0 으로", async () => {
+    const { pinContainer } = await import("./kakao");
+    const el = { style: { overflow: "hidden" }, scrollLeft: 493, scrollTop: 12 };
+    pinContainer(el);
+    expect(el).toEqual({ style: { overflow: "clip" }, scrollLeft: 0, scrollTop: 0 });
+  });
+});
