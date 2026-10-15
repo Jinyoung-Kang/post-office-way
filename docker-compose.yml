@@ -1,7 +1,7 @@
 # =============================================================================
 # docker-compose.yml — 우체국 가는 길 로컬 스택
 #
-#   db        PostgreSQL 16 + PostGIS 3.6 (arm64 네이티브 이미지, ADR-007)
+#   db        PostgreSQL 16 + PostGIS 3.6 (공식 postgres 이미지 + PGDG 패키지, db/Dockerfile — ADR-007)
 #   redis     캐시·속도 제한 카운터 (영속화 끔)
 #   migrate   소유자 권한으로 마이그레이션 적용 후 종료 (api·worker 가 끝나기를 기다림)
 #   api       FastAPI :8100 — 최소 권한 역할 atlas_api 로 접속. 조회·What-if·작업 요청만 (ADR-012)
@@ -43,10 +43,8 @@ x-atlas-env: &atlas-env
 services:
   db:
     restart: unless-stopped
-    # arm64 네이티브(테스트용 표기). 공식 이미지로 바꾸려면 아래 두 줄로 교체:
-    #   image: postgis/postgis:16-3.5
-    #   platform: linux/amd64
-    image: imresamu/postgis:16-3.6-bookworm
+    # postgres:16-trixie + PostGIS 3.6 (arm64·amd64 네이티브). PG 마이너·Debian·PostGIS 패치 보안판은 make db-update
+    build: ./db
     environment:
       POSTGRES_USER: atlas
       POSTGRES_PASSWORD: atlas

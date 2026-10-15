@@ -14,7 +14,7 @@
 | [ADR-004](adr/ADR-004-no-olap.md) | 분석 DB(ClickHouse·BigQuery) 미도입 |
 | [ADR-005](adr/ADR-005-whatif-top3.md) | What-if 는 최근접 상위 3개 기반 부분 재계산 |
 | [ADR-006](adr/ADR-006-shared-package.md) | api·collector 코드 공유 (단일 패키지 `atlas`) |
-| [ADR-007](adr/ADR-007-postgis-image.md) | PostGIS 이미지 선택 |
+| [ADR-007](adr/ADR-007-postgis-image.md) | PostGIS 이미지 — 공식 postgres 이미지 + PGDG PostGIS 를 직접 빌드(arm64 네이티브, 보안판은 `make db-update`) |
 | [ADR-008](adr/ADR-008-area-code-discovery.md) | 우편 지역코드 seed 자동 탐색 |
 | [ADR-009](adr/ADR-009-kosis-resident-pop.md) | KOSIS 주민등록인구로 65세 이상 인구 보강 |
 | [ADR-010](adr/ADR-010-advanced-access.md) | 고도화 — 집계구·도로 거리·주소 검증·금융 공백·배치 제안 |

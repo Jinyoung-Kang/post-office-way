@@ -134,6 +134,7 @@ API 문서: http://localhost:8100/docs · Prometheus 지표: http://localhost:81
 | `make jobs` · `make schedule` · `make status` | 최근 작업 · 스케줄과 다음 시각 · 수집·계산·키 현황 | — |
 | `make bench` | API 부하 측정(p50/p95·처리량) + 누적 시간 상위 SQL | 약 1분 |
 | `make migrate` | 스키마 마이그레이션 + API 역할 비밀번호 설정 (`make up` 이 자동 실행) | — |
+| `make db-update` | DB 보안판 받기 — PostgreSQL 16 마이너·Debian·PostGIS 3.6 패치. 이미지를 캐시 없이 다시 빌드하고 db 를 재시작한 뒤 PostGIS 확장을 갱신(데이터는 그대로) | 약 35초 |
 | `make backup` · `make restore FILE=…` · `make restore-undo` | DB 백업(`backups/`, `LITE=1` 은 원본 응답 제외) · 임시 DB 에 복원해 검증한 뒤 교체(이전 DB 는 `atlas_prev`) · 복원 되돌리기 | 백업 14초(경량 113MB) · 복원 약 50초 |
 | `make test` | Python 테스트 285개 (단위·계약·PostGIS SQL·응답 스냅숏·계층 의존 방향·What-if 동등성·k-최근접 정답 비교·은행 지점 영향·도보·수집 보호·작업 큐·권한·보안) | 약 30초 |
 | `make qa` · `make qa-lh` | 띄운 서비스 점검 — API 퍼징·11개 화면 크롤링·네트워크(중복·평문·CSP)·접근성·설명 줄바꿈 / Lighthouse 3회 중앙값 | 약 5분 · 약 20분 |
@@ -181,10 +182,10 @@ VISIT-1(09~18시 비·눈·더위·추위·바람·미세먼지 → 좋음/주�
 | 영역 | 사용 |
 |---|---|
 | 백엔드 | Python 3.13 · FastAPI 0.141 · SQLAlchemy 2.1 · psycopg 3 · Pydantic 2 · uvicorn |
-| 데이터 | PostgreSQL 16 + PostGIS 3.6(공간 조인·KNN·GiST) · Redis 7(캐시·속도 제한) · Postgres 작업 큐(`SKIP LOCKED`·`LISTEN/NOTIFY`) |
+| 데이터 | PostgreSQL 16 + PostGIS 3.6(공간 조인·KNN·GiST — 공식 postgres 이미지 + PGDG 패키지, [ADR-007](docs/adr/ADR-007-postgis-image.md)) · Redis 7(캐시·속도 제한) · Postgres 작업 큐(`SKIP LOCKED`·`LISTEN/NOTIFY`) |
 | 분석 | SQL 지표 계산(calc_run 단위) · numpy · scipy(KD-tree) · pyosmium(OSM) · k-최근접 다중 출발 다익스트라(직접 구현) |
 | 프론트엔드 | Next.js 16.4(pages router, webpack 빌드 — [ADR-022](docs/adr/ADR-022-next16.md)) · React 19 · TypeScript 5.9 · Tailwind CSS 4.3 · Recharts · Kakao 지도 Web API · SVG(보고서 지도) |
-| 운영·보안 | Docker Compose(Debian 13 기반 이미지·비루트·읽기 전용 FS·`cap_drop: ALL`) · Prometheus 지표 · GitHub Actions · CodeQL · Dependabot · gitleaks · pip-audit · npm audit |
+| 운영·보안 | Docker Compose(api·worker·web·DB 이미지 Debian 13 기반·비루트·읽기 전용 FS·`cap_drop: ALL`) · Prometheus 지표 · GitHub Actions · CodeQL · Dependabot · gitleaks · pip-audit · npm audit |
 | 검증 | pytest(PostGIS 테스트 DB) · Vitest · ESLint(React Hook 규칙) · Playwright · axe-core · Lighthouse (`make test` · `make qa`) |
 
 ```
@@ -304,7 +305,7 @@ cd web && npm test && npm run lint   # 웹 단위 테스트 41개 (vitest) + Rea
 make qa          # 띄운 서비스 점검 (scripts/qa — 퍼징·크롤링·네트워크·접근성, 설치된 Chrome 사용)
 ```
 
-CI(GitHub Actions): Python(pyflakes·pip-audit·pytest + PostGIS·Redis 서비스) · 웹(npm audit·타입 검사·린트·vitest·빌드) · 비밀값(gitleaks 전체 이력) ·
+CI(GitHub Actions): Python(pyflakes·pip-audit·pytest + 로컬과 같은 PostGIS 이미지(`db/Dockerfile`, `C.UTF-8`)·Redis) · 웹(npm audit·타입 검사·린트·vitest·빌드) · 비밀값(gitleaks 전체 이력) ·
 이미지(api·worker·web 빌드, 비루트 확인). Dependabot 이 pip·npm·Actions·Docker 를 매주 확인합니다.
 
 ## 출처

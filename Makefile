@@ -29,6 +29,7 @@
 #   make prune     오래된 원문·스냅샷·계산 결과 정리 (KEEP=3 수집 run, KEEP_CALC=5 계산 run)
 #   make backup    DB 백업 → backups/*.dump (LITE=1 이면 원본 응답 raw 데이터 제외)
 #   make restore   FILE=backups/….dump 로 DB 되돌리기 (임시 DB 에 복원·검증 뒤 교체, 이전 DB 는 atlas_prev — make restore-undo)
+#   make db-update DB 보안판 받기 — PostgreSQL 16 마이너·Debian·PostGIS 3.6 패치 (이미지 다시 빌드, db 재시작, 확장 갱신)
 # =============================================================================
 
 SHELL := /bin/bash
@@ -38,7 +39,7 @@ RUN := $(COMPOSE) --profile batch run --rm collector
 .DEFAULT_GOAL := help
 .PHONY: help env up down restart logs ps build migrate smoke discover collect sgis sgis-pop sgis-bnd kosis oa banks road geocheck \
         extras banks-full osm walk weather care holidays calc all-data prune backup restore jobs schedule enqueue bench \
-        status test test-unit qa qa-lh psql web-dev api-dev reset restore-undo
+        status test test-unit qa qa-lh psql web-dev api-dev reset restore-undo db-update
 
 help:
 	@grep -E '^#   make' Makefile | sed 's/^#   //'
@@ -171,6 +172,18 @@ status:
 
 prune: env
 	$(RUN) prune --keep $(or $(KEEP),3) --keep-calc $(or $(KEEP_CALC),5)
+
+# 기반 이미지(postgres:16-trixie)를 새로 받고 apt 층도 캐시 없이 — 캐시되면 새 PostGIS 패치를 못 받음. 같은 메이저라 데이터는 그대로(ADR-007).
+# 바뀐 PostGIS 라이브러리에 맞춰 postgis 가 있는 DB 마다 확장 SQL 을 갱신
+db-update:
+	$(COMPOSE) build --pull --no-cache db
+	$(COMPOSE) up -d --wait db
+	@for d in $$($(COMPOSE) exec -T db psql -U atlas -d postgres -XAt -c "SELECT datname FROM pg_database WHERE datallowconn AND datname <> 'postgres'"); do \
+	  $(COMPOSE) exec -T db psql -U atlas -d $$d -Xq -v ON_ERROR_STOP=1 -c "SET client_min_messages = warning" \
+	    -c "DO \$$\$$BEGIN IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'postgis') THEN PERFORM postgis_extensions_upgrade(); END IF; END\$$\$$" \
+	    || exit 1; done
+	@$(COMPOSE) exec -T db psql -U atlas -d atlas -XAt -c "SELECT split_part(version(), ' (', 1) || ' · PostGIS ' || postgis_lib_version() \
+	  || ' · GEOS ' || split_part(postgis_geos_version(), '-', 1) || ' · PROJ ' || split_part(postgis_proj_version(), ' ', 1)"
 
 # pg_dump 사용자 지정 형식(-Fc, 압축) — 역할(atlas_api)은 클러스터 전역이라 덤프에 없고 migrate 가 다시 설정합니다.
 backup:
