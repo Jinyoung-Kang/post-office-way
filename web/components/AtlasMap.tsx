@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { qs, type Bank, type CarePlace, type Facility, type Feature, type Page } from "@/lib/api";
 import { useBboxLayer } from "@/hooks/useBboxLayer";
 import { useKakaoMap } from "@/hooks/useKakaoMap";
-import { toPaths } from "@/lib/kakao";
+import { keepInside, limitView, toPaths } from "@/lib/kakao";
 import { declutter, labelSize } from "@/lib/mapGeom";
 import { esc, tipHtml, type TipLines } from "@/lib/mapTip";
 import { BANK_TONE, bankDot, CARE_TONE, careDot, FAC_TONE, facilityDot } from "@/lib/mapDots";
@@ -91,20 +91,38 @@ export default function AtlasMap<P extends { admCd: string; admNm: string }>(pro
     if (!b.isEmpty()) {
       const [t, r, bo, l] = cb.current.padding;
       map.current.setBounds(b, t, r, bo, l);
+      // 축소 한계에 걸리면 맞춘 화면이 타일 범위를 넘을 수 있어 같은 이동 안에서 바로 안으로 (setBounds 는 바로 반영됨)
+      if (el.current) keepInside(kakaoRef.current, map.current, el.current, false);
     }
   }
 
-  // 컨테이너 크기가 바뀌면(패널 열고 닫기·창 크기) 지도를 다시 배치하고 다시 칠함.
-  // 탭이 다시 보일 때도 다시 칠함 — 일부 브라우저는 숨은 동안의 벡터 그리기를 건너뜀
+  // 컨테이너 크기가 바뀌면(패널 열고 닫기·창 크기) 지도를 다시 배치하고, 축소 한계를 새 크기에 맞춘 뒤 다시 칠함.
+  // 탭이 다시 보일 때도 다시 칠함 — 일부 브라우저는 숨은 동안의 벡터 그리기를 건너뜀.
+  // 끌거나 확대·축소한 뒤(idle) 화면이 타일 범위를 넘으면 부드럽게 안으로 — 지도 끝(하늘색 띠·흰 바탕)이 보이지 않게
   useEffect(() => {
-    if (!ready || !el.current) return;
+    const kakao = kakaoRef.current;
+    if (!ready || !kakao || !el.current) return;
+    const m = map.current;
     let raf = 0;
-    const redraw = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => { map.current?.relayout(); paint(); }); };
+    const redraw = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        if (!el.current) return;
+        m.relayout();
+        limitView(kakao, m, el.current);
+        paint();
+      });
+    };
     const ro = new ResizeObserver(redraw);
     ro.observe(el.current);
     const onVis = () => { if (document.visibilityState === "visible") redraw(); };
     document.addEventListener("visibilitychange", onVis);
-    return () => { ro.disconnect(); document.removeEventListener("visibilitychange", onVis); cancelAnimationFrame(raf); };
+    const onIdle = () => { if (el.current) keepInside(kakao, m, el.current, true); };
+    kakao.maps.event.addListener(m, "idle", onIdle);
+    return () => {
+      ro.disconnect(); document.removeEventListener("visibilitychange", onVis); cancelAnimationFrame(raf);
+      kakao.maps.event.removeListener(m, "idle", onIdle);
+    };
   }, [ready]);
 
   // 폴리곤: geomKey 가 같고 지역 목록이 같으면 속성만 바꾸고 다시 칠함

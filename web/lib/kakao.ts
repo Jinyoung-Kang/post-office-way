@@ -1,4 +1,6 @@
 // 카카오 지도 SDK 로더 — 키는 런타임에 /api/config 에서 받아옵니다(재빌드 없이 .env 변경 반영).
+import { clampCenter, maskRings, maxLevelFor, SEA_COLOR, unitsPerPx, type Rect } from "@/lib/mapView";
+
 declare global {
   interface Window { kakao: any }
 }
@@ -97,4 +99,33 @@ export function loadKakao(): Promise<any> {
 export function toPaths(kakao: any, geom: { type: string; coordinates: any }): any[][][] {
   const polys: number[][][][] = geom.type === "Polygon" ? [geom.coordinates] : geom.coordinates;
   return polys.map((rings) => rings.map((ring) => ring.map(([x, y]) => new kakao.maps.LatLng(y, x))));
+}
+
+/** 컨테이너 크기에 맞춰 가장 먼 단계를 정하고(lib/mapView) 중심을 타일 범위 안으로 — 지도를 만든 직후·크기가 바뀔 때.
+ *  SDK 는 최대 단계를 넘는 setLevel·setBounds 를 그 단계로 맞춤 */
+export function limitView(kakao: any, map: any, el: HTMLElement) {
+  const max = maxLevelFor(el.clientWidth, el.clientHeight);
+  map.setMaxLevel(max);
+  if (map.getLevel() > max) map.setLevel(max);
+  keepInside(kakao, map, el, false);
+}
+
+/** 화면이 타일 범위를 넘으면 안으로 옮김 — smooth 면 부드럽게(사용자가 끌거나 확대한 뒤). 1px 안이면 그대로(idle 되풀이 방지) */
+export function keepInside(kakao: any, map: any, el: HTMLElement, smooth: boolean) {
+  const c = map.getCenter().toCoords();
+  const level = map.getLevel();
+  const [x, y] = clampCenter(c.getX(), c.getY(), el.clientWidth, el.clientHeight, level);
+  if (Math.hypot(x - c.getX(), y - c.getY()) < unitsPerPx(level)) return;
+  const to = new kakao.maps.Coords(x, y).toLatLng();
+  if (smooth) map.panTo(to); else map.setCenter(to);
+}
+
+/** 타일 범위 밖을 바다색으로 덮음(lib/mapView 의 maskRings) — 지도를 만들 때 한 번. 지도와 함께 움직이고 지역 폴리곤 아래에 깔림 */
+export function maskOutside(kakao: any, map: any) {
+  const path = (r: Rect) => [[r.minX, r.minY], [r.maxX, r.minY], [r.maxX, r.maxY], [r.minX, r.maxY]]
+    .map(([x, y]) => new kakao.maps.Coords(x, y).toLatLng());
+  for (const m of maskRings()) {
+    new kakao.maps.Polygon({ map, path: [path(m.outer), path(m.hole)], zIndex: 0,
+      strokeWeight: 0, strokeOpacity: 0, fillColor: SEA_COLOR, fillOpacity: m.opacity });
+  }
 }
