@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { careHoursText, isBankEvaluable, rankText, worstFirst } from "./rules";
+import { careHoursText, isBankEvaluable, missingAtLevel, netOutWarn, rankText, shadeText, sideText, topText, worstFirst } from "./rules";
 import { bboxParam, declutter, diffKeys, labelSize } from "./mapGeom";
 
 describe("화면 규칙", () => {
@@ -13,6 +13,29 @@ describe("화면 규칙", () => {
     expect(rankText({ rank: 3, rankOf: 250, higherIsWorse: true }, String)).toBe("나쁜 쪽에서 3번째");
     expect(rankText({ rank: 3, rankOf: 250, higherIsWorse: false }, String)).toBe("큰 쪽에서 3번째");
     expect(rankText({ rank: null, rankOf: 250, higherIsWorse: true }, String)).toBe("—");
+  });
+  it("인구 추세 지표는 유출·유입 쪽으로 읽음", () => {
+    expect(rankText({ rank: 2, rankOf: 229, higherIsWorse: true, code: "NET_OUT_12M_PER_1K" }, String)).toBe("유출 많은 쪽에서 2번째");
+    expect(rankText({ rank: 2, rankOf: 229, higherIsWorse: true, code: "POPW_FIN_DIST_M" }, String)).toBe("나쁜 쪽에서 2번째");
+    expect(sideText("NET_OUT_12M_PER_1K", true, true)).toBe("유출 많은 쪽");
+    expect(sideText("NET_OUT_12M_PER_1K", true, false)).toBe("유입 많은 쪽");
+    expect(sideText("AGED65_NET_IN_12M_PER_1K", false, true)).toBe("65세 이상 유입 많은 쪽");
+    expect(sideText("POPW_FIN_DIST_M", true, true)).toBe("접근성 취약 쪽");
+    expect(sideText("FAC_CNT_R2KM", false, true)).toBe("접근성 양호 쪽");
+    expect(topText("AGED65_NET_IN_12M_PER_1K", false)).toBe("65세 이상 유출 많은 8곳 표시");   // worstFirst(false) = 작은 쪽
+    expect(topText("NET_OUT_12M_PER_1K", true)).toBe("유출 많은 8곳 표시");
+    expect(topText("FAC_CNT_R2KM", false)).toBe("값이 작은 8곳 표시");
+    expect(shadeText("NET_OUT_12M_PER_1K", true)).toContain("나간 사람");
+    expect(shadeText("POPW_FIN_DIST_M", true)).toBe("진할수록 접근성이 취약한 쪽입니다.");
+  });
+  it("단위에 값이 없는 지표", () => {
+    expect(missingAtLevel({ levels: [2] }, 3)).toBe(true);
+    expect(missingAtLevel({ levels: [2, 3] }, 3)).toBe(false);
+    expect(missingAtLevel({ levels: [] }, 3)).toBe(false);          // 값이 아직 없는 지표는 목록에서 이미 빠짐
+    expect(missingAtLevel(undefined, 3)).toBe(false);
+  });
+  it("순유출 경고 — 백분위 80 이상", () => {
+    expect([netOutWarn(80), netOutWarn(79.9), netOutWarn(null), netOutWarn(undefined)]).toEqual([true, false, false, false]);
   });
   it("은행 지점 영향평가 대상", () => {
     expect(isBankEvaluable({ kind: "BRANCH", brand: "KB국민은행" })).toBe(true);

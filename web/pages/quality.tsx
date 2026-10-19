@@ -22,9 +22,9 @@ const KIND_LABEL: Record<string, string> = {
   POST_AREA: "우체국 시설", POST_DISCOVER: "지역코드 탐색", SGIS_POP: "SGIS 인구", SGIS_BND: "SGIS 경계",
   KOSIS_POP: "KOSIS 주민등록인구", CALC: "지표 계산", SGIS_OA: "SGIS 집계구", KAKAO_GEO: "주소 좌표 검증",
   KAKAO_BANK: "은행·금고 지점", KAKAO_ROAD: "도로 거리", KMA_FCST: "기상청 단기예보", AIR_FCST: "에어코리아 예보",
-  NMC_CARE: "약국·병의원", KASI_HOLIDAY: "공휴일(특일)",
+  NMC_CARE: "약국·병의원", KASI_HOLIDAY: "공휴일(특일)", MOIS_MIGR: "인구이동(행안부)",
 };
-const KIND_ORDER = ["POST_AREA", "SGIS_POP", "SGIS_BND", "SGIS_OA", "KOSIS_POP", "KAKAO_GEO", "KAKAO_BANK", "KAKAO_ROAD", "KMA_FCST", "AIR_FCST", "NMC_CARE", "KASI_HOLIDAY", "CALC"];
+const KIND_ORDER = ["POST_AREA", "SGIS_POP", "SGIS_BND", "SGIS_OA", "KOSIS_POP", "MOIS_MIGR", "KAKAO_GEO", "KAKAO_BANK", "KAKAO_ROAD", "KMA_FCST", "AIR_FCST", "NMC_CARE", "KASI_HOLIDAY", "CALC"];
 const SEV: Record<string, string> = { ERROR: "badge-error", WARN: "badge-warn", INFO: "badge-info" };
 const STATUS: Record<string, string> = { DONE: "badge-good", PARTIAL: "badge-warn", FAILED: "badge-error", RUNNING: "badge-info" };
 const DETAIL_LABEL: Record<string, string> = {
@@ -32,6 +32,7 @@ const DETAIL_LABEL: Record<string, string> = {
   field: "필드", value: "값", modDt: "수정일", loaded: "적재", totalCount: "totalCount", level: "레벨",
   totPpltn: "총인구", agedChildIdx: "노령화지수", error: "오류", page: "페이지", status: "HTTP", reason: "사유",
   distM: "거리(m)", addr: "주소", emdCd: "읍면동", missing: "없음", part: "부분",
+  sidoNm: "시도", ctpvNm: "시도", sggNm: "시군구", refYm: "기준월", moisCd: "행안부 코드", months: "달 수",
 };
 
 export default function Quality() {

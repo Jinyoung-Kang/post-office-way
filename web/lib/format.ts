@@ -95,8 +95,15 @@ const METRIC_GROUP: Record<string, string> = {
   POPW_PHARMACY_DIST_M: "생활 거점", POPW_CLINIC_DIST_M: "생활 거점", HOLIDAY_CARE_GAP_PPLTN: "생활 거점",
   HAS_365: "운영", LUNCH_CLOSED_RATIO: "운영",
   POPW_FIN_WALK_M: "걸어서", WALK30_NO_FIN_PPLTN: "걸어서", WALK30_NO_FIN_SHARE: "걸어서", WALK30_NO_CASH_PPLTN: "걸어서",
+  NET_OUT_12M_PER_1K: "인구 추세", AGED65_NET_IN_12M_PER_1K: "인구 추세",
 };
-const GROUP_ORDER = ["우체국 거리", "걸어서", "멀리 사는 사람", "금융 공백", "생활 거점", "운영", "기타"];
+const GROUP_ORDER = ["우체국 거리", "걸어서", "멀리 사는 사람", "금융 공백", "생활 거점", "인구 추세", "운영", "기타"];
+
+// 부호를 붙인 인원 — 순유출·순유입 (+1,234명 · −56명). 0 은 부호 없이
+export function signed(v: number | null | undefined, unit = "명"): string {
+  if (!finite(v)) return DASH;
+  return `${v > 0 ? "+" : v < 0 ? "−" : ""}${num(Math.abs(v))}${unit}`;
+}
 
 // ① 은행 지점 영향 등급 — 상태 색은 등급에만, 늘 글자 라벨과 함께
 export const GRADE_LABEL: Record<string, string> = { HIGH: "높음", MID: "보통", LOW: "낮음" };

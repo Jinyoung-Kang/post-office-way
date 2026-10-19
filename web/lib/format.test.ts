@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dist, groupMetrics, localStamp, num, sentences, shortSido, walkMin, withUnit } from "./format";
+import { dist, groupMetrics, localStamp, num, sentences, shortSido, signed, walkMin, withUnit } from "./format";
 
 describe("표기", () => {
   it("거리·단위", () => {
@@ -10,6 +10,14 @@ describe("표기", () => {
     expect(withUnit(1, "0/1")).toBe("있음");
     expect(num(1234567)).toBe("1,234,567");
     expect(withUnit(7425.5, "명")).toBe("7,426명");          // 사람 수는 정수 (중앙값이 x.5 여도)
+    expect(withUnit(-34.2857, "‰")).toBe("-34.3‰");         // 인구 추세 — 천 명당, 음수는 유입
+  });
+
+  it("부호 붙은 인원 — 순유출·순유입", () => {
+    expect(signed(1234)).toBe("+1,234명");
+    expect(signed(-56)).toBe("−56명");
+    expect(signed(0)).toBe("0명");
+    expect(signed(null)).toBe("—");
   });
 
   it("걷는 시간 — 고령자 0.8m/s", () => {
@@ -29,8 +37,9 @@ describe("표기", () => {
 
 describe("groupMetrics", () => {
   it("주제 순서대로 묶고 모르는 코드는 기타", () => {
-    const g = groupMetrics([{ code: "POST_SOLE_HUB_PPLTN" }, { code: "NEAREST_FIN_DIST_M" }, { code: "NEW_ONE" }]);
-    expect(g.map((x) => x.label)).toEqual(["우체국 거리", "생활 거점", "기타"]);
+    const g = groupMetrics([{ code: "POST_SOLE_HUB_PPLTN" }, { code: "NET_OUT_12M_PER_1K" }, { code: "NEAREST_FIN_DIST_M" },
+      { code: "NEW_ONE" }]);
+    expect(g.map((x) => x.label)).toEqual(["우체국 거리", "생활 거점", "인구 추세", "기타"]);
   });
 });
 

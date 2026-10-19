@@ -7,6 +7,7 @@ import { useRegions } from "@/hooks/useRegions";
 import { isNoData, qs, type MetricDef } from "@/lib/api";
 import { emdNeed, NO_EMD_TEXT, regionsErrorText } from "@/lib/regions";
 import { groupMetrics, num, shortSido, withUnit } from "@/lib/format";
+import { LEVEL2_ONLY_TEXT, missingAtLevel, sideText } from "@/lib/rules";
 import { TableSkeleton } from "@/components/Skeleton";
 import { useQueryState } from "@/lib/useQueryState";
 
@@ -36,11 +37,11 @@ export default function Rankings() {
   const regionNeed = level === 3 && !parent ? emdNeed(regions) : "ok";
 
   const unit = data?.metric.unit || "";
-  const worseFirst = data ? (data.metric.higherIsWorse ? sort === "desc" : sort === "asc") : true;
   const chartData = (data?.items || []).filter((r) => r.value !== null)
     .map((r) => ({ name: level === 3 ? r.admNm : `${r.parentNm ? shortSido(r.parentNm) + " " : ""}${r.admNm}`, value: r.value, admCd: r.admCd }));
   const go = (admCd: string) => router.push(`/?adm=${admCd}&metric=${metric}`);
   const noData = isNoData(error);
+  const levelMissing = missingAtLevel(metrics.find((m) => m.code === metric), level);   // 인구 추세 — 읍면동 값 없음
 
   return (
     <Layout title="지역 순위">
@@ -69,10 +70,11 @@ export default function Rankings() {
         {regionNeed === "none" && <Empty>{NO_EMD_TEXT}</Empty>}
         {err && (noData ? <NoDataGuide /> : <ErrorBox error={err} />)}
         {!data && !err && (regionNeed === "ok" || regionNeed === "loading") && <div className="card pt-6"><TableSkeleton rows={8} /></div>}
-        {data && (
+        {levelMissing && <Empty>{LEVEL2_ONLY_TEXT} ‘시군구 · 전국’으로 보세요.</Empty>}
+        {data && !levelMissing && (
           <>
             <Card title={data.metric.name}
-              right={<span className="text-[13px] text-ink-3">{worseFirst ? "접근성 취약 쪽" : "접근성 양호 쪽"} 20곳 · 전체 {data.total.toLocaleString()}곳</span>}>
+              right={<span className="text-[13px] text-ink-3">{sideText(data.metric.code, data.metric.higherIsWorse, sort === "desc")} 20곳 · 전체 {data.total.toLocaleString()}곳</span>}>
               {chartData.length ? (
                 <div style={{ height: Math.max(chartData.length * 28 + 30, 160) }}>
                   <ResponsiveContainer width="100%" height="100%">

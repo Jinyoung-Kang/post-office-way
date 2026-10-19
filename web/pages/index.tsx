@@ -8,7 +8,7 @@ import RegionCard, { FacilityCard } from "@/components/RegionCard";
 import { BANK_LEGEND, CARE_LEGEND, FACILITY_LEGEND, type CareLayer, type FacilityLayer, type MapLabel } from "@/components/AtlasMap";
 import { useApi } from "@/hooks/useApi";
 import { useRegions } from "@/hooks/useRegions";
-import { worstFirst } from "@/lib/rules";
+import { LEVEL2_ONLY_TEXT, missingAtLevel, shadeText, topText, worstFirst } from "@/lib/rules";
 import { cachedApi, isNoData, type AreaFC, type AreaProps, type Facility, type MetricDef } from "@/lib/api";
 import { classOf, legendRows, minOnlyValue, NO_DATA, quantileBreaks, SEQ } from "@/lib/choropleth";
 import { groupMetrics, num, withUnit } from "@/lib/format";
@@ -170,8 +170,12 @@ export default function MapPage() {
               ))}
             </select>
             {fc && <p className="-mt-3 text-[12px] leading-snug text-ink-3">
-              {fc.meta.higherIsWorse ? "진할수록 접근성이 취약한 쪽입니다." : "진할수록 값이 큽니다(접근성 양호)."}
+              {shadeText(fc.meta.metric, fc.meta.higherIsWorse)}
             </p>}
+            {missingAtLevel(mdef, level) && (
+              <p className="-mt-3 text-[12px] leading-snug text-[#a34700]">{LEVEL2_ONLY_TEXT}{" "}
+                <button className="link" onClick={() => chooseLevel(2)}>시군구로 보기</button></p>
+            )}
 
             <div className="space-y-2">
               <Segmented ariaLabel="분석 단위" value={level} onChange={chooseLevel}
@@ -206,7 +210,7 @@ export default function MapPage() {
             </div>
 
             <div className="space-y-1">
-              <Toggle label={fc?.meta.higherIsWorse === false ? "값이 작은 8곳 표시" : "취약한 8곳 표시"} on={showTop} onChange={setShowTop} />
+              <Toggle label={fc ? topText(fc.meta.metric, fc.meta.higherIsWorse) : "취약한 8곳 표시"} on={showTop} onChange={setShowTop} />
               <p className="pl-1 text-[12px] text-ink-3">지역을 누르면 오른쪽에 자세한 카드가 열립니다</p>
             </div>
             <div className="space-y-2">

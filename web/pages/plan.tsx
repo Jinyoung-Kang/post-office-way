@@ -11,7 +11,8 @@ import { useRegions } from "@/hooks/useRegions";
 import { api, qs, type AreaFC, type AreaProps, type PlanClose, type PlanOpen } from "@/lib/api";
 import { emdNeed, NO_EMD_TEXT, regionsErrorText } from "@/lib/regions";
 import { classOf, NO_DATA, quantileBreaks, SEQ } from "@/lib/choropleth";
-import { dist, num } from "@/lib/format";
+import { dist, num, withUnit } from "@/lib/format";
+import { netOutWarn } from "@/lib/rules";
 import Sents from "@/components/Sents";
 import type { TipLines } from "@/lib/mapTip";
 
@@ -146,11 +147,12 @@ export default function PlanPage() {
           {res?.mode === "close" && (
             <>
               <Card title="닫는다면 이 순서로" pad={false}
-                right={res.steps.some((x) => x.soleHubPpltn) ? <span className="badge badge-warn">생활 거점을 잃는 주민이 있는 우체국 포함</span> : undefined}>
+                right={<StepBadges hub={res.steps.some((x) => x.soleHubPpltn)} outflow={res.steps.some((x) => netOutWarn(x.netOutPct))} />}>
                 <div className="overflow-x-auto px-3 pb-3">
                   <table className="tbl">
                     <thead className="whitespace-nowrap"><tr><th className="num">순서</th><th>우체국</th><th className="num">늘어나는 거리</th><th className="num">새로 2km 밖</th><th className="num">영향 지역</th>
-                      <th className="num" title="닫으면 2km 안 은행·약국·의원도 없어 생활 거점을 모두 잃는 인구">생활 거점 상실</th><th /></tr></thead>
+                      <th className="num" title="닫으면 2km 안 은행·약국·의원도 없어 생활 거점을 모두 잃는 인구">생활 거점 상실</th>
+                      <th className="num" title={NET_OUT_TITLE}>시군구 순유출</th><th /></tr></thead>
                     <tbody>{res.steps.map((s, i) => (
                       <tr key={s.histId}>
                         <td className="num text-ink-3">{i + 1}</td>
@@ -160,6 +162,7 @@ export default function PlanPage() {
                         <td className="num">{s.areasAffected}곳</td>
                         <td className={`num ${s.soleHubPpltn ? "font-semibold text-[#d70015]" : "text-ink-3"}`}>
                           {s.soleHubPpltn == null ? "—" : `${num(s.soleHubPpltn)}명`}</td>
+                        <NetOutCell v={s.netOutPer1k} pct={s.netOutPct} />
                         <td className="whitespace-nowrap"><Link className="link text-[13px]" href={`/whatif?add=${s.histId}`}>What-if ›</Link></td>
                       </tr>
                     ))}</tbody>
@@ -169,10 +172,12 @@ export default function PlanPage() {
               <Card title="단독으로 닫으면 영향이 가장 큰 곳 (지켜야 할 우체국)" pad={false}>
                 <div className="overflow-x-auto px-3 pb-3">
                   <table className="tbl">
-                    <thead><tr><th>우체국</th><th className="num">늘어나는 거리</th><th className="num">새로 2km 밖</th><th className="num">영향 지역</th></tr></thead>
+                    <thead><tr><th>우체국</th><th className="num">늘어나는 거리</th><th className="num">새로 2km 밖</th><th className="num">영향 지역</th>
+                      <th className="num" title={NET_OUT_TITLE}>시군구 순유출</th></tr></thead>
                     <tbody>{res.mostCritical.map((s) => (
                       <tr key={s.histId}><td><span className="font-medium">{s.name}</span><div className="text-[12px] text-ink-3">{s.addr}</div></td>
-                        <td className="num">{num(s.addedKmPpl)} 명·km</td><td className="num text-[#d70015]">{num(s.newlyFar)}명</td><td className="num">{s.areasAffected}곳</td></tr>
+                        <td className="num">{num(s.addedKmPpl)} 명·km</td><td className="num text-[#d70015]">{num(s.newlyFar)}명</td><td className="num">{s.areasAffected}곳</td>
+                        <NetOutCell v={s.netOutPer1k} pct={s.netOutPct} /></tr>
                     ))}</tbody>
                   </table>
                 </div>
@@ -183,10 +188,12 @@ export default function PlanPage() {
             <Card title="연다면 이 순서로" pad={false}>
               <div className="overflow-x-auto px-3 pb-3">
                 <table className="tbl">
-                  <thead><tr><th className="num">순서</th><th>후보지 (읍면동 대표점)</th><th className="num">줄어드는 거리</th><th className="num">새로 2km 안</th><th className="num">좋아지는 지역</th></tr></thead>
+                  <thead><tr><th className="num">순서</th><th>후보지 (읍면동 대표점)</th><th className="num">줄어드는 거리</th><th className="num">새로 2km 안</th><th className="num">좋아지는 지역</th>
+                    <th className="num" title={NET_OUT_TITLE}>시군구 순유출</th></tr></thead>
                   <tbody>{res.steps.map((s, i) => (
                     <tr key={s.siteCd}><td className="num text-ink-3">{i + 1}</td><td className="font-medium">{s.siteNm || s.siteCd}</td>
-                      <td className="num">{num(s.gainKmPpl)} 명·km</td><td className="num text-[#18782f]">{num(s.newlyNear)}명</td><td className="num">{s.areasImproved}곳</td></tr>
+                      <td className="num">{num(s.gainKmPpl)} 명·km</td><td className="num text-[#18782f]">{num(s.newlyNear)}명</td><td className="num">{s.areasImproved}곳</td>
+                      <NetOutCell v={s.netOutPer1k} pct={s.netOutPct} /></tr>
                   ))}</tbody>
                 </table>
                 {!res.steps.length && <p className="px-3 py-4 text-[14px] text-ink-2">이 범위에서는 새로 열어 거리가 줄어드는 곳이 없습니다.</p>}
@@ -210,5 +217,27 @@ export default function PlanPage() {
         </div>
       </div>
     </Layout>
+  );
+}
+
+// 인구 추세 경고 (ADR-028) — 제안 계산(가중치)에는 넣지 않고 그 시군구의 최근 12개월 순유출만 함께 보여 줌
+const NET_OUT_TITLE = "그 시군구의 최근 12개월 (다른 시군구로 나간 사람 − 들어온 사람) ÷ 인구 × 1,000. 제안 계산에는 반영하지 않음";
+
+function NetOutCell({ v, pct }: { v: number | null; pct: number | null }) {
+  return (
+    <td className="num whitespace-nowrap">
+      {withUnit(v, "‰")}
+      {netOutWarn(pct) && <span className="badge badge-warn ml-1.5 align-middle">유출 상위 20%</span>}
+    </td>
+  );
+}
+
+function StepBadges({ hub, outflow }: { hub: boolean; outflow: boolean }) {
+  if (!hub && !outflow) return null;
+  return (
+    <span className="flex flex-wrap justify-end gap-1.5">
+      {hub && <span className="badge badge-warn">생활 거점을 잃는 주민이 있는 우체국 포함</span>}
+      {outflow && <span className="badge badge-warn">사람이 빠지는 시군구(유출 상위 20%) 포함</span>}
+    </span>
   );
 }

@@ -21,7 +21,7 @@ const NAV = [
 ];
 
 type CalcRun = { calcRunId: string; statYear: number; facilityAsOf: string; status: string;
-  stats: { kosisRefPeriod?: string | null } };
+  stats: { kosisRefPeriod?: string | null; migrationWindow?: { from: string; to: string } | null } };
 
 export function useDataBasis() {
   const runs = useApi<{ items: CalcRun[] }>("/meta/calc-runs?size=10", { cacheMs: 60_000 }).data;
@@ -33,7 +33,10 @@ export function useDataBasis() {
 export function basisText(calc: CalcRun | null): string {
   if (!calc) return "계산된 데이터 없음";
   const k = calc.stats?.kosisRefPeriod;
-  return `시설 ${dt(calc.facilityAsOf)} 수집 · 인구 ${calc.statYear}년 SGIS${k ? ` · 주민등록 ${k.slice(0, 4)}.${k.slice(4)} KOSIS` : ""} · calcRun ${short(calc.calcRunId)}`;
+  const w = calc.stats?.migrationWindow;   // 인구 추세 지표의 12개월 (ADR-028)
+  const ym = (p: string) => `${p.slice(0, 4)}.${p.slice(4)}`;
+  return `시설 ${dt(calc.facilityAsOf)} 수집 · 인구 ${calc.statYear}년 SGIS${k ? ` · 주민등록 ${ym(k)} KOSIS` : ""}`
+    + `${w ? ` · 인구이동 ${ym(w.from)}~${ym(w.to)} 행안부` : ""} · calcRun ${short(calc.calcRunId)}`;
 }
 
 // 오늘이 창구 휴무일(주말·공휴일)이면 머리글에 알림 — 특일 정보가 있을 때만 공휴일 이름까지
@@ -84,7 +87,7 @@ export default function Layout({ children, full, title }: { children: ReactNode;
             <p><Sents>이 서비스의 지표는 분석용으로 정의한 값이며 공식 통계가 아닙니다. 거리는 직선거리(EPSG:5179)이고, ‘걸어서’ 지표는
               OpenStreetMap 보행 도로망 최단 경로(고령자 0.8m/s)입니다.</Sents></p>
             <p>데이터 기준 — {basisText(calc)}</p>
-            <p className="text-ink-3">출처: 우정사업본부 「우체국 찾기」 · 통계청 SGIS(총조사 주요지표·행정구역·집계구 경계) · KOSIS 주민등록인구(행정안전부) · 카카오(지도·로컬·모빌리티) · 기상청 단기예보 · 한국환경공단 에어코리아 · 국립중앙의료원 약국·병의원 · 한국천문연구원 특일 정보 · 도보 도로망 © OpenStreetMap 기여자(ODbL)</p>
+            <p className="text-ink-3">출처: 우정사업본부 「우체국 찾기」 · 통계청 SGIS(총조사 주요지표·행정구역·집계구 경계) · KOSIS 주민등록인구(행정안전부) · 카카오(지도·로컬·모빌리티) · 기상청 단기예보 · 한국환경공단 에어코리아 · 국립중앙의료원 약국·병의원 · 한국천문연구원 특일 정보 · 행정안전부 지역별 인구이동 · 도보 도로망 © OpenStreetMap 기여자(ODbL)</p>
           </div>
         </footer>
       )}

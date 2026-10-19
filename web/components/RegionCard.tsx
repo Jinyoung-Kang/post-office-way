@@ -2,7 +2,7 @@ import Link from "next/link";
 import { useApi } from "@/hooks/useApi";
 import type { AreaDetail, Facility, VisitOutlook } from "@/lib/api";
 import { regionPathOf } from "@/lib/mapQuery";
-import { dist, dt, num, short, withUnit } from "@/lib/format";
+import { dist, dt, num, short, signed, withUnit } from "@/lib/format";
 import { ErrorBox } from "@/components/Layout";
 import VisitBadge from "@/components/VisitBadge";
 
@@ -105,6 +105,22 @@ export default function RegionCard({ admCd, calcRunId, highlight, onDrill, onClo
           </>
         ) : <div className="row text-ink-3">KOSIS 자료 없음 (make kosis 로 적재)</div>}
       </Group>
+
+      {d.level === 2 && (
+        <Group label={d.migration ? `인구 이동 · 행정안전부 ${fmtPeriod(d.migration.refFrom)}~${fmtPeriod(d.migration.refTo)}` : "인구 이동 · 행정안전부"}>
+          {d.migration ? (
+            <>
+              {d.migration.basis === "CITY" && (
+                <div className="row text-[12px] text-ink-3">{d.migration.basisName} 전체 값입니다 (원천 자료가 구를 나누지 않음)</div>
+              )}
+              <Row k="다른 시군구에서 들어온 사람" v={`${num(d.migration.inCnt)}명`} />
+              <Row k="다른 시군구로 나간 사람" v={`${num(d.migration.outCnt)}명`} />
+              <Row k="순유출 (나감 − 들어옴)" v={signed(d.migration.netOut)} />
+              <Row k="65세 이상 순유입 (들어옴 − 나감)" v={signed(d.migration.aged65NetIn)} />
+            </>
+          ) : <div className="row text-ink-3">자료 없음 — 아직 받지 않았거나(make migration), 최근 12개월 안에 행정구역이 바뀐 지역</div>}
+        </Group>
+      )}
 
       <Group label="지역 안 시설 (좌표 공간 조인)">
         {d.facilities.length ? d.facilities.map((f) => <Row key={f.postDiv} k={f.divLabel} v={`${f.count}곳`} />)

@@ -14,7 +14,12 @@ export type AreaFC = { meta: Meta & { metric: string; metricName: string; unit: 
   type: "FeatureCollection"; features: Feature<AreaProps>[] };
 
 export type MetricDef = { code: string; name: string; unit: string; formula: string; limitation: string | null;
-  higherIsWorse: boolean; ruleVersion: string; available: boolean };
+  higherIsWorse: boolean; ruleVersion: string; available: boolean; levels: number[] };   // levels: 값이 있는 단위(2 시군구 · 3 읍면동)
+
+// 인구 이동 12개월 합 (행정안전부 지역별 인구이동, ADR-028) — basis CITY 면 일반구가 속한 시 전체 값
+export type Migration = { refFrom: string; refTo: string; inCnt: number; outCnt: number; netOut: number;
+  aged65In: number; aged65Out: number; aged65NetIn: number; basis: "AREA" | "CITY"; basisName: string | null;
+  source: string; loadedAt: string };
 
 export type AreaDetail = {
   admCd: string; admNm: string; level: number; parentCd: string | null; parentNm: string | null; statYear: number;
@@ -23,6 +28,7 @@ export type AreaDetail = {
     loadedAt: string | null };
   residentPop: { refPeriod: string; totPpltn: number | null; aged65Ppltn: number | null; aged65Ratio: number | null;
     matchMethod: string; loadedAt: string; source: string } | null;
+  migration: Migration | null;
   metrics: { code: string; name: string; value: number | null; unit: string; higherIsWorse: boolean;
     rank: number | null; rankOf: number | null; percentile: number | null }[];
   nearest: { rank: number; histId: number; name: string; distM: number; finAvailable: boolean; addr: string | null;
@@ -113,7 +119,8 @@ export type Overview = {
 };
 
 export type PlanFacility = { histId: number; name: string; addr: string | null; lat: number; lon: number;
-  addedKmPpl: number; newlyFar: number; areasAffected: number; soleHubPpltn?: number | null };
+  addedKmPpl: number; newlyFar: number; areasAffected: number; soleHubPpltn?: number | null;
+  netOutPer1k: number | null; netOutPct: number | null };
 export type PlanArea = { admCd: string; admNm: string | null; weight: number; distBeforeM: number; distAfterM: number };
 export type PlanClose = { mode: "close"; scope: string; scopeName: string | null; k: number; level: number; weight: string;
   demandUnit: "oa" | "area"; demandPoints: number;
@@ -123,7 +130,7 @@ export type PlanClose = { mode: "close"; scope: string; scopeName: string | null
 export type PlanOpen = { mode: "open"; scope: string; scopeName: string | null; k: number; level: number; weight: string;
   weightFallback: boolean; farM: number; candidateCount: number;
   steps: { siteCd: string; siteNm: string | null; lat: number; lon: number; gainKmPpl: number; newlyNear: number;
-    areasImproved: number }[];
+    areasImproved: number; netOutPer1k: number | null; netOutPct: number | null }[];
   totalGainKmPpl: number; totalNewlyNear: number; improvedAreas: PlanArea[]; caveat: string; meta: Meta };
 
 export class ApiError extends Error {
@@ -257,7 +264,7 @@ export type ReportEmd = { admCd: string; admNm: string; totPpltn: number | null;
 export type RegionReport = {
   area: { admCd: string; admNm: string; parentCd: string; parentNm: string | null; areaKm2: number; totPpltn: number | null;
     aged65Ppltn: number | null; aged65Ratio: number | null; kosisPeriod: string | null; emdCount: number;
-    bbox: [number, number, number, number] };
+    bbox: [number, number, number, number]; migration: Migration | null };
   metrics: ReportMetric[];
   facilities: { all: number; fin: number; c365: number };
   posts: ReportPost[];

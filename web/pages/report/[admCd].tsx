@@ -7,8 +7,9 @@ import { StatSkeletons, TableSkeleton } from "@/components/Skeleton";
 import { useApi } from "@/hooks/useApi";
 import { fixedClass } from "@/lib/choropleth";
 import { rankText as rankTextOf } from "@/lib/rules";
-import { isNoData, type RegionReport, type Region, type ReportMetric } from "@/lib/api";
-import { BANK_REASON_SHORT, dt, GRADE_BADGE, GRADE_LABEL, num, VISIT_BADGE, withUnit } from "@/lib/format";
+import { isNoData, type Migration, type RegionReport, type Region, type ReportMetric } from "@/lib/api";
+import { BANK_REASON_SHORT, dt, GRADE_BADGE, GRADE_LABEL, num, signed, VISIT_BADGE, withUnit } from "@/lib/format";
+import { fmtPeriod } from "@/components/RegionCard";
 import Sents from "@/components/Sents";
 
 // 읍면동 작은 지도에서 고를 수 있는 지표 — 단계(5칸)는 지표 성격에 맞춘 고정 경계(지역 사이 비교가 되도록)
@@ -73,13 +74,14 @@ export default function ReportPage() {
         {!r && !err && <><StatSkeletons rows={1} /><div className="card p-6"><TableSkeleton rows={8} /></div></>}
         {r && (
           <>
-            <section className="grid grid-cols-2 gap-3 md:grid-cols-4" aria-label="요약">
+            <section className={`grid grid-cols-2 gap-3 ${r.area.migration ? "md:grid-cols-3 lg:grid-cols-5" : "md:grid-cols-4"}`} aria-label="요약">
               <Fact label="인구" value={`${num(r.area.totPpltn)}명`} note={`면적 ${num(r.area.areaKm2)}km² · 읍면동 ${r.area.emdCount}곳`} />
               <Fact label="65세 이상" value={r.area.aged65Ratio != null ? `${num(r.area.aged65Ratio, 1)}%` : "—"}
                 note={r.area.aged65Ppltn != null ? `${num(r.area.aged65Ppltn)}명 · KOSIS ${r.area.kosisPeriod}` : "KOSIS 자료 없음"} />
               <Fact label="금융 우체국" value={`${num(r.facilities.fin)}곳`} note={`전체 시설 ${num(r.facilities.all)}곳 · 365코너 ${num(r.facilities.c365)}곳`} />
               <Fact label="은행 지점" value={`${num(r.banks.branches)}곳`}
                 note={`닫힐 때 영향 높음 ${r.banks.byGrade.HIGH} · 보통 ${r.banks.byGrade.MID} · 낮음 ${r.banks.byGrade.LOW}`} />
+              {r.area.migration && <MigrationFact m={r.area.migration} per1k={r.metrics.find((x) => x.code === "NET_OUT_12M_PER_1K")?.value} />}
             </section>
 
             <Card title="핵심 지표 — 전국 시군구와 비교">
@@ -202,6 +204,13 @@ export default function ReportPage() {
       </div>
     </Layout>
   );
+}
+
+// 인구 추세 — 최근 12개월 다른 시군구와의 전출입 (행정안전부 인구이동, ADR-028)
+function MigrationFact({ m, per1k }: { m: Migration; per1k: number | null | undefined }) {
+  const basis = m.basis === "CITY" ? ` · ${m.basisName} 전체` : "";
+  return <Fact label={`12개월 순유출 · ${fmtPeriod(m.refFrom)}~${fmtPeriod(m.refTo)}`} value={signed(m.netOut)}
+    note={`천 명당 ${withUnit(per1k ?? null, "‰")} · 65세 이상 순유입 ${signed(m.aged65NetIn)}${basis}`} />;
 }
 
 function Fact({ label, value, note }: { label: string; value: string; note?: string }) {
