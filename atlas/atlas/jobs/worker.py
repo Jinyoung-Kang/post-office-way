@@ -56,7 +56,8 @@ def execute(job: dict[str, Any], worker: str | None = None, lane: str | None = N
         # 수집기는 실패를 실행 기록(FAILED)에 남기고 정상 반환하기도 함 — 모두 실패면 작업도 실패, 재계산은 넣지 않음 (R6)
         if (ids := result.get("collectRunIds")) and set(collect_runs.statuses(ids)) == {"FAILED"}:
             raise RuntimeError(f"수집 실패 — 새 자료가 없어 재계산하지 않음 (collectRunIds={ids})")
-        if spec.recalc and (job["params"] or {}).get("recalc", True):
+        # 수집기가 '바뀐 것 없음'(changed=False)을 알리면 재계산을 넣지 않음 — 주 1회 증분 수집(인구이동)이 매주 계산을 부르지 않게
+        if spec.recalc and (job["params"] or {}).get("recalc", True) and result.get("changed", True):
             try:
                 result["chainedCalcJobId"] = queue.enqueue("calc", source="chain", requested_by=f"job:{jid}")
             except queue.JobConflict as e:

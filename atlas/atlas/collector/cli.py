@@ -15,6 +15,7 @@
   atlas collect walk                     ② 최신 지표 계산에 도보 거리 채우기 (그래프 필요)
   atlas collect weather|kma|air          ⑥ 방문 여건 — 기상청 단기예보·에어코리아 미세먼지 예보 (하루 1~3회)
   atlas collect care|holidays            ⑦ 약국·병의원(국립중앙의료원) · 공휴일(한국천문연구원 특일)
+  atlas collect migration                인구 추세 — 행안부 지역별 인구이동, 빠진 달만 (13개월 백필 약 3,800회)
   atlas worker [--once]                  작업 큐 워커 + 스케줄러 (API 가 넣은 작업 실행)
   atlas enqueue KIND [--param k=v]       작업을 큐에 넣기 · atlas jobs 최근 작업 · atlas schedule 스케줄
   atlas calc [--levels 2,3]
@@ -129,7 +130,8 @@ def cmd_status(_: argparse.Namespace) -> int:
             (SELECT count(*) FROM mart.post_facility_hist WHERE is_current AND fin_available) AS fin_available,
             (SELECT count(*) FROM mart.admin_area) AS areas,
             (SELECT count(*) FROM mart.area_population) AS population_rows,
-            (SELECT count(*) FROM mart.area_resident_pop) AS kosis_rows""")).mappings().one()
+            (SELECT count(*) FROM mart.area_resident_pop) AS kosis_rows,
+            (SELECT count(DISTINCT ref_ym) FROM mart.migration_month) AS migration_months""")).mappings().one()
     s = get_settings()
     _print({"keys": {"POST_SERVICE_KEY": bool(s.post_service_key), "SGIS_CONSUMER_KEY": bool(s.sgis_consumer_key),
                      "SGIS_CONSUMER_SECRET": bool(s.sgis_consumer_secret), "KOSIS_API_KEY": bool(s.kosis_api_key),
@@ -287,7 +289,7 @@ def build_parser() -> argparse.ArgumentParser:
     d.set_defaults(fn=cmd_discover)
     c = sub.add_parser("collect")
     c.add_argument("what", choices=["post", "sgis", "sgis-pop", "sgis-bnd", "kosis", "oa", "road", "geocheck", "banks",
-                                   "banks-full", "osm", "walk", "weather", "kma", "air", "care", "holidays"])
+                                   "banks-full", "osm", "walk", "weather", "kma", "air", "care", "holidays", "migration"])
     c.add_argument("--refresh", action="store_true", help="집계구 경계를 전부 다시 받기 (oa)")
     c.add_argument("--max-calls", type=int, help="호출 예산 (road·geocheck)")
     c.add_argument("--scope", help="지역코드 목록 (post)")

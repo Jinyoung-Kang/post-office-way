@@ -28,6 +28,8 @@
    "gainKmPpl": 24000.0,
    "lat": 37.234,
    "lon": 127.669,
+   "netOutPct": null,
+   "netOutPer1k": null,
    "newlyNear": 4000,
    "siteCd": "99040",
    "siteNm": "지역99040"

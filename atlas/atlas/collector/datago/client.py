@@ -1,4 +1,7 @@
-"""공공데이터포털(apis.data.go.kr) 공통 — 기상청·에어코리아는 같은 일반 인증키(serviceKey)와 같은 응답 틀을 씁니다.
+"""공공데이터포털(apis.data.go.kr) 공통 — 모두 같은 일반 인증키(serviceKey)를 씁니다.
+
+응답 틀은 둘: 기상청·에어코리아·국립중앙의료원·천문연은 response.header/body, 행정안전부(1741000)는
+Response.head/items(결과코드 '0'·'3' 처럼 한 자리). 결과코드는 두 자리로 맞춰 같은 기준으로 판정합니다.
 
 키는 raw 원문 저장 전에 마스킹됩니다(serviceKey). 키 미등록·한도 초과처럼 계속 호출해도 소용없는 오류면
 DataGoStop 을 던져 수집을 멈춥니다(이미 받은 결과는 남음).
@@ -31,8 +34,14 @@ def require_key() -> str:
     return key
 
 
-def make_fetcher(run_id: uuid.UUID, source: str) -> Fetcher:
-    return Fetcher(run_id, source, secrets=[require_key()], gzip_threshold=0)
+def make_fetcher(run_id: uuid.UUID, source: str, timeout_s: float | None = None) -> Fetcher:
+    return Fetcher(run_id, source, secrets=[require_key()], gzip_threshold=0, timeout_s=timeout_s)
+
+
+def _code2(v: Any) -> str:
+    """결과코드를 두 자리로 — 행정안전부는 '0'·'3', 다른 기관은 '00'·'03'."""
+    s = str(v if v is not None else "").strip()
+    return s.zfill(2) if s.isdigit() and len(s) == 1 else s
 
 
 def _error_of(status: int | None, body: str) -> tuple[str | None, str]:
@@ -44,7 +53,10 @@ def _error_of(status: int | None, body: str) -> tuple[str | None, str]:
     if isinstance(data, dict):
         if "response" in data:
             h = data["response"].get("header") or {}
-            return str(h.get("resultCode", "")), str(h.get("resultMsg", ""))
+            return _code2(h.get("resultCode")), str(h.get("resultMsg", ""))
+        if "Response" in data:   # 행정안전부 — head 아래 결과코드
+            h = (data["Response"] or {}).get("head") or {}
+            return _code2(h.get("resultCode")), str(h.get("resultMsg", ""))
         env = (data.get("OpenAPI_ServiceResponse") or {}).get("cmmMsgHeader") or {}
         if env:
             return str(env.get("returnReasonCode", "")), str(env.get("errMsg") or env.get("returnAuthMsg") or "")
@@ -54,18 +66,26 @@ def _error_of(status: int | None, body: str) -> tuple[str | None, str]:
     return (None, f"HTTP {status}") if status and status >= 400 else (None, "")
 
 
-def call(fetcher: Fetcher, url: str, params: dict[str, Any], source: str) -> dict[str, Any] | None:
-    """정상이면 response.body(dict), 결과 없음(03)이면 빈 dict, 그 밖의 실패는 None, 멈춰야 하면 DataGoStop."""
+def call(fetcher: Fetcher, url: str, params: dict[str, Any], source: str,
+         empty_codes: tuple[str, ...] = ("03",)) -> dict[str, Any] | None:
+    """정상이면 body(dict — items·totalCount), 결과 없음(empty_codes, 기본 03)이면 빈 dict, 그 밖의 실패는 None,
+    멈춰야 하면 DataGoStop. 행정안전부 응답(Response.head/items)도 같은 모양({items, totalCount, …})으로 돌려줌."""
     res = fetcher.get(url, {**params, "serviceKey": require_key()}, source=source)
     time.sleep(get_settings().datago_call_delay_ms / 1000)
     code, msg = _error_of(res.status, res.body)
     if code in STOP_CODES or res.status in (401, 403) or "SERVICE_KEY" in (msg or ""):
         raise DataGoStop(f"{source} 중단 (코드 {code or res.status}): {msg[:120]}")
-    if code == "03":
+    if code in empty_codes:
         return {}
-    if not res.ok or code not in ("00", "0"):
+    if not res.ok or code != "00":
         return None
-    return json.loads(res.body)["response"].get("body") or {}
+    data = json.loads(res.body)
+    if "Response" in data:
+        r = data["Response"] or {}
+        h = r.get("head") or {}
+        return {"items": r.get("items") or [], "totalCount": h.get("totalCount"), "pageNo": h.get("pageNo"),
+                "numOfRows": h.get("numOfRows")}
+    return data["response"].get("body") or {}
 
 
 def items_of(body: dict[str, Any]) -> list[dict[str, Any]]:

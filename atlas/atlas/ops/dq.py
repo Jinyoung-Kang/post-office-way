@@ -33,12 +33,14 @@ RULES: dict[str, tuple[str, str]] = {
     "ADDR_NOT_FOUND": ("INFO", "주소 검색(카카오)으로 찾지 못한 시설 주소"),
     "OA_UNMATCHED": ("INFO", "집계구 인구·경계 중 한쪽만 있는 집계구"),
     "MASS_CHANGE_HELD": ("ERROR", "한 번에 기존 자료의 큰 비율이 지워지거나 닫히게 되어 반영을 멈춤 — 응답을 확인하세요(ADR-023)"),
+    "MIGR_UNMATCHED": ("INFO", "행안부 인구이동 시군구 단위와 맞추지 못한 SGIS 시군구(또는 어느 시군구에도 대응되지 않은 행안부 단위)"),
+    "MIGR_WINDOW_INCOMPLETE": ("WARN", "인구이동 최근 12개월이 다 모이지 않아 인구 추세 지표를 만들지 않음(전체 또는 지역)"),
 }
 
 COLLECT_POST_RULES = ("COORD_NULL", "COORD_GEOCODED", "COORD_OUT_OF_KR", "DUP_POST_ID", "TOTALCOUNT_MISMATCH",
                       "TIME_FORMAT", "STALE_MOD_DT", "FETCH_FAILED")
 COLLECT_SGIS_RULES = ("GEOM_INVALID", "REP_POINT_OUTSIDE", "POP_NULL", "AREA_WITHOUT_POP", "FETCH_FAILED")
-CALC_RULES = ("SPATIAL_JOIN_MISS", "GEOM_INVALID")
+CALC_RULES = ("SPATIAL_JOIN_MISS", "GEOM_INVALID", "MIGR_WINDOW_INCOMPLETE")
 
 
 @dataclass

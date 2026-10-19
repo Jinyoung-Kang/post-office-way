@@ -122,6 +122,17 @@ def list_areas(c: Connection, level: int, metric: str, parent: str | None, calc_
             "meta": meta_of(run, level=level, parent=parent)}
 
 
+def migration_block(m: Any) -> dict[str, Any] | None:
+    """인구 이동 12개월 합 (지역 카드·보고서 공통). basis CITY 면 일반구가 속한 시 전체 값."""
+    if not m:
+        return None
+    return {"refFrom": m["ym_from"], "refTo": m["ym_to"], "inCnt": m["in_cnt"], "outCnt": m["out_cnt"],
+            "netOut": m["out_cnt"] - m["in_cnt"], "aged65In": m["in65"], "aged65Out": m["out65"],
+            "aged65NetIn": m["in65"] - m["out65"], "basis": "CITY" if m["match_method"] == "CITY" else "AREA",
+            "basisName": m["sgg_nm"] if m["match_method"] == "CITY" else None,
+            "source": "행정안전부 지역별 인구이동(주민등록)", "loadedAt": m["loaded_at"]}
+
+
 def area_detail(c: Connection, adm_cd: str, calc_run_id: str | None) -> dict[str, Any]:
     run = resolve_calc_run(c, calc_run_id)
     a = q.area(c, adm_cd, run["stat_year"])
@@ -132,6 +143,7 @@ def area_detail(c: Connection, adm_cd: str, calc_run_id: str | None) -> dict[str
     banks = q.nearest_banks(c, adm_cd, run["stat_year"])
     fac_counts = q.facility_counts(c, adm_cd, run["stat_year"], a["level"], run["facility_as_of"])
     resident = q.resident_pop(c, adm_cd, run["stat_year"])
+    migr = q.migration(c, run["calc_run_id"], adm_cd, run["stat_year"]) if a["level"] == 2 else None
     return jsonable({
         "admCd": a["adm_cd"], "admNm": a["adm_nm"], "level": a["level"], "parentCd": a["parent_cd"],
         "parentNm": a["parent_nm"], "statYear": run["stat_year"], "areaKm2": a["area_km2"],
@@ -143,6 +155,7 @@ def area_detail(c: Connection, adm_cd: str, calc_run_id: str | None) -> dict[str
                          "aged65Ppltn": resident["aged65_ppltn"], "aged65Ratio": resident["aged65_ratio"],
                          "matchMethod": resident["match_method"], "loadedAt": resident["loaded_at"],
                          "source": "KOSIS 주민등록인구(행정안전부)"} if resident else None),
+        "migration": migration_block(migr),
         "metrics": [{"code": m["metric_code"], "name": m["name_ko"], "value": m["value"], "unit": m["unit"],
                      "higherIsWorse": m["higher_is_worse"], "rank": m["rnk"], "rankOf": m["n"],
                      "percentile": m["pct"]} for m in metrics],

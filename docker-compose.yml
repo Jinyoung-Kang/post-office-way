@@ -29,7 +29,7 @@ x-atlas-env: &atlas-env
   KOSIS_PERIOD: ${KOSIS_PERIOD:-}
   DATA_GO_KR_KEY: ${DATA_GO_KR_KEY:-}
   API_DB_PASSWORD: ${API_DB_PASSWORD:-}
-  ATLAS_SCHEDULE: ${ATLAS_SCHEDULE:-weather,holidays,care}
+  ATLAS_SCHEDULE: ${ATLAS_SCHEDULE:-weather,holidays,care,population}
   RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-true}
   ADMIN_TOKEN: ${ADMIN_TOKEN:-}
   STAT_YEAR: ${STAT_YEAR:-2024}

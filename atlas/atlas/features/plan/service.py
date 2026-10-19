@@ -7,6 +7,7 @@
 - open: 범위 안 읍면동 대표점을 후보지로, 새 우체국을 k곳(≤7) 연다면 가중 인구 × 줄어드는 거리의 합이
   가장 큰 곳부터 고릅니다(p-median 탐욕 근사). 후보지 15km 안 지역만 효과를 셉니다.
 가중치: 65세 이상(KOSIS, 없으면 전체 인구로 대체) 또는 전체 인구(SGIS). 직선거리 기준 — 공식 판단 근거 아님.
+인구 추세(행안부 인구이동 12개월 순유출)는 가중치에 넣지 않고 결과마다 경고 열로만 붙입니다 (ADR-028).
 """
 from __future__ import annotations
 
@@ -56,7 +57,12 @@ def _oa_weights(c: Connection, y: int, oas: list[str], weight: str) -> tuple[dic
     return {cd: float(p or 0) for cd, p, _ in rows}, "pop"
 
 
-ALGO_VERSION = "4"   # 알고리즘·응답 형식이 바뀌면 올려서 이전 캐시를 무효화
+ALGO_VERSION = "5"   # 알고리즘·응답 형식이 바뀌면 올려서 이전 캐시를 무효화 (5: 순유출 경고 열 netOutPer1k·netOutPct)
+
+
+def _trend(v: tuple[Any, Any] | None) -> dict[str, Any]:
+    """그 시군구의 12개월 순유출(천 명당)과 백분위(클수록 유출이 많은 쪽) — 인구 추세 자료가 없으면 null."""
+    return {"netOutPer1k": v[0] if v else None, "netOutPct": v[1] if v else None}
 
 
 def _key(kind: str, run_id: Any, **kw: Any) -> str:
@@ -95,12 +101,14 @@ def plan_close(c: Connection, scope: str, k: int, weight: str, level: int | None
                      key=lambda r: (r["addedCost"], r["histId"]))
     # ⑦ 닫으면 생활 거점을 모두 잃는 인구(우체국별, 최신 계산) — 제안 목록에 경고로 함께 표시
     hub = q.sole_hub(c, run["calc_run_id"], sorted(facs))
+    trend = q.net_out_of_facilities(c, run["calc_run_id"], y, sorted(facs))    # 시설이 있는 시군구의 순유출 — 경고만
     removed: set[int] = set()
     out_steps = []
     for st in steps:
         removed.add(st["histId"])
         out_steps.append({**facs[st["histId"]], **st, "addedKmPpl": round(st["addedCost"] / 1000, 1),
-                          "newlyFar": round(st["newlyFar"]), "soleHubPpltn": hub.get(st["histId"])})
+                          "newlyFar": round(st["newlyFar"]), "soleHubPpltn": hub.get(st["histId"]),
+                          **_trend(trend.get(st["histId"]))})
     # 거리가 늘어나는 수요 지점을 읍면동(집계구면 상위 읍면동)으로 묶어 가중 평균 거리로 표시
     agg: dict[str, list[float]] = {}
     for a in areas:
@@ -123,10 +131,12 @@ def plan_close(c: Connection, scope: str, k: int, weight: str, level: int | None
         "affectedAreas": affected[:50],
         "leastImpact": [{"histId": r["histId"], "name": r["name"], "addr": r["addr"], "lat": r["lat"], "lon": r["lon"],
                          "addedKmPpl": round(r["addedCost"] / 1000, 1), "newlyFar": round(r["newlyFar"]),
-                         "areasAffected": r["areasAffected"], "soleHubPpltn": hub.get(r["histId"])} for r in singles[:15]],
+                         "areasAffected": r["areasAffected"], "soleHubPpltn": hub.get(r["histId"]),
+                         **_trend(trend.get(r["histId"]))} for r in singles[:15]],
         "mostCritical": [{"histId": r["histId"], "name": r["name"], "addr": r["addr"],
                           "addedKmPpl": round(r["addedCost"] / 1000, 1), "newlyFar": round(r["newlyFar"]),
-                          "areasAffected": r["areasAffected"], "soleHubPpltn": hub.get(r["histId"])} for r in singles[::-1][:10]],
+                          "areasAffected": r["areasAffected"], "soleHubPpltn": hub.get(r["histId"]),
+                          **_trend(trend.get(r["histId"]))} for r in singles[::-1][:10]],
         "caveat": CAVEAT, "meta": meta_of(run),
     })
     cache.set(key, json.dumps(out, ensure_ascii=False), ttl=3600)
@@ -152,6 +162,7 @@ def plan_open(c: Connection, scope: str, k: int, weight: str, level: int | None 
     steps = greedy_open(cur, w, near, k, far_m)
     names = q.area_names(c, y, list(cur))
     pts = q.rep_points(c, y, [s["siteCd"] for s in steps])
+    trend = q.net_out_of_areas(c, run["calc_run_id"], [s["siteCd"] for s in steps])
     after = dict(cur)
     for st in steps:
         for a, d in near[st["siteCd"]]:
@@ -164,7 +175,7 @@ def plan_open(c: Connection, scope: str, k: int, weight: str, level: int | None 
         "weight": used, "weightFallback": used != weight, "farM": far_m, "candidateCount": len(near),
         "steps": [{**st, "siteNm": names.get(st["siteCd"]), "lat": pts.get(st["siteCd"], (None, None))[0],
                    "lon": pts.get(st["siteCd"], (None, None))[1], "gainKmPpl": round(st["gain"] / 1000, 1),
-                   "newlyNear": round(st["newlyNear"])} for st in steps],
+                   "newlyNear": round(st["newlyNear"]), **_trend(trend.get(st["siteCd"]))} for st in steps],
         "totalGainKmPpl": round(sum(s["gain"] for s in steps) / 1000, 1),
         "totalNewlyNear": round(sum(s["newlyNear"] for s in steps)),
         "improvedAreas": improved[:50],

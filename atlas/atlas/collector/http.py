@@ -43,12 +43,13 @@ class Fetcher:
     store_raw: bool = True
     headers: dict[str, str] = field(default_factory=dict)   # 인증 헤더(카카오 KakaoAK) — raw 에는 저장하지 않음
     gzip_threshold: int = GZIP_THRESHOLD                     # 이 크기 이상 원문은 gzip (대량 수집은 0 = 항상)
+    timeout_s: float | None = None                           # 비우면 HTTP_TIMEOUT_S — 응답이 크고 느린 원천만 길게(인구이동 쪽당 약 860KB)
     _client: httpx.Client | None = None
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
     def __post_init__(self) -> None:
         s = get_settings()
-        self._client = httpx.Client(timeout=s.http_timeout_s, follow_redirects=True,
+        self._client = httpx.Client(timeout=self.timeout_s or s.http_timeout_s, follow_redirects=True,
                                     headers={"User-Agent": "postal-access-atlas/0.1 (local analysis)", **self.headers})
         self._retries = s.http_retries
 

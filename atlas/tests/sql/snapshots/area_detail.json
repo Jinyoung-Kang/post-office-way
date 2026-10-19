@@ -194,6 +194,7 @@
    "value": 1000
   }
  ],
+ "migration": null,
  "nearest": [
   {
    "addr": null,

@@ -101,7 +101,7 @@ def test_dq_spatial_join_miss(terrain, engine):
         checks = dict(c.execute(text("SELECT check_code, issue_count FROM ops.dq_check WHERE calc_run_id = :r"),
                                 {"r": rid}).all())
     assert [m for _, m in issues] == ["NEAREST"]
-    assert checks == {"SPATIAL_JOIN_MISS": 1, "GEOM_INVALID": 0}
+    assert checks == {"SPATIAL_JOIN_MISS": 1, "GEOM_INVALID": 0, "MIGR_WINDOW_INCOMPLETE": 0}   # 인구이동 자료가 없으면 0
 
 
 def test_calc_fails_cleanly_without_areas(clean, engine):

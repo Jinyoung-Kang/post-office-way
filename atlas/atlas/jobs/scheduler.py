@@ -1,7 +1,7 @@
 """작업 스케줄 — 워커가 매 순환마다 due() 를 보고, 지금이 예정 시각 뒤 WINDOW 안이면 슬롯 키로 한 번만 넣습니다.
 
 워커가 꺼져 있던 동안 지난 슬롯은 몰아서 실행하지 않습니다(예보처럼 지난 자료는 의미가 없음).
-그룹은 .env ATLAS_SCHEDULE 로 켭니다 (기본 weather,holidays,care — post 는 호출이 많아 선택).
+그룹은 .env ATLAS_SCHEDULE 로 켭니다 (기본 weather,holidays,care,population — post 는 호출이 많아 선택).
 """
 from __future__ import annotations
 
@@ -26,6 +26,8 @@ SCHEDULE: tuple[Entry, ...] = (
     Entry("air", "weather", ((5, 30), (11, 30), (17, 30), (23, 30)), note="대기질 예보 발표 +30분"),
     Entry("holidays", "holidays", ((4, 10),), note="대체·임시공휴일 반영"),
     Entry("care", "care", ((4, 20),), weekdays=(0,), note="약국·병의원 전체 자료 (끝나면 지표 재계산)"),
+    # 원천 서버가 새벽에 몇 배 느려(한 달 12분 → 45분, 시간 초과) 낮에 — 측정은 ADR-028
+    Entry("migration", "population", ((10, 30),), weekdays=(1,), note="행안부 인구이동 — 빠진 달만 (새 달이 있으면 지표 재계산)"),
     Entry("post", "post", ((3, 0),), note="우체국 시설 (끝나면 지표 재계산)"),
 )
 

@@ -98,6 +98,17 @@ def test_scheduler_due_and_next():
     assert scheduler.enabled("") == [] and len(scheduler.enabled("all")) == len(scheduler.SCHEDULE)
 
 
+def test_population_schedule_weekly_tuesday():
+    """인구이동은 주 1회(화 10:30, 원천이 새벽에 느림) 빠진 달만 — 월 단위 스케줄 없이 증분 (ADR-028). 기본 그룹에 들어 있음."""
+    from atlas.core.config import Settings
+
+    entries = scheduler.enabled(Settings(_env_file=None).atlas_schedule)
+    assert "migration" in {e.kind for e in entries}
+    assert ("migration", "migration@2026-09-29T10:30") in scheduler.due(datetime(2026, 9, 29, 10, 40), entries)
+    assert not any(k == "migration" for k, _ in scheduler.due(datetime(2026, 9, 28, 10, 40), entries))   # 월요일
+    assert registry.get("migration").long and registry.get("migration").needs == ("data_go_kr_key",)
+
+
 def test_registry_covers_schedule_and_keys(monkeypatch):
     assert {e.kind for e in scheduler.SCHEDULE} <= set(registry.JOBS)
     from atlas.core.config import Settings

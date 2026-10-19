@@ -120,6 +120,8 @@ def execute_calc_run(calc_run_id: uuid.UUID, engine: Engine | None = None) -> di
             step("road", lambda: run_sql_file(c, "calc/08_road.sql", base))     # ② 도로 거리
             step("life", lambda: run_sql_file(c, "calc/09_life.sql", far))      # ⑦ 생활 거점(약국·의원)
             step("bankImpact", lambda: run_sql_file(c, "calc/11_bank_impact.sql", {**far, **snap}))   # ① 은행 지점 폐쇄 영향
+            step("migration", lambda: run_sql_file(c, "calc/12_migration.sql", base))   # 인구 추세(행안부 인구이동, ADR-028)
+            mw = c.execute(text("SELECT ym_from, ym_to, n, ok FROM calc_migr_win")).one()
             step("ranks", lambda: run_sql_file(c, "calc/10_ranks.sql", base))  # 순위·백분위 미리 계산 (V14)
             extra = c.execute(text("""SELECT
                 (SELECT count(*) FROM mart.oa_nearest WHERE calc_run_id = :id),
@@ -144,11 +146,25 @@ def execute_calc_run(calc_run_id: uuid.UUID, engine: Engine | None = None) -> di
             dq.add_sql(c, "GEOM_INVALID", "mart.admin_area", """
                 SELECT a.adm_cd, jsonb_build_object('reason', ST_IsValidReason(a.geom))
                   FROM calc_area a WHERE NOT ST_IsValid(a.geom)""")
+            if mw.ok:   # 창은 찼지만 그 12개월이 다 있지 않은 단위(행정구역 개편)에 대응된 시군구
+                dq.add_sql(c, "MIGR_WINDOW_INCOMPLETE", "mart.area_migration_map", """
+                    SELECT mp.adm_cd, jsonb_build_object('moisCd', mp.mois_cd, 'months', coalesce(x.n, 0))
+                      FROM mart.area_migration_map mp
+                      JOIN calc_area a ON a.adm_cd = mp.adm_cd AND a.level = 2
+                      LEFT JOIN (SELECT coalesce(al.unit_cd, m.mois_cd) AS mois_cd, count(DISTINCT m.ref_ym) AS n
+                                   FROM mart.migration_month m
+                                   LEFT JOIN mart.migration_unit_alias al ON al.mois_cd = m.mois_cd
+                                   JOIN calc_migr_win w ON m.ref_ym BETWEEN w.ym_from AND w.ym_to
+                                  GROUP BY 1) x ON x.mois_cd = mp.mois_cd
+                     WHERE mp.stat_year = :y AND coalesce(x.n, 0) < 12""", {"y": stat_year})
+            elif mw.n:  # 받은 달은 있는데 최근 12개월이 이어지지 않음 — 지표 전체가 꺼짐 (받은 적이 없으면 조용히)
+                dq.add(c, "MIGR_WINDOW_INCOMPLETE", "mart.migration_month", f"{mw.ym_from}~{mw.ym_to}", {"months": mw.n})
             dq_counts = dq.record_checks(c, CALC_RULES)
             per_level = {str(r[0]): r[1] for r in c.execute(text(
                 "SELECT level, count(*) FROM calc_area GROUP BY level ORDER BY level"))}
             stats = {"facilities": n_fac, "finFacilities": n_fin, "areas": n_area, "areasByLevel": per_level,
                      "kosisRefPeriod": kosis_period,
+                     "migrationWindow": {"from": mw.ym_from, "to": mw.ym_to} if mw.ok else None,
                      "oaCount": extra[0], "bankAreas": extra[1], "roadAreas": extra[2],
                      "hubFacilities": extra[3], "bankImpact": extra[4], "carePlaces": extra[5],
                      "timingsMs": timings, "dq": dq_counts,

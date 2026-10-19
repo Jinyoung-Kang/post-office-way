@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     sgis_consumer_secret: str = ""
     kakao_rest_api_key: str = ""
     kosis_api_key: str = ""
-    data_go_kr_key: str = ""                  # 공공데이터포털 일반 인증키 — 기상청 단기예보·에어코리아 (방문 여건)
+    data_go_kr_key: str = ""                  # 공공데이터포털 일반 인증키 — 기상청·에어코리아(방문 여건)·약국·병의원·특일·인구이동
     admin_token: str = ""
     api_db_password: str = ""                 # 최소 권한 역할 atlas_api 비밀번호 (make env 가 생성)
 
@@ -47,6 +47,8 @@ class Settings(BaseSettings):
     pharmacy_url: str = "https://apis.data.go.kr/B552657/ErmctInsttInfoInqireService"
     hospital_url: str = "https://apis.data.go.kr/B552657/HsptlAsembySearchService"
     holiday_url: str = "https://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService"
+    mois_migration_url: str = "https://apis.data.go.kr/1741000/ppltnDataStus"   # 행정안전부 지역별 인구이동 (ADR-028)
+    migration_months: int = 13                # 인구이동을 받아 두는 지난 달 수 (지표는 최근 12개월 — 1개월 여유)
     datago_call_delay_ms: int = 100
     datago_concurrency: int = 4               # 공공데이터포털 동시 호출 수 (기상청 격자). 서비스 한도 30 tps 안
     # ② 도보 — OSM 한국 도로망(Geofabrik, ODbL). 내려받은 파일·그래프는 osm_dir(도커 볼륨)에 둠
@@ -60,7 +62,7 @@ class Settings(BaseSettings):
     rate_limit_enabled: bool = True
     # 이 대역에서 온 요청만 X-Forwarded-For 를 믿음 (web 컨테이너가 있는 도커 사설망 + 로컬)
     trusted_proxies: str = "127.0.0.1/32,::1/128,172.16.0.0/12,10.0.0.0/8,192.168.0.0/16"
-    atlas_schedule: str = "weather,holidays,care"   # 워커 스케줄 그룹 (weather·holidays·care·post, all, 빈 값=끔)           # 공공데이터포털(기상청·에어코리아) 호출 간 지연
+    atlas_schedule: str = "weather,holidays,care,population"   # 워커 스케줄 그룹 (weather·holidays·care·population·post, all, 빈 값=끔)           # 공공데이터포털(기상청·에어코리아) 호출 간 지연
     post_call_delay_ms: int = 300
     http_timeout_s: float = 10.0
     http_retries: int = 3

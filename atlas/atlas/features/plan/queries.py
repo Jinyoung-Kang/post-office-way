@@ -82,6 +82,27 @@ def sole_hub(c: Connection, run_id: Any, ids: list[int]) -> dict[int, Any]:
                                        {"r": run_id, "ids": ids})}
 
 
+def net_out_of_facilities(c: Connection, run_id: Any, y: int, ids: list[int]) -> dict[int, tuple[Any, Any]]:
+    """시설이 있는 시군구의 12개월 순유출(천 명당)·백분위 → {hist_id: (값, 백분위)} — 인구 추세 경고용 (ADR-028).
+    시설-지역 매핑의 어느 레벨이든 앞 5자리가 시군구."""
+    return {r[0]: (r[1], r[2]) for r in c.execute(text("""
+        SELECT DISTINCT ON (fm.hist_id) fm.hist_id, m.value, m.pct
+          FROM mart.facility_area_map fm
+          JOIN mart.access_metric m ON m.calc_run_id = :r AND m.adm_cd = left(fm.adm_cd, 5)
+                                   AND m.metric_code = 'NET_OUT_12M_PER_1K'
+         WHERE fm.stat_year = :y AND fm.hist_id = ANY(CAST(:ids AS bigint[]))
+         ORDER BY fm.hist_id, fm.level"""), {"r": run_id, "y": y, "ids": ids})}
+
+
+def net_out_of_areas(c: Connection, run_id: Any, cds: list[str]) -> dict[str, tuple[Any, Any]]:
+    """지역(시군구·읍면동) → 그 시군구의 12개월 순유출(천 명당)·백분위 → {adm_cd: (값, 백분위)}."""
+    rows = {r[0]: (r[1], r[2]) for r in c.execute(text("""
+        SELECT adm_cd, value, pct FROM mart.access_metric
+         WHERE calc_run_id = :r AND metric_code = 'NET_OUT_12M_PER_1K' AND adm_cd = ANY(CAST(:c AS text[]))"""),
+        {"r": run_id, "c": sorted({cd[:5] for cd in cds})})}
+    return {cd: rows[cd[:5]] for cd in cds if cd[:5] in rows}
+
+
 def current_nearest(c: Connection, run_id: Any, y: int, level: int, scope: str) -> dict[str, float]:
     """범위 안 지역 → 지금 최근접 금융 우체국 거리."""
     return {r[0]: float(r[1]) for r in c.execute(text("""

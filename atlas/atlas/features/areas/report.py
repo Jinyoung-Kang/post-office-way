@@ -16,11 +16,12 @@ from atlas.core.serial import jsonable
 from atlas.domain.errors import DomainError, NotFound
 from atlas.domain.params import parse_region_code
 from atlas.features.areas import queries as q
+from atlas.features.areas.service import migration_block
 
 # 보고서에 싣는 지표 — 화면 순서대로 (없는 지표는 건너뜀)
 KEY_METRICS = ["POPW_FIN_DIST_M", "FAR2KM_SHARE", "AGED65_FAR_PPLTN", "NEAREST_FIN_DRIVE_MIN", "POPW_FIN_WALK_M",
                "WALK30_NO_FIN_SHARE", "WALK30_NO_CASH_PPLTN", "FIN_DESERT_PPLTN", "POST_SOLE_HUB_PPLTN",
-               "CARE_DESERT_PPLTN", "HOLIDAY_CARE_GAP_PPLTN", "ACCESS_GAP_SCORE"]
+               "CARE_DESERT_PPLTN", "HOLIDAY_CARE_GAP_PPLTN", "NET_OUT_12M_PER_1K", "ACCESS_GAP_SCORE"]
 EMD_METRICS = ["POPW_FIN_DIST_M", "FAR2KM_SHARE", "WALK30_NO_FIN_SHARE", "AGED65_RATIO"]
 
 
@@ -52,13 +53,15 @@ def _static(c: Connection, adm_cd: str, run: dict[str, Any], walk_at: Any) -> di
     fac_n = q.report_facility_counts(c, run, adm_cd)
     banks = q.report_banks(c, run, adm_cd)
     emds = q.report_emds(c, run, adm_cd, EMD_METRICS)
+    migr = q.migration(c, run["calc_run_id"], adm_cd, run["stat_year"])
 
     return {
         "area": jsonable({"admCd": area["adm_cd"], "admNm": area["adm_nm"], "parentCd": area["parent_cd"],
                           "parentNm": area["parent_nm"], "areaKm2": area["area_km2"], "totPpltn": area["tot_ppltn"],
                           "aged65Ppltn": area["aged65_ppltn"], "aged65Ratio": area["aged65_ratio"],
                           "kosisPeriod": area["ref_period"], "emdCount": area["emd_n"],
-                          "bbox": [area["minx"], area["miny"], area["maxx"], area["maxy"]]}),
+                          "bbox": [area["minx"], area["miny"], area["maxx"], area["maxy"]],
+                          "migration": migration_block(migr)}),
         "metrics": [jsonable({"code": k, "name": by[k]["name_ko"], "unit": by[k]["unit"], "higherIsWorse": by[k]["higher_is_worse"],
                               "value": by[k]["value"], "rank": by[k]["rnk"], "rankOf": by[k]["n"], "percentile": by[k]["pct"],
                               "median": by[k]["median"]}) for k in KEY_METRICS if k in by],

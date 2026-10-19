@@ -127,6 +127,24 @@ def resident_pop(c: Connection, adm_cd: str, y: int) -> RowMapping | None:
                      {"cd": adm_cd, "y": y}).mappings().first()
 
 
+def migration(c: Connection, run_id: Any, adm_cd: str, y: int) -> RowMapping | None:
+    """인구 이동 12개월 합 — 지표와 같은 창(calc_run.stats.migrationWindow). 일반구는 시 전체 값(match_method CITY)."""
+    return c.execute(text("""
+        WITH w AS (SELECT stats->'migrationWindow'->>'from' AS ym_from, stats->'migrationWindow'->>'to' AS ym_to
+                     FROM mart.calc_run WHERE calc_run_id = :run)
+        SELECT w.ym_from, w.ym_to, mp.mois_cd, mp.match_method,
+               (array_agg(m.sgg_nm ORDER BY m.ref_ym DESC))[1] AS sgg_nm,
+               sum(m.in_cnt) AS in_cnt, sum(m.out_cnt) AS out_cnt, sum(m.in_aged65) AS in65, sum(m.out_aged65) AS out65,
+               max(m.loaded_at) AS loaded_at
+          FROM w
+          JOIN mart.area_migration_map mp ON mp.adm_cd = :cd AND mp.stat_year = :y
+          JOIN mart.migration_month m ON m.ref_ym BETWEEN w.ym_from AND w.ym_to
+          LEFT JOIN mart.migration_unit_alias al ON al.mois_cd = m.mois_cd
+         WHERE coalesce(al.unit_cd, m.mois_cd) = mp.mois_cd                 -- 시도 코드 개편 전 달은 옛 코드로 (V26)
+         GROUP BY w.ym_from, w.ym_to, mp.mois_cd, mp.match_method
+        HAVING count(*) = 12 AND count(DISTINCT m.ref_ym) = 12"""), {"run": run_id, "cd": adm_cd, "y": y}).mappings().first()
+
+
 # ------------------------------------------------------------------------------------------------ 시군구 보고서
 def _report_params(run: dict[str, Any], adm_cd: str) -> dict[str, Any]:
     return {"r": run["calc_run_id"], "y": run["stat_year"], "cd": adm_cd, "asof": run["facility_as_of"]}

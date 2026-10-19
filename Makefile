@@ -12,16 +12,17 @@
 #   make banks     ④ 카카오 은행·금고 지점 (약 15분)
 #   make road      ② 카카오모빌리티 도로 거리 (MAX=8000 호출 예산, 다시 실행하면 이어서)
 #   make geocheck  ③ 카카오 주소 검색으로 시설 좌표 검증 (DQ)
-#   make extras    oa → banks-full → road → geocheck → care → holidays → osm → calc(+도보)
+#   make extras    oa → banks-full → road → geocheck → care → holidays → migration → osm → calc(+도보)
 #   make weather   ⑥ 방문 여건 — 기상청 단기예보·에어코리아 예보 (약 2분, 하루 1~3회. DATA_GO_KR_KEY 없으면 건너뜀)
 #   make banks-full ④ 은행·금고 지점 전수 (사분할 격자, 약 9분) → 은행 지점 폐쇄 영향평가의 기준 목록
 #   make osm       ② OSM 한국 도로망(약 275MiB, 바뀌었을 때만) + 도보 그래프   make walk  최신 계산에 도보 거리
 #   make care      ⑦ 약국·병의원 전체 자료 (약 2분) → 생활 거점 지표는 make calc 뒤 반영
 #   make holidays  ⑦ 공휴일(특일 정보) — 창구 휴무일·연휴 모드
+#   make migration 인구 추세 — 행안부 지역별 인구이동, 빠진 달만 (처음 13개월 약 3,800회·20분, 이후 한 달 약 300회)
 #   make jobs      작업 큐 최근 기록   make schedule 워커 스케줄   make enqueue KIND=calc 워커에 작업 요청
 #   make bench     API 부하 측정 (p50/p95·처리량) + 느린 SQL 상위
 #   make calc      지표 계산 (calc_run) + 도보 거리(OSM 그래프가 있으면)
-#   make all-data  discover(필요 시) → collect → sgis → kosis → extras(oa·banks·road·geocheck·care·holidays) → calc → weather
+#   make all-data  discover(필요 시) → collect → sgis → kosis → extras(oa·banks·road·geocheck·care·holidays·migration) → calc → weather
 #   make test      단위·계약·SQL 테스트 (PostGIS 테스트 DB 사용)
 #   make qa        띄운 서비스 전수 점검 — API 퍼징 · 11개 화면 크롤링 · 네트워크(중복·평문·CSP) · 접근성 · 설명 줄바꿈 (약 5분)
 #   make qa-lh     Lighthouse 모바일 9개 화면 × 3회 중앙값 표 (약 15분)
@@ -38,7 +39,7 @@ RUN := $(COMPOSE) --profile batch run --rm collector
 
 .DEFAULT_GOAL := help
 .PHONY: help env up down restart logs ps build migrate smoke discover collect sgis sgis-pop sgis-bnd kosis oa banks road geocheck \
-        extras banks-full osm walk weather care holidays calc all-data prune backup restore jobs schedule enqueue bench \
+        extras banks-full osm walk weather care holidays migration calc all-data prune backup restore jobs schedule enqueue bench \
         status test test-unit qa qa-lh psql web-dev api-dev reset restore-undo db-update
 
 help:
@@ -130,6 +131,9 @@ care: env
 holidays: env
 	$(RUN) collect holidays
 
+migration: env
+	$(RUN) collect migration
+
 jobs:
 	@$(RUN) jobs
 
@@ -152,6 +156,7 @@ extras: env
 	$(MAKE) geocheck
 	$(MAKE) care
 	$(MAKE) holidays
+	$(MAKE) migration
 	$(MAKE) osm
 	$(MAKE) calc
 

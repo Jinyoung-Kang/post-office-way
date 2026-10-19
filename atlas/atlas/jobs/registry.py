@@ -126,6 +126,13 @@ def _holidays(p: dict[str, Any]) -> dict[str, Any]:
     return _ids(collect_holidays(years=[years] if isinstance(years, int) else years))   # 해 하나(2027)도 받음
 
 
+def _migration(_: dict[str, Any]) -> dict[str, Any]:
+    from atlas.collector.mois.migration import collect_migration
+
+    rid, changed = collect_migration()
+    return {**_ids(rid), "changed": changed}     # 새 달도 대응표 변경도 없으면 재계산하지 않음 (주 1회 증분)
+
+
 def _calc(p: dict[str, Any]) -> dict[str, Any]:
     from atlas.calc.runner import run_calc
 
@@ -153,6 +160,7 @@ JOBS: dict[str, JobSpec] = {j.kind: j for j in (
     JobSpec("air", "에어코리아 예보", _air, _DATAGO),
     JobSpec("care", "약국·병의원", _care, _DATAGO, recalc=True),
     JobSpec("holidays", "공휴일(특일)", _holidays, _DATAGO),
+    JobSpec("migration", "인구이동(행안부)", _migration, _DATAGO, recalc=True, long=True),   # 백필 13개월 약 3,800회 · 20분
     JobSpec("calc", "지표 계산", _calc, then=("walk",)),       # 도보 결과는 calc_run 마다 — 그래프가 없으면 walk 는 건너뜀
 )}
 

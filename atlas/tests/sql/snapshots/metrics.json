@@ -17,6 +17,9 @@
    "code": "NEAREST_FIN_DIST_M",
    "formula": "지역 대표점(ST_PointOnSurface) → 금융 가능 시설(R-FIN-01) 중 최근접(KNN) 직선거리. EPSG:5179 변환 후 ST_Distance.",
    "higherIsWorse": true,
+   "levels": [
+    2
+   ],
    "limitation": "직선거리(도로 거리 아님). 대표점 1개로 지역 전체를 대표.",
    "name": "최근접 금융 가능 우체국 거리",
    "ruleVersion": "v1",
@@ -27,6 +30,9 @@
    "code": "POPW_FIN_DIST_M",
    "formula": "지역 안 집계구마다 대표점 → 최근접 금융 가능 우체국 거리를 구해 집계구 인구로 가중 평균.",
    "higherIsWorse": true,
+   "levels": [
+    2
+   ],
    "limitation": "직선거리. 집계구(평균 약 500명) 대표점 기준이라 읍면동 대표점 1개보다 거주 분포를 잘 반영.",
    "name": "인구 가중 최근접 거리 (집계구)",
    "ruleVersion": "v1",
@@ -37,6 +43,9 @@
    "code": "FAR2KM_PPLTN",
    "formula": "최근접 금융 가능 우체국까지 2km 를 넘는 집계구의 인구 합.",
    "higherIsWorse": true,
+   "levels": [
+    2
+   ],
    "limitation": "직선거리 기준. 거리 기준은 params.farKm.",
    "name": "2km 밖 인구 (집계구)",
    "ruleVersion": "v1",
@@ -47,6 +56,9 @@
    "code": "FAR2KM_SHARE",
    "formula": "FAR2KM_PPLTN ÷ 지역 집계구 인구 합 × 100.",
    "higherIsWorse": true,
+   "levels": [
+    2
+   ],
    "limitation": "인구가 적은 지역은 변동이 큼.",
    "name": "2km 밖 인구 비율 (집계구)",
    "ruleVersion": "v1",
@@ -57,6 +69,7 @@
    "code": "NEAREST_FIN_ROAD_M",
    "formula": "지역 대표점 → 직선거리 상위 2개 금융 가능 우체국까지 카카오모빌리티 자동차 경로 중 짧은 쪽.",
    "higherIsWorse": true,
+   "levels": [],
    "limitation": "⚠ 자동차 경로(도보·대중교통 아님). 후보를 직선 상위 2곳으로 한정. 호출 예산 안에서 채워짐.",
    "name": "최근접 우체국 도로 거리",
    "ruleVersion": "v1",
@@ -67,6 +80,7 @@
    "code": "NEAREST_FIN_DRIVE_MIN",
    "formula": "NEAREST_FIN_ROAD_M 경로의 예상 소요 시간(분).",
    "higherIsWorse": true,
+   "levels": [],
    "limitation": "⚠ 조회 시점 교통 상황 반영.",
    "name": "최근접 우체국 차량 이동 시간",
    "ruleVersion": "v1",
@@ -77,6 +91,9 @@
    "code": "POPW_FIN_WALK_M",
    "formula": "집계구 대표점 → OSM 보행 도로망 최단 경로 → 최근접 금융 우체국. 집계구 인구 가중 평균.",
    "higherIsWorse": true,
+   "levels": [
+    2
+   ],
    "limitation": "OpenStreetMap 도로망 기준(인도·골목이 덜 그려진 곳은 실제보다 멀게). 경사·계단·신호 대기 미반영.",
    "name": "금융 우체국까지 걷는 거리 (인구 가중)",
    "ruleVersion": "v1",
@@ -87,6 +104,9 @@
    "code": "WALK30_NO_FIN_PPLTN",
    "formula": "고령자 보행 속도 0.8m/s × 30분 = 1,440m 안에 금융 우체국이 없는 집계구 인구 합.",
    "higherIsWorse": true,
+   "levels": [
+    2
+   ],
    "limitation": "OSM 도로망 기준. 걷는 속도는 서울시 보행약자 신호시간 기준(1m 당 1.25초)을 따름.",
    "name": "걸어서 30분 안에 금융 우체국이 없는 인구",
    "ruleVersion": "v1",
@@ -97,6 +117,9 @@
    "code": "WALK30_NO_FIN_SHARE",
    "formula": "WALK30_NO_FIN_PPLTN ÷ 집계구 인구 × 100.",
    "higherIsWorse": true,
+   "levels": [
+    2
+   ],
    "limitation": "OSM 도로망 기준.",
    "name": "걸어서 30분 안에 금융 우체국이 없는 인구 비율",
    "ruleVersion": "v1",
@@ -107,6 +130,9 @@
    "code": "WALK30_NO_CASH_PPLTN",
    "formula": "걸어서 30분(1,440m) 안에 금융 우체국도 은행 지점도 없는 집계구 인구 합.",
    "higherIsWorse": true,
+   "levels": [
+    2
+   ],
    "limitation": "OSM 도로망 기준. 새마을금고·저축은행은 제외(은행 지점 기준).",
    "name": "걸어서 30분 안에 대면 금융 창구가 없는 인구",
    "ruleVersion": "v1",
@@ -117,6 +143,9 @@
    "code": "FAC_CNT_R1KM",
    "formula": "ST_DWithin(대표점, 금융 가능 시설, 1000m) 개수 (EPSG:5179).",
    "higherIsWorse": false,
+   "levels": [
+    2
+   ],
    "limitation": "행정구역 경계 밖 시설도 포함. 대표점 기준.",
    "name": "반경 1km 안 금융 가능 우체국 수",
    "ruleVersion": "v1",
@@ -127,6 +156,9 @@
    "code": "FAC_CNT_R2KM",
    "formula": "ST_DWithin(대표점, 금융 가능 시설, 2000m) 개수 (EPSG:5179).",
    "higherIsWorse": false,
+   "levels": [
+    2
+   ],
    "limitation": "행정구역 경계 밖 시설도 포함. 대표점 기준.",
    "name": "반경 2km 안 금융 가능 우체국 수",
    "ruleVersion": "v1",
@@ -137,6 +169,9 @@
    "code": "FAC_CNT_R5KM",
    "formula": "ST_DWithin(대표점, 금융 가능 시설, 5000m) 개수 (EPSG:5179).",
    "higherIsWorse": false,
+   "levels": [
+    2
+   ],
    "limitation": "행정구역 경계 밖 시설도 포함. 대표점 기준.",
    "name": "반경 5km 안 금융 가능 우체국 수",
    "ruleVersion": "v1",
@@ -147,6 +182,9 @@
    "code": "HAS_365",
    "formula": "지역 안(공간 조인) post365_yn='Y' 또는 post_div=3 시설이 1개 이상이면 1.",
    "higherIsWorse": false,
+   "levels": [
+    2
+   ],
    "limitation": "시군구 레벨에서 주로 의미. 읍면동은 0이 많음.",
    "name": "365코너 존재 여부",
    "ruleVersion": "v1",
@@ -157,6 +195,7 @@
    "code": "LUNCH_CLOSED_RATIO",
    "formula": "지역 안 우체국(post_div 0·1, 우편집중국 제외) 중 lunch_yn='Y' 비율 × 100.",
    "higherIsWorse": true,
+   "levels": [],
    "limitation": "우체국 5개 미만 지역은 값 없음(—).",
    "name": "점심 휴무 우체국 비율",
    "ruleVersion": "v1",
@@ -167,6 +206,9 @@
    "code": "ACCESS_GAP_SCORE",
    "formula": "100 × (0.6 × minmax(NEAREST_FIN_DIST_M) + 0.4 × minmax(노령화지수)). 같은 level·calc_run 안에서 0~100.",
    "higherIsWorse": true,
+   "levels": [
+    2
+   ],
    "limitation": "가중치는 임의 설정값(calc_run.params 로 조정). 순위 비교용이며 절대 수준을 뜻하지 않음.",
    "name": "접근성 취약 점수",
    "ruleVersion": "v1",
@@ -177,6 +219,7 @@
    "code": "AGED65_PPLTN",
    "formula": "KOSIS 주민등록인구(행정안전부, DT_1B04005N) 65세 이상 5세 구간 합. 기준월은 calc 시점의 적재분.",
    "higherIsWorse": true,
+   "levels": [],
    "limitation": "주민등록 기준(실거주와 다를 수 있음). 행정구역 이름 매칭 실패 지역은 값 없음.",
    "name": "65세 이상 인구",
    "ruleVersion": "v1",
@@ -187,6 +230,7 @@
    "code": "AGED65_RATIO",
    "formula": "65세 이상 주민등록인구 ÷ 총 주민등록인구 × 100.",
    "higherIsWorse": true,
+   "levels": [],
    "limitation": "주민등록 기준. 인구가 적은 지역은 변동이 큼.",
    "name": "고령인구 비율",
    "ruleVersion": "v1",
@@ -197,6 +241,7 @@
    "code": "AGED65_FAR_PPLTN",
    "formula": "읍면동: 최근접 금융 가능 우체국 거리가 2km 를 넘으면 그 읍면동의 65세 이상 인구, 아니면 0. 시군구: 하위 읍면동 합.",
    "higherIsWorse": true,
+   "levels": [],
    "limitation": "⚠ 읍면동 대표점 1개로 판정한 추정치(읍면동 안 거주 분포 미반영). 거리 기준은 params.farKm.",
    "name": "금융 우체국 2km 밖 고령인구",
    "ruleVersion": "v1",
@@ -207,6 +252,9 @@
    "code": "NEAREST_BANK_DIST_M",
    "formula": "지역 대표점 → 카카오 로컬 은행 범주(BK9) 지점(ATM·우체국 제외) 최근접 직선거리.",
    "higherIsWorse": true,
+   "levels": [
+    2
+   ],
    "limitation": "카카오 장소 데이터 기준(폐점 반영 지연 가능). 20km 안에서 찾은 지점만.",
    "name": "최근접 은행·금고 지점 거리",
    "ruleVersion": "v1",
@@ -217,6 +265,9 @@
    "code": "POST_ONLY_PPLTN",
    "formula": "읍면동: 2km 안에 금융 가능 우체국은 있지만 은행·금고 지점은 없으면 그 인구. 시군구: 하위 합.",
    "higherIsWorse": true,
+   "levels": [
+    2
+   ],
    "limitation": "⚠ 읍면동 대표점 기준 추정. 우체국이 유일한 대면 금융 창구인 지역.",
    "name": "우체국만 있는 인구",
    "ruleVersion": "v1",
@@ -227,6 +278,9 @@
    "code": "FIN_DESERT_PPLTN",
    "formula": "읍면동: 2km 안에 금융 가능 우체국도, 은행·금고 지점도 없으면 그 인구. 시군구: 하위 합.",
    "higherIsWorse": true,
+   "levels": [
+    2
+   ],
    "limitation": "⚠ 읍면동 대표점 기준 추정.",
    "name": "금융 공백 인구",
    "ruleVersion": "v1",
@@ -237,6 +291,7 @@
    "code": "POPW_PHARMACY_DIST_M",
    "formula": "집계구 대표점 → 최근접 약국 직선거리를 집계구 인구로 가중 평균.",
    "higherIsWorse": true,
+   "levels": [],
    "limitation": "국립중앙의료원 약국 FullData 기준. 직선거리.",
    "name": "약국까지 거리 (인구 가중)",
    "ruleVersion": "v1",
@@ -247,6 +302,7 @@
    "code": "POPW_CLINIC_DIST_M",
    "formula": "집계구 대표점 → 최근접 의원·병원·종합병원·보건소 직선거리를 인구 가중 평균.",
    "higherIsWorse": true,
+   "levels": [],
    "limitation": "치과·한의원·요양병원 제외. 직선거리.",
    "name": "의원·병원까지 거리 (인구 가중)",
    "ruleVersion": "v1",
@@ -257,6 +313,7 @@
    "code": "CARE_DESERT_PPLTN",
    "formula": "2km 안에 약국도 의원·병원·보건소도 없는 집계구 인구 합.",
    "higherIsWorse": true,
+   "levels": [],
    "limitation": "직선거리·집계구 대표점 기준.",
    "name": "의료 공백 인구",
    "ruleVersion": "v1",
@@ -267,6 +324,7 @@
    "code": "POST_SOLE_HUB_PPLTN",
    "formula": "2km 안 금융 우체국은 있지만 은행·금고 지점(새마을금고·저축은행 포함)·약국·의원이 모두 없는 집계구 인구 합.",
    "higherIsWorse": true,
+   "levels": [],
    "limitation": "⚠ 우체국이 닫히면 2km 안 생활 거점이 모두 사라지는 곳. 직선거리.",
    "name": "우체국이 마지막 생활 거점인 인구",
    "ruleVersion": "v1",
@@ -277,6 +335,7 @@
    "code": "LIFE_DESERT_PPLTN",
    "formula": "2km 안에 금융 우체국·은행·금고 지점(새마을금고·저축은행 포함)·약국·의원이 하나도 없는 집계구 인구 합.",
    "higherIsWorse": true,
+   "levels": [],
    "limitation": "직선거리·집계구 대표점 기준.",
    "name": "생활 서비스 공백 인구",
    "ruleVersion": "v1",
@@ -287,10 +346,33 @@
    "code": "HOLIDAY_CARE_GAP_PPLTN",
    "formula": "2km 안에 공휴일 진료시간이 등록된 약국·의원이 없는 집계구 인구 합.",
    "higherIsWorse": true,
+   "levels": [],
    "limitation": "⚠ 등록된 공휴일 진료시간 기준(당번 약국·실제 운영과 다를 수 있음).",
    "name": "공휴일 의료 공백 인구",
    "ruleVersion": "v1",
    "unit": "명"
+  },
+  {
+   "available": false,
+   "code": "NET_OUT_12M_PER_1K",
+   "formula": "(다른 시군구로 전출 − 다른 시군구에서 전입) 최근 12개월 합 ÷ 주민등록 인구(KOSIS) × 1,000. 행정안전부 지역별 인구이동(주민등록 전입신고 기준).",
+   "higherIsWorse": true,
+   "levels": [],
+   "limitation": "시군구 사이 이동만 셈(같은 시군구 안 이동 제외). 일반구가 있는 시는 원천이 시 단위라 구마다 시 전체 값. 최근 12개월이 다 모이지 않았거나 행정구역이 바뀐 지역은 값 없음. 공식 통계가 아님.",
+   "name": "12개월 순유출(천 명당)",
+   "ruleVersion": "v1",
+   "unit": "‰"
+  },
+  {
+   "available": false,
+   "code": "AGED65_NET_IN_12M_PER_1K",
+   "formula": "(만 65세 이상 전입 − 전출) 최근 12개월 합 ÷ 65세 이상 주민등록 인구(KOSIS) × 1,000. 시군구 사이 이동만.",
+   "higherIsWorse": false,
+   "levels": [],
+   "limitation": "주민등록 기준이라 실제 거주 이동과 다를 수 있음(거주불명자·재외국민 포함). 일반구가 있는 시는 시 전체 값. 공식 통계가 아님.",
+   "name": "65세 이상 12개월 순유입(천 명당)",
+   "ruleVersion": "v1",
+   "unit": "‰"
   }
  ]
 }

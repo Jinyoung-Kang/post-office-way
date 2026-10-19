@@ -461,6 +461,16 @@ def test_job_with_only_failed_collect_runs_fails_and_skips_recalc(fake_jobs, eng
     assert not [r for r in queue.recent(10) if r["kind"] == "calc"]       # 재계산 없음
 
 
+def test_unchanged_collect_skips_recalc(fake_jobs, monkeypatch):
+    """수집기가 changed=False(새 달도 대응 변화도 없음)를 돌려주면 재계산을 넣지 않음 — 주 1회 인구이동 증분 수집 (ADR-028)."""
+    monkeypatch.setitem(registry.JOBS, "okjob", JobSpec("okjob", "테스트", lambda p: {"collectRunIds": [], "changed": False},
+                                                        recalc=True))
+    queue.enqueue("okjob")
+    assert worker.execute(queue.claim("w1"))
+    assert "chainedCalcJobId" not in queue.recent(1)[0]["result"]
+    assert not [r for r in queue.recent(10) if r["kind"] == "calc"]
+
+
 def test_schedule_runs_while_short_lane_is_busy(fake_jobs, monkeypatch, engine):
     """short 차선이 오래 걸리는 작업을 도는 동안에도 스케줄 슬롯이 들어가야 함 — 예전에는 스케줄 확인이 short 차선 루프
     안이라 30분 창을 넘기면 슬롯이 조용히 건너뛰어졌음 (R7)."""
