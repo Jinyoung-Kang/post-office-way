@@ -8,7 +8,7 @@
 
 | 점검 | 방법 | 처음 | 지금 |
 |---|---|---|---|
-| 단위·통합 테스트 | `make test` (PostGIS 테스트 DB) · `npm test` (vitest) · `npm run lint`(React Hook 규칙) | — | Python 385 · 웹 118 통과, 린트 0 |
+| 단위·통합 테스트 | `make test` (PostGIS 테스트 DB) · `npm test` (vitest) · `npm run lint`(React Hook 규칙) | — | Python 411 · 웹 122 통과, 린트 0 |
 | 응답 고정 (구조 변경 전) | 주요 엔드포인트 17개 응답 전체를 스냅숏으로 — UUID·시각만 치환 (`tests/sql/test_api_snapshots.py`) | — | 백엔드 계층 이동 커밋 모두 같은 응답 |
 | 계층 의존 방향 | import 를 정적으로 읽어 안쪽 계층이 바깥을 부르는지·라우터에 SQL 이 있는지 (`tests/unit/test_layers.py`) | 계산·API → 수집기, 계산 → API 캐시, 라우터 10곳 SQL | 0 |
 | API 퍼징 | 모든 조회·계산 API 에 경계값·비정상 입력 658건 (아주 큰 수·음수·형식 오류·SQL/경로 조작 문자열·유니코드, CSP 보고 본문, 오류 로그 지우기) | **5xx 4건**(09-26) · **1건**(10-08, CSP 보고) | 5xx 0건 |
@@ -108,7 +108,7 @@
 ## 다시 돌리기
 
 ```bash
-make test                         # Python 385개 (응답 스냅숏·계층 의존 방향·수집 보호·워커·보안 포함)
-cd web && npm test && npm run lint  # 웹 118개 (조회 Hook·단계구분·지도 기하·지도 주소 상태·지도 축소 한계·말풍선 위치·경로 검사) + React Hook 규칙
+make test                         # Python 411개 (응답 스냅숏·계층 의존 방향·수집 보호·워커·보안 포함)
+cd web && npm test && npm run lint  # 웹 122개 (조회 Hook·단계구분·지도 기하·지도 주소 상태·지도 축소 한계·말풍선 위치·경로 검사·지표 문구) + React Hook 규칙
 npx lighthouse http://localhost:3100/overview --only-categories=performance,accessibility,best-practices,seo
 ```

@@ -35,6 +35,7 @@
 | [ADR-025](adr/ADR-025-run-records-close-on-interrupt.md) | 실행 기록은 중단(Ctrl-C)에도 닫는다 — `except BaseException` + 정적 검사 |
 | [ADR-026](adr/ADR-026-proxy-request-framing.md) | 웹 프록시는 요청 본문의 경계를 다시 세운다 — GET·HEAD 본문 거절, 쓰지 않는 메서드 405 |
 | [ADR-027](adr/ADR-027-nearest-tie-break.md) | 같은 좌표 지점의 최근접 동률은 id 로 — 후보를 넉넉히 받아 정렬, 드물면 다시 찾기(측정 비교) |
+| [ADR-028](adr/ADR-028-population-migration.md) | 인구 추세 — 행안부 인구이동을 한 달 전국 행렬로 받아(빠짐없을 때만 반영) 원천 단위로 두고, 시군구 대응표로 지표 2개 |
 
 ## API (`http://localhost:8100/api/v1`, 자동 문서 `/docs`)
 
@@ -42,15 +43,15 @@
 |---|---|
 | `GET /health` · `GET /health/live` | 준비 상태(DB·Redis·스키마·작업 큐·워커 차선별 생존 신호) · 프로세스 생존만 |
 | `GET /overview` | 전국 개요 — 시설·거리 분포·고령인구·금융 공백·취약 지역 ('먼 거리' 기준은 응답의 `farKm`, 계산 설정을 따름) |
-| `GET /areas` · `/areas/geojson` · `/areas/{admCd}` | 지역 목록·순위 / 단계구분도 GeoJSON(캐시, `simplify` 는 10·20·50·100·200·500·1000·2000·5000m 중 가까운 단계로) / 지역 상세(최근접 3·은행·지표·인구) |
+| `GET /areas` · `/areas/geojson` · `/areas/{admCd}` | 지역 목록·순위 / 단계구분도 GeoJSON(캐시, `simplify` 는 10·20·50·100·200·500·1000·2000·5000m 중 가까운 단계로) / 지역 상세(최근접 3·은행·지표·인구·인구 이동 12개월 `migration`) |
 | `GET /facilities` · `/facilities/{histId}` | 시설 목록(bbox·유형·검색) / 시설 상세 (영업 상태 `status.state`: open·lunch(점심 휴무 시간)·before·after·closed·unknown) |
 | `GET /banks` | 은행·금고 지점 레이어 (bbox 필수, 대면 지점은 마지막 전수 수집 기준) |
 | `GET /banks/impact` · `/banks/impact/{placeId}` · `/banks/impact/{placeId}/geojson` | 은행 지점 폐쇄 영향평가 — 순위·등급별 개수(`sido`·`sgg`·`grade`·`sort`) / 지점 상세(대체 창구·거리대별 이용 주민) / 이용 주민 집계구 |
-| `GET /areas/{admCd}/report` | 지역 한 장 보고서 (시군구) — 지표·전국 중앙값·순위, 우체국, 은행 지점 영향, 읍면동(경계 포함), 방문 여건 |
+| `GET /areas/{admCd}/report` | 지역 한 장 보고서 (시군구) — 지표·전국 중앙값·순위, 우체국, 은행 지점 영향, 읍면동(경계 포함), 방문 여건, 인구 이동(`area.migration`) |
 | `POST /csp-report` | 브라우저의 CSP 위반 보고 수신 → 오류 로그 '보안 정책' (16KB·분당 30회·1시간 중복 억제) |
 | `GET /metrics` | 지표 정의 |
 | `POST /whatif` · `GET /whatif/{id}` · `GET /whatif/{id}/geojson` | 문 닫음 가정 시뮬레이션 · 재조회 · 영향 지역 폴리곤 |
-| `POST /plan/close` · `POST /plan/open` | 배치 제안 — 닫을 곳 찾기(영향 최소 조합) / 열 곳 찾기(효과 최대 후보지) |
+| `POST /plan/close` · `POST /plan/open` | 배치 제안 — 닫을 곳 찾기(영향 최소 조합) / 열 곳 찾기(효과 최대 후보지). 결과마다 그 시군구의 12개월 순유출 `netOutPer1k`·백분위 `netOutPct`(경고용, 가중치에는 없음) |
 | `GET /visit/conditions` · `GET /visit/conditions/{admCd}` | 방문 여건 — 시군구 전체(`date`, `sido`) / 한 지역 오늘~모레 (창구 휴무 표시) |
 | `GET /hubs/summary` · `GET /hubs/facilities` | 생활 거점 — 전국 합계 / 우체국별 대체 불가능성 순위(`sido`, `sort`) |
 | `GET /care` | 약국·의원 지도 레이어 (bbox 필수, `kind`, `holidayOnly`) |
@@ -93,10 +94,12 @@ NaN·뒤집힌 `bbox` 포함. 웹 프록시(:3100)는 GET·HEAD·POST 만 넘기
 | V22 | 실행 기록(`collect_run`·`calc_run`·`walk_run`)에 작업 id — 워커가 죽어 작업을 정리할 때 그 실행 기록도 닫음 |
 | V23 | 같은 종류 작업은 '대기 중' 하나만(실행 중 하나 + 대기 중 하나) — 계산 중에 끝난 수집의 재계산이 빠지지 않게 |
 | V24 | 생활 거점 지표(마지막 생활 거점·생활 서비스 공백) 정의 문구를 계산에 맞춰 '은행·금고 지점'으로 — 값은 그대로 |
+| V25 | 인구 추세 — 행안부 시군구 단위 월별 전입·전출(`migration_month`), SGIS 시군구 대응표(`area_migration_map`), 지표 2개, 수집 종류 `MOIS_MIGR` |
+| V26 | 인구이동 단위 별칭(`migration_unit_alias`) — 시도 코드만 바뀐 개편(2026-07 전남광주통합특별시)의 옛 코드 → 새 코드 |
 
-- 지표 계산 SQL: `atlas/atlas/sql/calc/00_snapshot.sql` ~ `11_bank_impact.sql` (계산 실행 `calc_run` 단위로 결과 보존)
+- 지표 계산 SQL: `atlas/atlas/sql/calc/00_snapshot.sql` ~ `12_migration.sql` (계산 실행 `calc_run` 단위로 결과 보존, 순위 `10_ranks` 가 마지막)
 - 판정 규칙: 금융 가능 `R-FIN-01` (`domain/rules.py`), 방문 여건 `VISIT-1` (`domain/visit.py`), 영업일·영업 상태 (`domain/calendar.py`),
-  약국·병의원 행 해석 (`domain/care.py`), 배치 제안 탐욕 알고리즘 (`domain/placement.py`), What-if 요약 (`domain/whatif.py`),
+  약국·병의원 행 해석 (`domain/care.py`), 인구이동 행 해석·달 계산 (`domain/migration.py`), 배치 제안 탐욕 알고리즘 (`domain/placement.py`), What-if 요약 (`domain/whatif.py`),
   개요 집계 (`domain/overview.py`), 파라미터 해석·'먼 거리' (`domain/params.py`)
 - API 기능 모듈: `features/<기능>` — 큰 기능은 `service.py`(흐름·캐시) + `queries.py`(SQL), 계산 실행 조회는 `calc/runs.py`
 - 도보: 그래프 `walk/graph.py` · k-최근접 탐색 `walk/ksource.py` · OSM 내려받기 `walk/osm.py` · 계산 `walk/compute.py`
