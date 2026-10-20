@@ -83,9 +83,12 @@ def metric_catalog(c: Connection) -> dict[str, Any]:
     """지표 정의 목록 — 최신 계산에 실제로 값이 있는지(available)와 값이 있는 단위(levels) 함께
     (KOSIS 미적재면 고령인구 지표는 false, 인구 추세는 시군구[2]만)."""
     rows = c.execute(text("SELECT * FROM mart.metric_def ORDER BY sort_order, metric_code")).mappings().all()
-    levels = {r[0]: sorted(r[1]) for r in c.execute(text(f"""
-        SELECT metric_code, array_agg(DISTINCT level) FROM mart.access_metric
-         WHERE calc_run_id = {LATEST_DONE_ID} AND value IS NOT NULL GROUP BY metric_code"""))}
+    # (지표, 단위) 쌍만 DISTINCT — array_agg(DISTINCT level) 는 지표마다 정렬해 약 2배 느렸음(7회 중앙값 77 → 35ms, 이전 42ms)
+    levels: dict[str, list[int]] = {}
+    for code, lvl in c.execute(text(f"""
+        SELECT DISTINCT metric_code, level FROM mart.access_metric
+         WHERE calc_run_id = {LATEST_DONE_ID} AND value IS NOT NULL ORDER BY 1, 2""")):
+        levels.setdefault(code, []).append(lvl)
     return {"items": [{"code": r["metric_code"], "name": r["name_ko"], "unit": r["unit"], "formula": r["formula"],
                        "limitation": r["limitation"], "higherIsWorse": r["higher_is_worse"],
                        "ruleVersion": r["rule_version"], "available": r["metric_code"] in levels,
