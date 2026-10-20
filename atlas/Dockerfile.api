@@ -10,4 +10,5 @@ COPY db/migrations db/migrations
 USER 10001
 EXPOSE 8100
 # 워커 2개 — Prometheus 다중 프로세스 디렉터리는 기동마다 비움 (읽기 전용 파일시스템, /tmp 만 tmpfs)
+# keep-alive 는 uvicorn 기본 5초 — 웹 프록시가 노는 연결을 4초에 먼저 닫는 것과 짝(web/lib/proxy.ts UPSTREAM_IDLE_MS, ADR-029). 줄이려면 그쪽도 함께
 CMD ["sh", "-c", "rm -rf \"${PROMETHEUS_MULTIPROC_DIR:-/tmp/prom}\" && mkdir -p \"${PROMETHEUS_MULTIPROC_DIR:-/tmp/prom}\" && exec uvicorn atlas.api.main:app --host 0.0.0.0 --port 8100 --workers 2 --no-access-log --no-proxy-headers"]

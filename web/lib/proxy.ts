@@ -47,6 +47,28 @@ export type BodyRule =
   | { kind: "none" }                    // 본문 없이 보냄
   | { kind: "reject"; status: 400 | 405; code: string; message: string };
 
+// API 로 가는 연결은 keep-alive 로 다시 쓰되, 논 지 이만큼 지나면 프록시가 먼저 닫음 (ADR-029).
+// uvicorn 은 5초(기본 timeout-keep-alive) 놀린 연결을 닫는데 Node 24 전역 Agent 도 5초라, uvicorn 이 닫는 바로 그때
+// 그 연결로 요청을 보내 ECONNRESET('socket hang up') → 502 가 났음. 1초 여유는 Node 가 서버의 Keep-Alive 힌트에서 빼는 값과 같음
+export const UPSTREAM_IDLE_MS = 4_000;
+
+type UpstreamError = { code?: string; message: string };
+
+// 다시 쓴 연결에서 응답 전에 끊긴 GET·HEAD 만 새 연결로 한 번 더 보냄 — API 를 다시 띄울 때처럼 위 여유로 못 막는 경우.
+// 멱등이라 API 가 이미 처리했더라도 안전. POST(What-if·배치 제안)는 두 번 계산될 수 있어 그대로 502
+export function retryOnFreshConnection(method: string | undefined, e: UpstreamError, reusedSocket: boolean): boolean {
+  const m = (method || "").toUpperCase();
+  return reusedSocket && (m === "GET" || m === "HEAD") && (e.code === "ECONNRESET" || e.code === "EPIPE");
+}
+
+// API 연결 오류를 서버 로그에 남길 한 줄. 쿼리·헤더·본문은 넣지 않음(관리 토큰 헤더, 검색어).
+// reused·idleMs 는 keep-alive 로 다시 쓴 연결인지, 그 연결이 몇 ms 놀다가 쓰였는지 — 연결이 닫히는 순간과 겹쳤는지 가리려고
+export function upstreamErrorRecord(e: UpstreamError,
+  at: { method?: string; url?: string; reused: boolean; idleMs: number | null; retry: boolean }) {
+  return { event: "proxy_upstream_error", method: at.method ?? null, path: (at.url || "").split("?")[0],
+    code: e.code ?? null, message: e.message, reused: at.reused, idleMs: at.idleMs, retry: at.retry };
+}
+
 export function requestBodyRule(method: string | undefined, headers: Headers): BodyRule {
   const m = (method || "").toUpperCase();
   if (m === "POST") return { kind: "pipe" };

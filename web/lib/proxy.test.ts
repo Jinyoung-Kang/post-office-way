@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { clientAddress, downstreamResponseHeaders, requestBodyRule, upstreamRequestHeaders } from "./proxy";
+import {
+  UPSTREAM_IDLE_MS, clientAddress, downstreamResponseHeaders, requestBodyRule, retryOnFreshConnection, upstreamErrorRecord,
+  upstreamRequestHeaders,
+} from "./proxy";
 
 describe("API 프록시 헤더", () => {
   it("클라이언트가 보낸 X-Forwarded-For 는 버리고 실제 접속 주소로 덮어씀", () => {
@@ -44,5 +47,31 @@ describe("요청 본문 규칙 (요청 밀반입 막기)", () => {
     for (const m of ["PUT", "DELETE", "PATCH", "OPTIONS", "TRACE", undefined]) {
       expect(requestBodyRule(m, {})).toMatchObject({ kind: "reject", status: 405, code: "METHOD_NOT_ALLOWED" });
     }
+  });
+});
+
+describe("API 연결 오류 (ADR-029)", () => {
+  const reset = { code: "ECONNRESET", message: "socket hang up" };
+
+  it("다시 쓴 연결이 끊긴 GET·HEAD 만 새 연결로 다시 보냄", () => {
+    expect(retryOnFreshConnection("GET", reset, true)).toBe(true);
+    expect(retryOnFreshConnection("head", { code: "EPIPE", message: "write EPIPE" }, true)).toBe(true);
+    expect(retryOnFreshConnection("POST", reset, true)).toBe(false);                    // 계산이 두 번 돌 수 있음
+    expect(retryOnFreshConnection("GET", reset, false)).toBe(false);                    // 새 연결도 끊김 — API 문제
+    expect(retryOnFreshConnection("GET", { code: "ECONNREFUSED", message: "connect ECONNREFUSED" }, true)).toBe(false);
+    expect(retryOnFreshConnection("GET", { message: "timeout" }, true)).toBe(false);    // 60초 시간 초과는 504
+  });
+
+  it("오류 기록에 쿼리를 남기지 않음", () => {
+    expect(upstreamErrorRecord(reset, { method: "GET", url: "/api/v1/search?q=집주소", reused: true, idleMs: 5000, retry: true }))
+      .toEqual({ event: "proxy_upstream_error", method: "GET", path: "/api/v1/search", code: "ECONNRESET",
+        message: "socket hang up", reused: true, idleMs: 5000, retry: true });
+    expect(upstreamErrorRecord({ message: "timeout" }, { url: undefined, reused: false, idleMs: null, retry: false }))
+      .toMatchObject({ method: null, path: "", code: null });
+  });
+
+  it("노는 연결을 닫는 시간은 uvicorn 기본 timeout-keep-alive(5초)보다 1초 이상 짧음", () => {
+    expect(UPSTREAM_IDLE_MS).toBeLessThanOrEqual(4_000);
+    expect(UPSTREAM_IDLE_MS).toBeGreaterThan(0);                                        // 0 이면 노는 연결을 닫지 않음
   });
 });
