@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Layout, { Card, Empty, ErrorBox, Hero, NoDataGuide, Segmented, Stat } from "@/components/Layout";
-import { StatSkeletons, TableSkeleton } from "@/components/Skeleton";
+import { Skeleton, StatSkeletons, TableSkeleton } from "@/components/Skeleton";
 import { tableView, useApi } from "@/hooks/useApi";
 import { useRegions } from "@/hooks/useRegions";
 import { isNoData, qs, type HubFacility, type HubSummary, type Page } from "@/lib/api";
@@ -26,6 +26,7 @@ export default function HubsPage() {
   const list = listQ.data;
   // 받는 중·실패를 '없음'으로 보이지 않게 (tableView). 주소 값 반영 전(path null)도 data 가 없어 받는 중 — 자리 표시 유지
   const listView = tableView(listQ, (d) => d.items.length);
+  const topView = tableView(sumQ, (d) => d.topAreas.length);
   const err = (sumQ.error ?? listQ.error)?.message ?? null;
 
   const noData = isNoData(sumQ.error ?? listQ.error);
@@ -120,7 +121,11 @@ export default function HubsPage() {
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
           <Card title="마지막 거점 인구가 많은 시군구"
             right={<Link href="/rankings?metric=POST_SOLE_HUB_PPLTN" className="link">전체 순위 ›</Link>}>
-            {sum?.topAreas.length ? (
+            {topView === "loading" ? (
+              <div className="space-y-1" role="status" aria-label="불러오는 중">
+                {Array.from({ length: 10 }, (_, i) => <Skeleton key={i} className="h-9 w-full" />)}</div>
+            ) : topView === "error" ? null /* 요약 요청 실패 — 오류는 위에 한 번만 */
+            : sum && topView === "rows" ? (
               <ol className="space-y-1">{sum.topAreas.map((r, i) => (
                 <li key={r.admCd}>
                   <Link href={`/?adm=${r.admCd}&metric=POST_SOLE_HUB_PPLTN`}

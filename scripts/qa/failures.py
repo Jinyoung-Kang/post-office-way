@@ -34,7 +34,11 @@ CASES = [
     ("/report", "/api/v1/meta/regions", 500, "점검용 실패"),
     # 지켜야 할 우체국 목록이 실패하면 위에는 오류, 표에는 '조건에 맞는 우체국이 없습니다'가 함께 보였음
     ("/hubs", "/api/v1/hubs/facilities", 500, "점검용 실패"),
+    # 요약이 실패하면(받는 중에도) '마지막 거점 인구가 많은 시군구' 카드에 '자료가 없습니다'가 보였음
+    ("/hubs", "/api/v1/hubs/summary", 500, "점검용 실패"),
 ]
+# 실패했는데 '받았고 비어 있음'처럼 보이게 하는 문구
+EMPTY_TEXTS = ("조건에 맞는", "자료가 없습니다.")
 
 
 async def main() -> None:
@@ -60,8 +64,9 @@ async def main() -> None:
             busy = await pg.locator("main [aria-busy='true'], main .skeleton").count()
             if busy:
                 problems.append(f"{path}: {frag} 가 {status} 일 때 자리 표시 {busy}개가 남음")
-            if "조건에 맞는" in text:
-                problems.append(f"{path}: {frag} 가 {status} 일 때 '결과 없음' 문구가 오류와 함께 보임")
+            for t in EMPTY_TEXTS:
+                if t in text:
+                    problems.append(f"{path}: {frag} 가 {status} 일 때 '결과 없음' 문구({t})가 오류와 함께 보임")
             for e in errors:
                 problems.append(f"{path}: 처리되지 않은 예외 — {e}")
             await ctx.close()
