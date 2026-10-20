@@ -1,14 +1,14 @@
 # 품질 검증 — 전 메뉴 점검 방법과 결과
 
 모든 메뉴·API 를 사람이 눌러 보는 대신 **자동으로 반복할 수 있는 점검**으로 확인했습니다. 점검에서 나온 문제는 고친 뒤 같은 점검을
-다시 돌려 0건이 되는 것을 확인했습니다. (처음 2026-09-26, 갱신 2026-10-08, `make qa` 재확인 2026-10-15 — 지도 수정 뒤 · 로컬 실데이터 · Chrome · Lighthouse 12)
+다시 돌려 0건이 되는 것을 확인했습니다. (처음 2026-09-26, 갱신 2026-10-08, `make qa` 재확인 2026-10-15 — 지도 수정 뒤 · 2026-10-20 — 프록시 연결 수정 뒤 3회 · 로컬 실데이터 · Chrome · Lighthouse 12)
 
 점검 스크립트는 `scripts/qa/` 에 있고 `make qa`(크롤링·네트워크·접근성·설명 줄바꿈·실패 주입·퍼징, 약 8분) · `make qa-lh`(Lighthouse) 로 다시 돌립니다.
 문제가 있으면 종료 코드 1 과 함께 목록을 찍고, 결과는 `.qa/*.json` 에 남깁니다.
 
 | 점검 | 방법 | 처음 | 지금 |
 |---|---|---|---|
-| 단위·통합 테스트 | `make test` (PostGIS 테스트 DB) · `npm test` (vitest) · `npm run lint`(React Hook 규칙) | — | Python 411 · 웹 122 통과, 린트 0 |
+| 단위·통합 테스트 | `make test` (PostGIS 테스트 DB) · `npm test` (vitest) · `npm run lint`(React Hook 규칙) | — | Python 411 · 웹 128 통과, 린트 0 |
 | 응답 고정 (구조 변경 전) | 주요 엔드포인트 17개 응답 전체를 스냅숏으로 — UUID·시각만 치환 (`tests/sql/test_api_snapshots.py`) | — | 백엔드 계층 이동 커밋 모두 같은 응답 |
 | 계층 의존 방향 | import 를 정적으로 읽어 안쪽 계층이 바깥을 부르는지·라우터에 SQL 이 있는지 (`tests/unit/test_layers.py`) | 계산·API → 수집기, 계산 → API 캐시, 라우터 10곳 SQL | 0 |
 | API 퍼징 | 모든 조회·계산 API 에 경계값·비정상 입력 658건 (아주 큰 수·음수·형식 오류·SQL/경로 조작 문자열·유니코드, CSP 보고 본문, 오류 로그 지우기) | **5xx 4건**(09-26) · **1건**(10-08, CSP 보고) | 5xx 0건 |
@@ -75,6 +75,7 @@
 | (10-08) 지표 계산 80초 중 순위 20초 | 같은 트랜잭션에서 넣은 10만 행이 통계에 없어 UPDATE 가 나쁜 계획 (따로 돌리면 1.8초) | 큰 삽입 뒤 `ANALYZE`, 은행 지점 영향은 INSERT 한 번에 → 계산 40초 |
 | (10-08) 모바일에서 페이지 전체가 축소됨 (생활 거점 630px · 데이터·운영 481px · 방문 여건 477px · 은행 지점 641px) | 표 안 `sr-only` 글자가 스크롤 상자 밖으로 샘 · 한 열 그리드가 표 폭으로 늘어남 · 세그먼트 버튼 줄바꿈 없음. 점검은 모바일 화면 축소로 `innerWidth` 가 같이 커져 0 으로 보였음 | `.tbl` relative · `grid-cols-1` · `.seg` 가로 스크롤, 점검은 375px 와 비교 |
 | (10-08) Tailwind 4 전환 직후 메뉴·배지가 링크 색 | v4 는 cascade layer — 레이어 밖 `a { color }` 가 명시도와 상관없이 컴포넌트·유틸리티를 이김 | 요소 기본 스타일을 `@layer base` 로 (전후 26장 픽셀 비교로 확인) |
+| **(10-20) 크롤에서 가끔 502 (실행마다 한 건)** | 웹 프록시(Node 24 전역 Agent)와 uvicorn 이 노는 keep-alive 연결을 똑같이 5초에 닫음. uvicorn 이 닫는 순간 그 연결로 요청을 보냄. 오류 기록을 넣어 보니 모두 `ECONNRESET`·다시 쓴 연결·4,984~5,044ms 놀던 뒤 | 전용 연결 풀이 4초에 먼저 닫음. 다시 쓴 연결이 끊긴 GET·HEAD 만 새 연결로 한 번 더 ([ADR-029](adr/ADR-029-proxy-keepalive.md)). 재현 502 33/1,200 → 0/1,200 |
 | (10-08) 테스트가 못 돎 | 저장소의 빈 파일 18개 권한이 600 으로 바뀌어 비루트 컨테이너가 못 읽음 | 644 로 (git 기록 권한과 같게) |
 
 ## Lighthouse (모바일 기본 설정: 느린 4G·CPU 4배 감속, 3회 중앙값)
@@ -109,6 +110,6 @@
 
 ```bash
 make test                         # Python 411개 (응답 스냅숏·계층 의존 방향·수집 보호·워커·보안 포함)
-cd web && npm test && npm run lint  # 웹 122개 (조회 Hook·단계구분·지도 기하·지도 주소 상태·지도 축소 한계·말풍선 위치·경로 검사·지표 문구) + React Hook 규칙
+cd web && npm test && npm run lint  # 웹 128개 (조회 Hook·단계구분·지도 기하·지도 주소 상태·지도 축소 한계·말풍선 위치·경로 검사·지표 문구·프록시 연결) + React Hook 규칙
 npx lighthouse http://localhost:3100/overview --only-categories=performance,accessibility,best-practices,seo
 ```

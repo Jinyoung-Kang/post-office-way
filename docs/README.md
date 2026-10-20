@@ -36,6 +36,7 @@
 | [ADR-026](adr/ADR-026-proxy-request-framing.md) | 웹 프록시는 요청 본문의 경계를 다시 세운다 — GET·HEAD 본문 거절, 쓰지 않는 메서드 405 |
 | [ADR-027](adr/ADR-027-nearest-tie-break.md) | 같은 좌표 지점의 최근접 동률은 id 로 — 후보를 넉넉히 받아 정렬, 드물면 다시 찾기(측정 비교) |
 | [ADR-028](adr/ADR-028-population-migration.md) | 인구 추세 — 행안부 인구이동을 한 달 전국 행렬로 받아(빠짐없을 때만 반영) 원천 단위로 두고, 시군구 대응표로 지표 2개 |
+| [ADR-029](adr/ADR-029-proxy-keepalive.md) | 웹 프록시의 API 연결 — keep-alive 유지, 노는 연결은 uvicorn(5초)보다 먼저 4초에 닫고, 다시 쓴 연결이 끊긴 GET·HEAD 만 한 번 다시 |
 
 ## API (`http://localhost:8100/api/v1`, 자동 문서 `/docs`)
 

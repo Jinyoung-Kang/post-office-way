@@ -18,7 +18,7 @@
 무거운 작업은 **자식 프로세스**(끝나면 메모리 반환), 워커 생존 신호·DB 끊김 자동 복구 · **k-최근접 다중 출발 다익스트라**(OSM 447만 꼭짓점,
 집계구 10만 곳 51초) · 사분할 격자 **전수 수집** · 마이그레이션 전용 단계 · 최소 권한 DB 역할 · 속도 제한·CSP(+위반 보고 수집)·
 비루트/읽기 전용 컨테이너 · 측정 기반 최적화(`make bench`, 주요 경로 p50 2.6~16배 개선) · Prometheus 지표 · 백업/복원 ·
-CI(테스트 533개·React Hook 린트, pip-audit·npm audit·gitleaks·이미지 빌드).
+CI(테스트 539개·React Hook 린트, pip-audit·npm audit·gitleaks·이미지 빌드).
 
 **품질 검증**: API 퍼징 658건 5xx 0 · 실패 주입 11개 상황 · 11개 화면 상호작용 크롤링 오류 0 · axe-core 접근성 위반 0 · Lighthouse 모바일 중앙값 ·
 `make qa` 로 다시 돌림 — 결과와 찾아서 고친 문제는 [품질 검증](docs/quality.md).
@@ -299,10 +299,10 @@ gzip 캐시 + ETag 304, 순위 사전 계산, `json`→`text` 전달, 입력 버
 
 | 점검 | 결과 |
 |---|---|
-| 테스트 | Python 411 (응답 스냅숏·계층 의존 방향·수집 보호·k-최근접 정답 비교·은행 지점 영향·도보·CSP 보고·워커 차선·DB 끊김 복구·최소 권한 포함) · 웹 122 · 린트 0 |
+| 테스트 | Python 411 (응답 스냅숏·계층 의존 방향·수집 보호·k-최근접 정답 비교·은행 지점 영향·도보·CSP 보고·워커 차선·DB 끊김 복구·최소 권한 포함) · 웹 128 · 린트 0 |
 | API 퍼징 (경계값·비정상 입력 658건) | 5xx 4건(09-26) · 1건(10-08 CSP 보고) → **0건** |
 | 실패 주입 (API 를 500·404 로 바꿔 응답, 11개 상황) | 오류·준비 안내 표시, 자리 표시 종료, 처리되지 않은 예외 0 |
-| 11개 화면 상호작용 크롤링 · 네트워크(24개 상태) | 콘솔·페이지·HTTP 오류 0 · 중복 요청·평문 외부 요청·CSP 위반 0 |
+| 11개 화면 상호작용 크롤링 · 네트워크(24개 상태) | 콘솔·페이지·HTTP 오류 0 · 중복 요청·평문 외부 요청·CSP 위반 0 (실행마다 1건씩 나던 프록시 502 → 3회 연속 0, [ADR-029](docs/adr/ADR-029-proxy-keepalive.md)) |
 | 접근성 (axe-core, WCAG 2.1 AA) · 모바일 가로 넘침 | 위반 0 · 0 (11개 화면, 375px 실제 폭 기준 — 이전 검사가 놓친 넘침 5곳 수정) |
 | Lighthouse 모바일 (3회 중앙값) | 성능 100: 한눈에·생활 거점·은행 지점·What-if·배치 제안·데이터·운영, 92~98: 지역 순위·보고서·지표 정의, 지도·방문 여건 88. 접근성·SEO 모두 100, CLS 0~0.009 |
 | 외부 변경 감지 | 카카오 SDK CDN 이동으로 지도가 막힌 일 → CSP 위반 보고가 오류 로그에 바로 남도록 |
@@ -329,7 +329,7 @@ python3.13 -m venv .venv && .venv/bin/pip install -e './atlas[dev,walk]'   # 처
 make api-dev     # 호스트에서 FastAPI (--reload, 소유자 역할로 접속해 기동 때 마이그레이션)
 docker compose stop web && make web-dev   # 호스트에서 Next.js dev 서버 :3100 (루트 .env 의 카카오 키를 넘김)
 make test        # Python 411개 (PostGIS 테스트 DB — 저장소 루트가 필요한 compose 설정 검사 3개는 CI 에서)
-cd web && npm test && npm run lint   # 웹 단위 테스트 122개 (vitest) + React Hook 린트
+cd web && npm test && npm run lint   # 웹 단위 테스트 128개 (vitest) + React Hook 린트
 make qa          # 띄운 서비스 점검 (scripts/qa — 퍼징·크롤링·네트워크·접근성, 설치된 Chrome 사용)
 ```
 
