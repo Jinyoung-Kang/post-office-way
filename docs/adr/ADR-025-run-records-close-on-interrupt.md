@@ -15,6 +15,7 @@
   기록만 남는다.
 - 새 수집기가 같은 실수를 하지 않도록 정적 검사를 둔다. `tests/unit/test_layers.py::test_run_failure_handlers_catch_base_exception` 은
   `finish_run(` 이나 `'FAILED'` 를 쓰는 `except` 가 `BaseException` 이면서 다시 던지는지 확인한다.
+  - 그 뒤 인구이동 수집기(ADR-028)가 더해져 이 검사가 보는 곳은 18곳이다(같은 휴리스틱으로 센 값, 모두 통과).
 
 ## 검토한 대안
 - **컨테이너 관리자 `with runs.tracked(kind) as run_id:`** — 구조로는 가장 깔끔하다. 그러나 17곳의 함수 본문을 한 단계씩 들여 써야 해
