@@ -32,6 +32,8 @@ CASES = [
     ("/rankings?level=3", "/api/v1/meta/regions", 500, "점검용 실패"),
     ("/plan", "/api/v1/meta/regions", 500, "점검용 실패"),
     ("/report", "/api/v1/meta/regions", 500, "점검용 실패"),
+    # 지켜야 할 우체국 목록이 실패하면 위에는 오류, 표에는 '조건에 맞는 우체국이 없습니다'가 함께 보였음
+    ("/hubs", "/api/v1/hubs/facilities", 500, "점검용 실패"),
 ]
 
 

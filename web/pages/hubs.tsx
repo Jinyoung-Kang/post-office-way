@@ -1,7 +1,7 @@
 import Link from "next/link";
 import Layout, { Card, Empty, ErrorBox, Hero, NoDataGuide, Segmented, Stat } from "@/components/Layout";
 import { StatSkeletons, TableSkeleton } from "@/components/Skeleton";
-import { useApi } from "@/hooks/useApi";
+import { tableView, useApi } from "@/hooks/useApi";
 import { useRegions } from "@/hooks/useRegions";
 import { isNoData, qs, type HubFacility, type HubSummary, type Page } from "@/lib/api";
 import { dist, dt, num, shortSido } from "@/lib/format";
@@ -23,7 +23,9 @@ export default function HubsPage() {
   const [pageStr, setPageStr] = useQueryState<string>("page", "1");
   const page = Math.max(1, Number(pageStr) || 1);
   const listQ = useApi<Page<HubFacility>>(ready ? `/hubs/facilities${qs({ sido: sido || undefined, sort, page, size: SIZE })}` : null);
-  const list = listQ.data, loadingList = !ready || listQ.loading;   // 주소 값 반영 전에도 받는 중으로 (자리 표시 유지)
+  const list = listQ.data;
+  // 받는 중·실패를 '없음'으로 보이지 않게 (tableView). 주소 값 반영 전(path null)도 data 가 없어 받는 중 — 자리 표시 유지
+  const listView = tableView(listQ, (d) => d.items.length);
   const err = (sumQ.error ?? listQ.error)?.message ?? null;
 
   const noData = isNoData(sumQ.error ?? listQ.error);
@@ -80,7 +82,9 @@ export default function HubsPage() {
             <b className="text-ink"> 금융 대체 불가</b> 그중 다른 금융 우체국·은행·금고 지점도 2km 안에 없는 인구 ·
             <b className="text-ink"> 마지막 거점</b> 거기에 약국·의원도 없는 인구
           </p>
-          {loadingList && !list ? <TableSkeleton /> : list && list.items.length ? (
+          {listView === "loading" ? <TableSkeleton />
+          : listView === "error" ? null /* 목록 요청 실패 — 오류는 위에 한 번만 (빈 상태를 그리지 않음) */
+          : list && listView === "rows" ? (
             <div className="px-3 pb-3" aria-live="polite">
               <div className="overflow-x-auto">
                 <table className="tbl">
