@@ -25,7 +25,7 @@ walk = ["osmium==4.3.1", "numpy==2.4.6", "scipy==1.17.1"]
 atlas = "atlas.collector.cli:main"
 
 [build-system]
-requires = ["setuptools>=84.0.0"]
+requires = ["setuptools>=84.2.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
