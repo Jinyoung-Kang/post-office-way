@@ -25,6 +25,11 @@ def _save(name: str, body: str, secrets: list[str]) -> Path:
     return p
 
 
+def _unreachable(label: str, e: httpx.HTTPError) -> None:
+    """연결 실패·시간 초과는 그 항목만 실패로 — 예전에는 traceback 으로 스모크 전체가 멈췄음. 메시지에 URL(키)을 싣지 않으려 종류만."""
+    print(f"   ✗ {label}: {type(e).__name__} — 원천 서버가 응답하지 않았습니다. 잠시 뒤 다시 실행하세요.")
+
+
 def smoke() -> bool:
     s = get_settings()
     secrets = [s.post_service_key, s.sgis_consumer_key, s.sgis_consumer_secret]
@@ -34,49 +39,58 @@ def smoke() -> bool:
         if not s.post_service_key:
             print("   ✗ POST_SERVICE_KEY 없음"); ok = False
         else:
-            r = h.get(f"{s.post_base_url}/searchPostScopeList.do",
-                      params={"serviceKey": s.post_service_key, "postLatitude": 37.56, "postLongitude": 126.98,
-                              "postGap": 0.5, "postDivType": 1})
-            pg = parse_post_xml(r.text)
-            print(f"   HTTP {r.status_code} · items={len(pg.items)} · error={pg.error} → {_save('post_scope_sample.xml', r.text, secrets)}")
-            ok &= r.status_code == 200 and not pg.error
+            try:
+                r = h.get(f"{s.post_base_url}/searchPostScopeList.do",
+                          params={"serviceKey": s.post_service_key, "postLatitude": 37.56, "postLongitude": 126.98,
+                                  "postGap": 0.5, "postDivType": 1})
+                pg = parse_post_xml(r.text)
+                print(f"   HTTP {r.status_code} · items={len(pg.items)} · error={pg.error} → {_save('post_scope_sample.xml', r.text, secrets)}")
+                ok &= r.status_code == 200 and not pg.error
+            except httpx.HTTPError as e:
+                _unreachable("우체국 찾기", e); ok = False
 
             print("② 우체국 찾기 — 지역 조회 (postOffiId=100)")
-            r = h.get(f"{s.post_base_url}/searchPostAreaList.do",
-                      params={"serviceKey": s.post_service_key, "postOffiId": 100, "nowPage": 1, "pageCount": 50})
-            pg = parse_post_xml(r.text)
-            print(f"   HTTP {r.status_code} · totalCount={pg.total_count} totalPage={pg.total_page} "
-                  f"items={len(pg.items)} · error={pg.error} → {_save('post_area_100_p1.xml', r.text, secrets)}")
-            if pg.items:
-                print(f"   필드: {sorted(pg.items[0].keys())}")
-            ok &= r.status_code == 200 and not pg.error
+            try:
+                r = h.get(f"{s.post_base_url}/searchPostAreaList.do",
+                          params={"serviceKey": s.post_service_key, "postOffiId": 100, "nowPage": 1, "pageCount": 50})
+                pg = parse_post_xml(r.text)
+                print(f"   HTTP {r.status_code} · totalCount={pg.total_count} totalPage={pg.total_page} "
+                      f"items={len(pg.items)} · error={pg.error} → {_save('post_area_100_p1.xml', r.text, secrets)}")
+                if pg.items:
+                    print(f"   필드: {sorted(pg.items[0].keys())}")
+                ok &= r.status_code == 200 and not pg.error
+            except httpx.HTTPError as e:
+                _unreachable("우체국 찾기", e); ok = False
 
         print("③ SGIS 인증 → 인구 → 경계 (서울 11)")
         if not (s.sgis_consumer_key and s.sgis_consumer_secret):
             print("   ✗ SGIS 키 없음"); return False
-        r = h.get(f"{s.sgis_base_url}/auth/authentication.json",
-                  params={"consumer_key": s.sgis_consumer_key, "consumer_secret": s.sgis_consumer_secret})
-        auth = r.json()
-        token = (auth.get("result") or {}).get("accessToken")
-        print(f"   auth errCd={auth.get('errCd')} token={'OK' if token else '없음'} "
-              f"timeout={(auth.get('result') or {}).get('accessTimeout')}")
-        if not token:
-            return False
         try:
-            parse_timeout((auth.get("result") or {}).get("accessTimeout"))
-        except (TypeError, ValueError):
-            print("   ⚠ accessTimeout 형식이 예상과 다름")
-        secrets.append(token)
-        r = h.get(f"{s.sgis_base_url}/stats/population.json",
-                  params={"accessToken": token, "year": s.stat_year, "adm_cd": "11", "low_search": 1})
-        pop = r.json()
-        print(f"   population errCd={pop.get('errCd')} rows={len(pop.get('result') or [])} → "
-              f"{_save('sgis_pop_11.json', r.text, secrets)}")
-        if pop.get("result"):
-            print(f"   필드: {sorted(pop['result'][0].keys())}")
-        r = h.get(f"{s.sgis_base_url}/boundary/hadmarea.geojson",
-                  params={"accessToken": token, "year": s.stat_year, "adm_cd": "11", "low_search": 1})
-        bnd = r.json()
+            r = h.get(f"{s.sgis_base_url}/auth/authentication.json",
+                      params={"consumer_key": s.sgis_consumer_key, "consumer_secret": s.sgis_consumer_secret})
+            auth = r.json()
+            token = (auth.get("result") or {}).get("accessToken")
+            print(f"   auth errCd={auth.get('errCd')} token={'OK' if token else '없음'} "
+                  f"timeout={(auth.get('result') or {}).get('accessTimeout')}")
+            if not token:
+                return False
+            try:
+                parse_timeout((auth.get("result") or {}).get("accessTimeout"))
+            except (TypeError, ValueError):
+                print("   ⚠ accessTimeout 형식이 예상과 다름")
+            secrets.append(token)
+            r = h.get(f"{s.sgis_base_url}/stats/population.json",
+                      params={"accessToken": token, "year": s.stat_year, "adm_cd": "11", "low_search": 1})
+            pop = r.json()
+            print(f"   population errCd={pop.get('errCd')} rows={len(pop.get('result') or [])} → "
+                  f"{_save('sgis_pop_11.json', r.text, secrets)}")
+            if pop.get("result"):
+                print(f"   필드: {sorted(pop['result'][0].keys())}")
+            r = h.get(f"{s.sgis_base_url}/boundary/hadmarea.geojson",
+                      params={"accessToken": token, "year": s.stat_year, "adm_cd": "11", "low_search": 1})
+            bnd = r.json()
+        except httpx.HTTPError as e:   # 키 없음·토큰 없음과 같이 여기서 멈춤 — 뒤 항목은 SGIS 가 되어야 의미가 있음
+            _unreachable("SGIS", e); return False
         feats = bnd.get("features") or []
         srid = detect_srid(feats[0]["geometry"]) if feats else None
         print(f"   boundary errCd={bnd.get('errCd')} features={len(feats)} 좌표계 판정=EPSG:{srid} → "
@@ -86,13 +100,16 @@ def smoke() -> bool:
         if not s.kosis_api_key:
             print("   – KOSIS_API_KEY 없음 (선택 기능, 건너뜀)")
         else:
-            r = h.get(f"{s.kosis_base_url}/statisticsData.do",
-                      params={"method": "getMeta", "type": "TBL", "apiKey": s.kosis_api_key, "orgId": s.kosis_org_id,
-                              "tblId": s.kosis_tbl_id, "format": "json", "jsonVD": "Y"})
-            body = r.json() if r.headers.get("content-type", "").startswith(("application/json", "text")) else {}
-            name = body[0].get("TBL_NM") if isinstance(body, list) and body else None
-            print(f"   HTTP {r.status_code} · 통계표={name or body}")
-            ok &= bool(name)
+            try:
+                r = h.get(f"{s.kosis_base_url}/statisticsData.do",
+                          params={"method": "getMeta", "type": "TBL", "apiKey": s.kosis_api_key, "orgId": s.kosis_org_id,
+                                  "tblId": s.kosis_tbl_id, "format": "json", "jsonVD": "Y"})
+                body = r.json() if r.headers.get("content-type", "").startswith(("application/json", "text")) else {}
+                name = body[0].get("TBL_NM") if isinstance(body, list) and body else None
+                print(f"   HTTP {r.status_code} · 통계표={name or body}")
+                ok &= bool(name)
+            except httpx.HTTPError as e:
+                _unreachable("KOSIS", e); ok = False
         print("⑤ (선택) 공공데이터포털 — 기상청 단기예보·에어코리아 미세먼지 예보")
         if not s.data_go_kr_key:
             print("   – DATA_GO_KR_KEY 없음 (선택 기능, 건너뜀)")
@@ -112,7 +129,11 @@ def smoke() -> bool:
                 ("에어코리아 미세먼지 예보", f"{s.airkorea_base_url}/getMinuDustFrcstDspth",
                  {"returnType": "json", "numOfRows": 10, "pageNo": 1, "InformCode": "PM10",
                   "searchDate": f"{(now - timedelta(hours=6)).date()}"}, "air_frcst_pm10.json")):
-                r = h.get(url, params={**params, "serviceKey": s.data_go_kr_key})
+                try:
+                    r = h.get(url, params={**params, "serviceKey": s.data_go_kr_key})
+                except httpx.HTTPError as e:
+                    _unreachable(label, e); ok = False
+                    continue
                 code, msg = _error_of(r.status_code, r.text)
                 print(f"   {label}: HTTP {r.status_code} · resultCode={code} {msg} → {_save(fname, r.text, secrets)}")
                 if code in ("30", "20") or "SERVICE_KEY" in (msg or ""):
