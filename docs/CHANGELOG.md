@@ -1,5 +1,13 @@
 # 변경 이력
 
+## 2026-10-23 — Next.js 16.4.0 → 16.4.2 (보안 패치)
+
+- 10-20 이후 공개된 Next.js 권고 3건이 16.0.0~16.4.0 에 해당해 CI 의 `npm audit`(high 이상 실패)가 critical 로 막혔습니다:
+  SVG 를 쓰는 이미지 최적화 API 의 인증 없는 원격 코드 실행([GHSA-2464-fhr4-w9xw](https://github.com/advisories/GHSA-2464-fhr4-w9xw)),
+  App Router Server Actions 서비스 거부([GHSA-p3m5-59mp-jv5r](https://github.com/advisories/GHSA-p3m5-59mp-jv5r)),
+  `use cache` 함수 원격 코드 실행([GHSA-673q-mjm6-r5xr](https://github.com/advisories/GHSA-673q-mjm6-r5xr)).
+- `next` 만 16.4.2 로 올렸습니다(잠금 파일은 `next`·`@next/*` 만 바뀜). `npm audit` 0건, 타입 검사·린트·웹 테스트 128개·빌드 통과, 로컬 web 이미지에서 지도 확인.
+
 ## 2026-10-23 — Linux 에서 `make smoke`·`make discover` 가 호스트 폴더에 못 쓰던 것
 
 - 수집 이미지는 사용자 10001 로 도는데, Linux(WSL 포함)에서는 호스트 사용자가 가진 `fixtures/`·`seed/` 에 쓸 수 없어
