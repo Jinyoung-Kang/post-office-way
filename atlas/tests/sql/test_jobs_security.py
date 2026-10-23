@@ -5,6 +5,7 @@
 import os
 import threading
 import time
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from fastapi.testclient import TestClient
@@ -527,9 +528,11 @@ def test_late_finish_from_reaped_worker_is_ignored(fake_jobs, engine):
 
 def test_error_log_time_is_kst_regardless_of_process_timezone(client, engine, monkeypatch):
     """오류 로그 한 줄의 시각은 서비스 기준(KST) — 프로세스 시간대(TZ)에 기대지 않음."""
+    # 어제 00:00 UTC — 고정 날짜(2026-10-08)는 조회 기본 창(14일)을 벗어나는 날부터 목록이 비어 실패했음
+    at = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=1)
     with engine.begin() as c:
         c.execute(text("""INSERT INTO ops.app_error (source, method, path, error_type, message, at)
-                          VALUES ('api', 'GET', '/x', 'E', 'm', '2026-10-08 00:00:00+00')"""))
+                          VALUES ('api', 'GET', '/x', 'E', 'm', :at)"""), {"at": at})
     monkeypatch.setenv("TZ", "UTC")
     time.tzset()
     try:
@@ -537,7 +540,7 @@ def test_error_log_time_is_kst_regardless_of_process_timezone(client, engine, mo
     finally:
         monkeypatch.undo()
         time.tzset()
-    assert line.startswith("2026-10-08 09:00:00")
+    assert line.startswith(f"{at:%Y-%m-%d} 09:00:00")
 
 
 def test_reap_when_same_kind_already_queued(fake_jobs, engine):
