@@ -36,6 +36,8 @@
 SHELL := /bin/bash
 COMPOSE := docker compose
 RUN := $(COMPOSE) --profile batch run --rm collector
+# 호스트 폴더(seed/·fixtures/)에 쓰는 명령은 호스트 사용자로 — 이미지 사용자(10001)는 Linux 에서 호스트 소유 폴더에 못 씀(맥 Docker Desktop 은 괜찮았음)
+RUN_HOST := $(COMPOSE) --profile batch run --rm --user $(shell id -u):$(shell id -g) collector
 
 .DEFAULT_GOAL := help
 .PHONY: help env up down restart logs ps build migrate smoke discover collect sgis sgis-pop sgis-bnd kosis oa banks road geocheck \
@@ -81,10 +83,10 @@ ps:
 	$(COMPOSE) ps
 
 smoke: env
-	$(RUN) smoke
+	$(RUN_HOST) smoke
 
 discover: env
-	$(RUN) discover post $(if $(RANGE),--range $(RANGE),)
+	$(RUN_HOST) discover post $(if $(RANGE),--range $(RANGE),)
 
 collect: env
 	$(RUN) collect post $(if $(SCOPE),--scope $(SCOPE),) $(if $(RESUME),--resume $(RESUME),)
